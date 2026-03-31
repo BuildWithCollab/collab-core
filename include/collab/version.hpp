@@ -14,7 +14,7 @@ struct Version {
 };
 
 // collab-core version
-inline constexpr Version core_version{0, 1, 0};
-inline constexpr std::string_view core_version_string = "0.1.0";
+inline constexpr Version core_version{0, 4, 0};
+inline constexpr std::string_view core_version_string = "0.4.0";
 
 }  // namespace collab
