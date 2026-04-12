@@ -10,6 +10,8 @@ option("build_tests")
     set_description("Build test targets")
 option_end()
 
+add_requires("boost_pfr")
+
 if get_config("build_tests") then
     add_requires("catch2")
 end
