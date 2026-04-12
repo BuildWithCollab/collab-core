@@ -6,6 +6,12 @@ import collab.core;
 
 using collab::core::semver;
 
+TEST_CASE("collab::core::version is defined", "[version]") {
+    STATIC_REQUIRE(collab::core::version.major == 1);
+    STATIC_REQUIRE(collab::core::version.minor == 0);
+    STATIC_REQUIRE(collab::core::version.patch == 0);
+}
+
 TEST_CASE("semver construction", "[semver]") {
     const semver v1{1, 2, 3};
     REQUIRE(v1.major == 1);
