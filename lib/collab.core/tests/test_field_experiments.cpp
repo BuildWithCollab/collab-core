@@ -1,81 +1,136 @@
-// [EXPERIMENT O] Combine: alias-template `name<S>` + type-param Core tag
-// (user-declared once). Real-shape DSL.
+// [EXPERIMENT Q+R] Shapes A and F, using ext_pack<Exts...> member instead
+// of direct inheritance, so all Field-level init is designated.
 #include <catch2/catch_test_macros.hpp>
 
-#include <cstddef>
+#include <boost/pfr.hpp>
+
 #include <string>
 #include <string_view>
-#include <utility>
+#include <vector>
 
 import collab.core;
 
-using collab::core::fixed_string;
 using collab::core::options;
 
-template <char... Chars>
-struct name_pack {
-    static constexpr char value[sizeof...(Chars) + 1] = {Chars..., '\0'};
+// ── Fake subsystem metadata types ───────────────────────────────────
+
+struct posix_options {
+    char short_flag = '\0';
+    bool from_stdin = false;
+    bool positional = false;
 };
 
-template <fixed_string S, std::size_t... Is>
-consteval auto to_name_pack_impl(std::index_sequence<Is...>) -> name_pack<S.value[Is]...> {
-    return {};
+struct render_options {
+    const char* style = "";
+    int         width = 0;
+};
+
+struct posix_ext  { posix_options posix{}; };
+struct render_ext { render_options render{}; };
+
+// ── ext_pack: inherits from all Exts, becomes a single member ───────
+
+template <typename... Exts>
+struct ext_pack : Exts... {};
+
+// ═════════════════════════════════════════════════════════════════════
+// SHAPE A — nested .core member
+// ═════════════════════════════════════════════════════════════════════
+
+template <typename T, typename ExtPack = ext_pack<>>
+struct FieldA {
+    ExtPack exts{};
+    T       value{};
+    options core{};
+
+    constexpr operator const T&() const& noexcept { return value; }
+    constexpr operator       T&()       & noexcept { return value; }
+};
+
+struct WeatherA {
+    FieldA<std::string>                        city    {.core = {.desc = "City", .required = true}};
+    FieldA<std::string, ext_pack<posix_ext>>   query   {.exts = {{.posix = {.from_stdin = true}}}, .core = {.desc = "Query"}};
+    FieldA<bool, ext_pack<posix_ext>>          verbose {.exts = {{.posix = {.short_flag = 'v'}}}, .core = {.desc = "Detail"}};
+    FieldA<std::vector<std::string>, ext_pack<posix_ext, render_ext>> tags {
+        .exts = {{.posix = {.short_flag = 't'}}, {.render = {.width = 20}}},
+        .core = {.desc = "Tags"}
+    };
+};
+
+struct SearchA {
+    FieldA<std::string, ext_pack<posix_ext>> query {.exts = {{.posix = {.from_stdin = true}}}, .core = {.desc = "Search query"}};
+};
+
+TEST_CASE("shape A: basic usage", "[shape-a]") {
+    WeatherA w{};
+    REQUIRE(w.city.value.empty());
+    REQUIRE(std::string_view{w.city.core.desc} == "City");
+    REQUIRE(w.city.core.required == true);
+    REQUIRE(w.query.exts.posix.from_stdin == true);
+    REQUIRE(w.verbose.exts.posix.short_flag == 'v');
+    REQUIRE(w.tags.exts.render.width == 20);
+    REQUIRE(w.tags.exts.posix.short_flag == 't');
 }
 
-template <fixed_string S>
-using name = decltype(to_name_pack_impl<S>(std::make_index_sequence<S.size()>{}));
+TEST_CASE("shape A: LNK1179 repro", "[shape-a]") {
+    WeatherA w{};
+    SearchA  s{};
+    REQUIRE(std::string_view{w.query.core.desc} == "Query");
+    REQUIRE(std::string_view{s.query.core.desc} == "Search query");
+}
 
-struct default_core_tag {
-    static constexpr options value{};
+// ═════════════════════════════════════════════════════════════════════
+// SHAPE F — flat core members
+// ═════════════════════════════════════════════════════════════════════
+
+template <typename T, typename ExtPack = ext_pack<>>
+struct FieldF {
+    ExtPack     exts{};
+    T           value{};
+    const char* desc         = "";
+    bool        required     = false;
+    const char* display_name = "";
+    bool        hidden       = false;
+
+    constexpr operator const T&() const& noexcept { return value; }
+    constexpr operator       T&()       & noexcept { return value; }
 };
 
-template <typename NamePack, typename T, typename CoreTag = default_core_tag>
-struct MiniField {
-    T value{};
-    static consteval const char*  field_name() { return NamePack::value; }
-    static consteval const auto&  field_core() { return CoreTag::value; }
+struct WeatherF {
+    FieldF<std::string>                        city    {.desc = "City", .required = true};
+    FieldF<std::string, ext_pack<posix_ext>>   query   {.exts = {{.posix = {.from_stdin = true}}}, .desc = "Query"};
+    FieldF<bool, ext_pack<posix_ext>>          verbose {.exts = {{.posix = {.short_flag = 'v'}}}, .desc = "Detail"};
+    FieldF<std::vector<std::string>, ext_pack<posix_ext, render_ext>> tags {
+        .exts = {{.posix = {.short_flag = 't'}}, {.render = {.width = 20}}},
+        .desc = "Tags"
+    };
 };
 
-// User declares tag structs once for each distinct options value.
-struct session_id_meta {
-    static constexpr options value = {.desc = "Session ID", .required = true};
+struct SearchF {
+    FieldF<std::string, ext_pack<posix_ext>> query {.exts = {{.posix = {.from_stdin = true}}}, .desc = "Search query"};
 };
 
-struct LoginResponseO  { MiniField<name<"session_id">, std::string, session_id_meta> session_id; };
-struct LogoutResponseO { MiniField<name<"session_id">, std::string, session_id_meta> session_id; };
-struct WhoAmIO         { MiniField<name<"session_id">, std::string, session_id_meta> session_id; };
+TEST_CASE("shape F: basic usage", "[shape-f]") {
+    WeatherF w{};
+    REQUIRE(w.city.value.empty());
+    REQUIRE(std::string_view{w.city.desc} == "City");
+    REQUIRE(w.city.required == true);
+    REQUIRE(w.query.exts.posix.from_stdin == true);
+    REQUIRE(w.verbose.exts.posix.short_flag == 'v');
+    REQUIRE(w.tags.exts.render.width == 20);
+    REQUIRE(w.tags.exts.posix.short_flag == 't');
+}
 
-// Also test plain default-options inline — no tag needed:
-struct UserProfileO {
-    MiniField<name<"first">, std::string> first;
-    MiniField<name<"last">,  std::string> last;
-    MiniField<name<"age">,   int>         age;
-};
+TEST_CASE("shape F: LNK1179 repro", "[shape-f]") {
+    WeatherF w{};
+    SearchF  s{};
+    REQUIRE(std::string_view{w.query.desc} == "Query");
+    REQUIRE(std::string_view{s.query.desc} == "Search query");
+}
 
-struct EmployeeO {
-    MiniField<name<"first">, std::string> first;   // same spec as UserProfile.first
-    MiniField<name<"last">,  std::string> last;    // same spec as UserProfile.last
-};
-
-TEST_CASE("experiment O: full DSL shape", "[exp-o]") {
-    LoginResponseO  login{};
-    LogoutResponseO logout{};
-    WhoAmIO         whoami{};
-    UserProfileO    user{};
-    EmployeeO       emp{};
-
-    REQUIRE(login.session_id.value.empty());
-    REQUIRE(logout.session_id.value.empty());
-    REQUIRE(whoami.session_id.value.empty());
-
-    using F = decltype(login.session_id);
-    const char* n = F::field_name();
-    REQUIRE(std::string_view{n} == "session_id");
-    REQUIRE(std::string_view{F::field_core().desc} == "Session ID");
-    REQUIRE(F::field_core().required == true);
-
-    // Default-core case, same spec used twice across structs:
-    REQUIRE(user.first.value.empty());
-    REQUIRE(emp.first.value.empty());
-    REQUIRE(user.age.value == 0);
+TEST_CASE("shape F: PFR get_name", "[shape-f][pfr]") {
+    constexpr auto n0 = boost::pfr::get_name<0, WeatherF>();
+    constexpr auto n1 = boost::pfr::get_name<1, WeatherF>();
+    REQUIRE(n0 == "city");
+    REQUIRE(n1 == "query");
 }
