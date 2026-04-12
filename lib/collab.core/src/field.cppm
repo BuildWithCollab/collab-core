@@ -1,9 +1,5 @@
 module;
 
-#include <boost/pfr.hpp>
-
-#include <concepts>
-#include <cstddef>
 #include <type_traits>
 #include <utility>
 
@@ -34,8 +30,8 @@ struct with : Exts... {};
 // ── Field<T, WithPack> ─────────────────────────────────────────────────
 //
 // The reflection primitive. Wraps a value of type T with optional inline
-// metadata (desc, required, display_name, hidden) and an extensible
-// `with<Exts...>` pack for domain-specific data (CLI, render, DB, etc.).
+// metadata and an extensible `with<Exts...>` pack for domain-specific
+// data (CLI, render, DB, etc.).
 //
 // Field is parameterized only by T and WithPack (both plain types). No
 // class-type NTTPs touch its specialization, so MSVC 14.50's duplicate-
@@ -84,31 +80,9 @@ namespace detail {
 template <typename T>
 concept IsField = detail::is_field_v<std::remove_cvref_t<T>>;
 
-// ── ReflectedStruct concept ─────────────────────────────────────────────
-
-namespace detail {
-
-    template <typename T, std::size_t... Is>
-    consteval bool any_member_is_field(std::index_sequence<Is...>) {
-        return (IsField<boost::pfr::tuple_element_t<Is, T>> || ...);
-    }
-
-    template <typename T>
-    consteval bool has_any_field_member() {
-        if constexpr (!std::is_aggregate_v<T>) {
-            return false;
-        } else if constexpr (boost::pfr::tuple_size_v<T> == std::size_t{0}) {
-            return false;
-        } else {
-            return any_member_is_field<T>(std::make_index_sequence<boost::pfr::tuple_size_v<T>>{});
-        }
-    }
-
-}  // namespace detail
-
-template <typename T>
-concept ReflectedStruct =
-    std::is_aggregate_v<T>
-    && detail::has_any_field_member<T>();
+// NOTE: ReflectedStruct concept and to_json live in
+// <collab/core/field_reflection.hpp> — a header, not a module partition.
+// MSVC 14.44 ICEs when PFR's fields_count is instantiated inside a
+// module-exported template. See investigation/ice/ for the full analysis.
 
 }  // namespace collab::core::fields

@@ -10,6 +10,8 @@
 
 import collab.core;
 
+#include <collab/core/field_reflection.hpp>
+
 using namespace collab::core::fields;
 
 // ── Domain-specific extension structs ───────────────────────────────────

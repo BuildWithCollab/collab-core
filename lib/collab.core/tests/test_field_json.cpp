@@ -1,10 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include <nlohmann/json.hpp>
-
-#include <ankerl/unordered_dense.h>
-
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -15,6 +11,8 @@
 #include <vector>
 
 import collab.core;
+
+#include <collab/core/field_reflection.hpp>
 
 using namespace collab::core::fields;
 using json = nlohmann::json;

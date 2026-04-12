@@ -1,4 +1,13 @@
-module;
+// 🔬 PFR-powered reflection utilities for Field<T>
+//
+// This lives as a header (not a module partition) because MSVC 14.44
+// (VS 2022) ICEs when boost::pfr::fields_count is instantiated inside
+// a module-exported template on structs containing module-exported
+// template members. The bug is fixed in MSVC 14.50 (VS 2026).
+//
+// Field<T>, with<Exts...>, and IsField remain module-exported.
+// Only the PFR-dependent code lives here.
+#pragma once
 
 #include <boost/pfr.hpp>
 #include <nlohmann/json.hpp>
@@ -16,17 +25,40 @@ module;
 #include <utility>
 #include <vector>
 
-export module collab.core:field_json;
+namespace collab::core::fields {
 
-import :field;
+// ── ReflectedStruct concept ─────────────────────────────────────────────
 
-export namespace collab::core::fields {
+namespace detail {
+
+    template <typename T, std::size_t... Is>
+    consteval bool any_member_is_field(std::index_sequence<Is...>) {
+        return (IsField<boost::pfr::tuple_element_t<Is, T>> || ...);
+    }
+
+    template <typename T>
+    consteval bool has_any_field_member() {
+        if constexpr (!std::is_aggregate_v<T>) {
+            return false;
+        } else if constexpr (boost::pfr::tuple_size_v<T> == std::size_t{0}) {
+            return false;
+        } else {
+            return any_member_is_field<T>(std::make_index_sequence<boost::pfr::tuple_size_v<T>>{});
+        }
+    }
+
+}  // namespace detail
+
+template <typename T>
+concept ReflectedStruct =
+    std::is_aggregate_v<T>
+    && detail::has_any_field_member<T>();
 
 // ── to_json ────────────────────────────────────────────────────────────
 //
 // Serializes a ReflectedStruct to JSON. Walks each member via PFR,
-// keeps only IsField members (skipping hidden ones), uses get_name for
-// the key, unwraps .value, and hands it to nlohmann::json.
+// keeps only IsField members, uses get_name for the key, unwraps
+// .value, and hands it to nlohmann::json.
 //
 // Nested ReflectedStructs recurse. Non-Field members are skipped.
 //
@@ -76,8 +108,6 @@ namespace detail {
     inline constexpr bool is_map_v<ankerl::unordered_dense::map<std::string, V, Hash, Eq>> = true;
 
     // ── Single dispatch point ────────────────────────────────────────
-    //
-    // if constexpr handles all cases without overload resolution issues.
 
     template <typename T>
     nlohmann::json value_to_json(const T& v) {
