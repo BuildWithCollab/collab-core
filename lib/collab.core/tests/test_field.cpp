@@ -1,15 +1,8 @@
-// NOTE: Field<> specializations in this file use deliberately unique Name
-// NTTPs (e.g. "s_arrow", "s_empty", "s_default") rather than sharing a
-// single "s" across multiple TEST_CASEs. This is a workaround for an
-// MSVC 14.50 linker bug (LNK1179) where the same Field<Name, T, ...>
-// specialization referenced more than once textually in one translation
-// unit, with a non-trivially-destructible T, causes duplicate COMDAT
-// emission of Field's implicit dtor/ctor. See the block comment at the
-// top of lib/collab.core/src/field.cppm for full details.
 #include <catch2/catch_test_macros.hpp>
 
+#include <boost/pfr.hpp>
+
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -17,185 +10,242 @@
 
 import collab.core;
 
-using collab::core::Field;
-using collab::core::IsField;
-using collab::core::ReflectedStruct;
-using collab::core::options;
+using namespace collab::core::fields;
 
-// ── Test extensions (all structural types for NTTP use) ─────────────────
+// ── Domain-specific extension structs ───────────────────────────────────
 
-struct test_ext {
-    int         number = 0;
-    const char* tag    = "";
-    bool        flag   = false;
-};
-static_assert(std::is_standard_layout_v<test_ext>);
-
-struct ext_a {
-    int a = 0;
+struct posix_options {
+    char short_flag = '\0';
+    bool from_stdin = false;
+    bool positional = false;
 };
 
-struct ext_b {
-    float b = 0.0f;
+struct render_options {
+    const char* style = "";
+    int         width = 0;
 };
+
+struct posix_meta  { posix_options posix{}; };
+struct render_meta { render_options render{}; };
 
 // ── Basic instantiation and defaults ────────────────────────────────────
 
 TEST_CASE("Field default construction", "[field]") {
-    Field<"test", int> f;
-    REQUIRE(f.value == 0);
-    REQUIRE(std::string_view{decltype(f)::field_core().desc} == "");
-    REQUIRE(decltype(f)::field_core().required == false);
-    STATIC_REQUIRE(std::is_same_v<decltype(f)::type, int>);
-    REQUIRE(std::string_view{decltype(f)::field_name().c_str()} == "test");
+    Field<int> fi;
+    REQUIRE(fi.value == 0);
+    REQUIRE(std::string_view{fi.desc} == "");
+    REQUIRE(fi.required == false);
+    REQUIRE(fi.hidden == false);
 
-    Field<"s_default", std::string> fs;
+    Field<std::string> fs;
     REQUIRE(fs.value.empty());
 
-    Field<"b", bool> fb;
+    Field<bool> fb;
     REQUIRE(fb.value == false);
 }
 
-// ── Core options via NTTP ───────────────────────────────────────────────
+// ── Flat core metadata via designated init ───────────────────────────────
 
-TEST_CASE("Field carries core options via NTTP", "[field][options]") {
-    using CityField = Field<"city_opts", std::string, options{.desc = "City name", .required = true}>;
-    STATIC_REQUIRE(std::string_view{CityField::field_core().desc} == "City name");
-    STATIC_REQUIRE(CityField::field_core().required == true);
+TEST_CASE("Field carries flat core metadata", "[field][core]") {
+    struct Args {
+        Field<std::string> city    {.desc = "City name", .required = true};
+        Field<int>         days    {.value = 7, .desc = "Forecast days"};
+        Field<int>         hidden  {.hidden = true};
+        Field<std::string> label   {.display_name = "Display Label"};
+    };
 
-    using DaysField =
-        Field<"days_opts", int, options{.desc = "Days", .display_name = "Days to Forecast"}>;
-    STATIC_REQUIRE(std::string_view{DaysField::field_core().display_name} == "Days to Forecast");
-
-    using HiddenField = Field<"hidden_field", int, options{.hidden = true}>;
-    STATIC_REQUIRE(HiddenField::field_core().hidden == true);
+    Args a{};
+    REQUIRE(std::string_view{a.city.desc} == "City name");
+    REQUIRE(a.city.required == true);
+    REQUIRE(a.days.value == 7);
+    REQUIRE(std::string_view{a.days.desc} == "Forecast days");
+    REQUIRE(a.hidden.hidden == true);
+    REQUIRE(std::string_view{a.label.display_name} == "Display Label");
 }
 
 // ── Transparent conversion ──────────────────────────────────────────────
 
-TEST_CASE("Field is transparently convertible to its wrapped type", "[field][conversion]") {
-    Field<"x_conv", int> f;
+TEST_CASE("Field transparent conversion", "[field][conversion]") {
+    Field<int> f;
     f = 42;
     int y = f;
     REQUIRE(y == 42);
 
-    Field<"s_conv", std::string> g;
-    g                      = "hello";
+    Field<std::string> g;
+    g = "hello";
     const std::string& ref = g;
     REQUIRE(ref == "hello");
 }
 
 TEST_CASE("Field round-trips via implicit conversion", "[field][conversion]") {
-    Field<"n_round", int> f;
+    Field<int> f;
     f = 7;
     int via_conv = f;
-    f            = via_conv + 1;
+    f = via_conv + 1;
     REQUIRE(f.value == 8);
 }
 
 // ── operator-> passthrough ──────────────────────────────────────────────
 
-TEST_CASE("Field operator-> delegates to the wrapped value", "[field][arrow]") {
-    Field<"s_arrow", std::string> f;
+TEST_CASE("Field operator->", "[field][arrow]") {
+    Field<std::string> f;
     f = "hello";
     REQUIRE(f->size() == 5);
 
-    Field<"s_empty", std::string> e;
+    Field<std::string> e;
     REQUIRE(e->empty());
 
-    Field<"v_arrow", std::vector<int>> v;
+    Field<std::vector<int>> v;
     v.value = {1, 2, 3};
     REQUIRE(v->size() == 3);
 }
 
-// ── Use as a member of an outer aggregate ───────────────────────────────
+// ── with<> extensions ───────────────────────────────────────────────────
 
-struct TestArgs {
-    Field<"city", std::string, options{.desc = "City", .required = true}> city;
-    Field<"days", int, options{.desc = "Days"}>                           days{7};
+TEST_CASE("Field with single extension", "[field][with]") {
+    struct Args {
+        Field<std::string, with<posix_meta>> query {
+            .with = {{.posix = {.from_stdin = true}}},
+            .desc = "Search query"
+        };
+    };
+
+    Args a{};
+    REQUIRE(a.query.with.posix.from_stdin == true);
+    REQUIRE(a.query.with.posix.short_flag == '\0');
+    REQUIRE(std::string_view{a.query.desc} == "Search query");
+}
+
+TEST_CASE("Field with multiple extensions", "[field][with]") {
+    struct Args {
+        Field<bool, with<posix_meta, render_meta>> verbose {
+            .with = {{.posix = {.short_flag = 'v'}}, {.render = {.style = "dimmed"}}},
+            .desc = "Verbose output"
+        };
+    };
+
+    Args a{};
+    REQUIRE(a.verbose.with.posix.short_flag == 'v');
+    REQUIRE(std::string_view{a.verbose.with.render.style} == "dimmed");
+    REQUIRE(std::string_view{a.verbose.desc} == "Verbose output");
+}
+
+// ── Outer struct aggregate + designated init ────────────────────────────
+
+struct WeatherArgs {
+    Field<std::string>                       city    {.desc = "City", .required = true};
+    Field<int>                               days    {.value = 7, .desc = "Forecast days"};
+    Field<bool, with<posix_meta>>            verbose {.with = {{.posix = {.short_flag = 'v'}}}, .desc = "Detail"};
+    Field<std::vector<std::string>, with<posix_meta, render_meta>> tags {
+        .with = {{.posix = {.short_flag = 't'}}, {.render = {.width = 20}}},
+        .desc = "Tags"
+    };
 };
 
-TEST_CASE("Field preserves outer struct aggregate-initializability", "[field][aggregate]") {
-    STATIC_REQUIRE(std::is_aggregate_v<Field<"agg_int", int>>);
-    STATIC_REQUIRE(std::is_aggregate_v<TestArgs>);
+TEST_CASE("Field in outer struct", "[field][aggregate]") {
+    STATIC_REQUIRE(std::is_aggregate_v<WeatherArgs>);
 
-    TestArgs a{};
-    REQUIRE(a.city.value.empty());
-    REQUIRE(a.days.value == 7);
-
-    TestArgs b{.days = {14}};
-    REQUIRE(b.days.value == 14);
-    REQUIRE(b.city.value.empty());
-
-    TestArgs c{};
-    c.city = "Portland";
-    REQUIRE(std::string(c.city) == "Portland");
+    WeatherArgs w{};
+    REQUIRE(w.city.value.empty());
+    REQUIRE(w.days.value == 7);
+    REQUIRE(w.verbose.value == false);
+    REQUIRE(w.verbose.with.posix.short_flag == 'v');
+    REQUIRE(w.tags.with.render.width == 20);
 }
 
-// ── Extension lookup (single) ───────────────────────────────────────────
+// ── PFR get_name ────────────────────────────────────────────────────────
 
-TEST_CASE("Field::ext<E> returns the matching extension", "[field][ext]") {
-    using F = Field<"x_ext_single", int, {}, test_ext{.number = 42, .tag = "foo"}>;
-    STATIC_REQUIRE(F::template ext<test_ext>().number == 42);
-    STATIC_REQUIRE(std::string_view{F::template ext<test_ext>().tag} == "foo");
+TEST_CASE("PFR get_name extracts field names", "[field][pfr]") {
+    constexpr auto n0 = boost::pfr::get_name<0, WeatherArgs>();
+    constexpr auto n1 = boost::pfr::get_name<1, WeatherArgs>();
+    constexpr auto n2 = boost::pfr::get_name<2, WeatherArgs>();
+    constexpr auto n3 = boost::pfr::get_name<3, WeatherArgs>();
+
+    REQUIRE(n0 == "city");
+    REQUIRE(n1 == "days");
+    REQUIRE(n2 == "verbose");
+    REQUIRE(n3 == "tags");
 }
 
-TEST_CASE("Field::ext<E> returns a default-constructed E when absent", "[field][ext]") {
-    using F = Field<"x_ext_absent", int>;
-    STATIC_REQUIRE(F::template ext<test_ext>().number == 0);
-    STATIC_REQUIRE(F::template ext<test_ext>().flag == false);
+// ── LNK1179 repro: same spec, multiple structs, one TU ─────────────────
+
+struct LoginResponse {
+    Field<std::string> session_id {.desc = "Session ID", .required = true};
+    Field<std::string> user_name  {.desc = "User name"};
+};
+
+struct LogoutResponse {
+    Field<std::string> session_id {.desc = "Session ID"};
+};
+
+struct WhoAmI {
+    Field<std::string> session_id {.desc = "Session ID"};
+    Field<std::string> display_name {.desc = "Display name"};
+};
+
+TEST_CASE("Same Field<std::string> across multiple structs — no LNK1179", "[field][lnk1179]") {
+    LoginResponse  login{};
+    LogoutResponse logout{};
+    WhoAmI         whoami{};
+
+    REQUIRE(login.session_id.value.empty());
+    REQUIRE(logout.session_id.value.empty());
+    REQUIRE(whoami.session_id.value.empty());
+    REQUIRE(std::string_view{login.session_id.desc} == "Session ID");
+    REQUIRE(login.session_id.required == true);
+    REQUIRE(logout.session_id.required == false);
 }
 
-TEST_CASE("Field::has_ext reports extension presence", "[field][ext]") {
-    STATIC_REQUIRE(Field<"x_hasext_yes", int, {}, test_ext{}>::template has_ext<test_ext>() == true);
-    STATIC_REQUIRE(Field<"x_hasext_no", int>::template has_ext<test_ext>() == false);
-}
+// Same spec WITH extensions across multiple structs:
+struct SearchArgs {
+    Field<std::string, with<posix_meta>> query {
+        .with = {{.posix = {.from_stdin = true}}},
+        .desc = "Search query"
+    };
+};
 
-// ── Multi-extension pack ────────────────────────────────────────────────
+struct GrepArgs {
+    Field<std::string, with<posix_meta>> query {
+        .with = {{.posix = {.from_stdin = true}}},
+        .desc = "Pattern"
+    };
+};
 
-TEST_CASE("Field supports multiple distinct extensions", "[field][ext][multi]") {
-    using F = Field<"x_multi", int, {}, ext_a{.a = 11}, ext_b{.b = 2.5f}>;
-    STATIC_REQUIRE(F::template ext<ext_a>().a == 11);
-    STATIC_REQUIRE(F::template ext<ext_b>().b == 2.5f);
-    STATIC_REQUIRE(F::template has_ext<ext_a>());
-    STATIC_REQUIRE(F::template has_ext<ext_b>());
-}
+TEST_CASE("Same Field<std::string, with<posix_meta>> across structs — no LNK1179", "[field][lnk1179]") {
+    SearchArgs search{};
+    GrepArgs   grep{};
 
-// ── Zero-extension pack ─────────────────────────────────────────────────
-
-TEST_CASE("Field with an empty extension pack", "[field][ext][empty]") {
-    STATIC_REQUIRE(Field<"x_empty_pack_a", int>::template has_ext<test_ext>() == false);
-    STATIC_REQUIRE(
-        Field<"x_empty_pack_b", int, options{.desc = "only core"}>::template has_ext<test_ext>()
-        == false
-    );
+    REQUIRE(search.query.with.posix.from_stdin == true);
+    REQUIRE(grep.query.with.posix.from_stdin == true);
+    REQUIRE(std::string_view{search.query.desc} == "Search query");
+    REQUIRE(std::string_view{grep.query.desc} == "Pattern");
 }
 
 // ── IsField concept ─────────────────────────────────────────────────────
 
-TEST_CASE("IsField detects Field specializations", "[field][concept][is_field]") {
-    STATIC_REQUIRE(IsField<Field<"x_isfield", int>>);
-    STATIC_REQUIRE(IsField<Field<"y_isfield", std::string, options{.desc = "y"}>>);
+TEST_CASE("IsField detects Field specializations", "[field][concept]") {
+    STATIC_REQUIRE(IsField<Field<int>>);
+    STATIC_REQUIRE(IsField<Field<std::string>>);
+    STATIC_REQUIRE(IsField<Field<std::string, with<posix_meta>>>);
     STATIC_REQUIRE(!IsField<int>);
-    STATIC_REQUIRE(!IsField<std::optional<int>>);
     STATIC_REQUIRE(!IsField<std::string>);
 }
 
 // ── ReflectedStruct concept ─────────────────────────────────────────────
 
 struct OnlyFields {
-    Field<"a_only", int>         a;
-    Field<"b_only", std::string> b;
+    Field<int>         a;
+    Field<std::string> b;
 };
 
 struct MixedStruct {
-    Field<"a_mixed", int>         a;
-    int                           plain = 0;   // non-Field, invisible to the framework
-    Field<"b_mixed", std::string> b;
-    std::unique_ptr<int>          helper;      // non-Field, invisible; doesn't break aggregate
+    Field<int>           a;
+    int                  plain = 0;
+    Field<std::string>   b;
+    std::unique_ptr<int> helper;
 };
 
-struct EmptyStruct {};  // aggregate but zero members
+struct EmptyStruct {};
 
 struct NoFieldsOnlyPlain {
     int x = 0;
@@ -203,17 +253,18 @@ struct NoFieldsOnlyPlain {
 };
 
 struct NonAggregate {
-    NonAggregate() {}  // user-declared constructor defeats aggregate status
-    Field<"x_nonagg", int> x;
+    NonAggregate() {}
+    Field<int> x;
 };
 
-TEST_CASE("ReflectedStruct accepts aggregates with at least one Field member", "[field][concept][reflected]") {
+TEST_CASE("ReflectedStruct accepts aggregates with Field members", "[field][concept]") {
     STATIC_REQUIRE(ReflectedStruct<OnlyFields>);
     STATIC_REQUIRE(ReflectedStruct<MixedStruct>);
-    STATIC_REQUIRE(ReflectedStruct<TestArgs>);
+    STATIC_REQUIRE(ReflectedStruct<WeatherArgs>);
+    STATIC_REQUIRE(ReflectedStruct<LoginResponse>);
 }
 
-TEST_CASE("ReflectedStruct rejects non-qualifying types", "[field][concept][reflected]") {
+TEST_CASE("ReflectedStruct rejects non-qualifying types", "[field][concept]") {
     STATIC_REQUIRE(!ReflectedStruct<EmptyStruct>);
     STATIC_REQUIRE(!ReflectedStruct<NoFieldsOnlyPlain>);
     STATIC_REQUIRE(!ReflectedStruct<int>);
