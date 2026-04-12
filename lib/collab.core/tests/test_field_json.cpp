@@ -134,6 +134,33 @@ struct DenseSetStruct {
     Field<ankerl::unordered_dense::set<std::string>> names;
 };
 
+// ── Numeric fields ──────────────────────────────────────────────────────
+
+struct Measurement {
+    Field<std::string> unit;
+    Field<double>      value;
+};
+
+struct FloatStruct {
+    Field<float> weight;
+};
+
+struct BigNumbers {
+    Field<int64_t>  signed_big;
+    Field<uint64_t> unsigned_big;
+};
+
+// ── Optional nested structs ─────────────────────────────────────────────
+
+struct Inner {
+    Field<int> x;
+};
+
+struct Outer {
+    Field<std::string>          name;
+    Field<std::optional<Inner>> extra;
+};
+
 // ── Tests ────────────────────────────────────────────────────────────────
 
 TEST_CASE("to_json with primitive Field types", "[field][json]") {
@@ -277,11 +304,6 @@ TEST_CASE("to_json with empty vector", "[field][json]") {
 }
 
 TEST_CASE("to_json with double field", "[field][json]") {
-    struct Measurement {
-        Field<std::string> unit;
-        Field<double>      value;
-    };
-
     Measurement m;
     m.unit = "celsius";
     m.value = 72.5;
@@ -293,10 +315,6 @@ TEST_CASE("to_json with double field", "[field][json]") {
 }
 
 TEST_CASE("to_json with float field", "[field][json]") {
-    struct FloatStruct {
-        Field<float> weight;
-    };
-
     FloatStruct fs;
     fs.weight.value = 3.14f;
 
@@ -306,11 +324,6 @@ TEST_CASE("to_json with float field", "[field][json]") {
 }
 
 TEST_CASE("to_json with int64_t and uint64_t fields", "[field][json]") {
-    struct BigNumbers {
-        Field<int64_t>  signed_big;
-        Field<uint64_t> unsigned_big;
-    };
-
     BigNumbers bn;
     bn.signed_big.value = 9'000'000'000LL;
     bn.unsigned_big.value = 18'000'000'000ULL;
@@ -321,15 +334,6 @@ TEST_CASE("to_json with int64_t and uint64_t fields", "[field][json]") {
 }
 
 TEST_CASE("to_json with optional ReflectedStruct — present", "[field][json]") {
-    struct Inner {
-        Field<int> x;
-    };
-
-    struct Outer {
-        Field<std::string>         name;
-        Field<std::optional<Inner>> extra;
-    };
-
     Outer o;
     o.name = "test";
     o.extra.value = Inner{};
@@ -342,15 +346,6 @@ TEST_CASE("to_json with optional ReflectedStruct — present", "[field][json]") 
 }
 
 TEST_CASE("to_json with optional ReflectedStruct — absent", "[field][json]") {
-    struct Inner {
-        Field<int> x;
-    };
-
-    struct Outer {
-        Field<std::string>         name;
-        Field<std::optional<Inner>> extra;
-    };
-
     Outer o;
     o.name = "test";
 
