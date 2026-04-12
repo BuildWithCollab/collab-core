@@ -3,6 +3,8 @@ target("collab.core")
     add_files("src/**.cpp")
     add_files("src/**.cppm", { public = true })
     add_packages("boost_pfr", { public = true })
+    add_packages("nlohmann_json", { public = true })
+    add_packages("unordered_dense", { public = true })
 
 if get_config("build_tests") then
     target("tests-collab.core")

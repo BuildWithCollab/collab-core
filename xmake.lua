@@ -11,6 +11,8 @@ option("build_tests")
 option_end()
 
 add_requires("boost_pfr")
+add_requires("nlohmann_json")
+add_requires("unordered_dense")
 
 if get_config("build_tests") then
     add_requires("catch2")

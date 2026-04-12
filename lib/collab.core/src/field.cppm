@@ -48,10 +48,6 @@ template <typename T, typename WithPack = with<>>
 struct Field {
     WithPack    with{};
     T           value{};
-    const char* desc         = "";
-    bool        required     = false;
-    const char* display_name = "";
-    bool        hidden       = false;
 
     // ── Transparent conversions ─────────────────────────────────────
     constexpr operator const T&() const& noexcept { return value; }
