@@ -2,7 +2,7 @@ target("collab.core")
     set_kind("static")
     add_files("src/**.cpp")
     add_files("src/**.cppm", { public = true })
-    add_packages("boost_pfr", { public = true })
+    add_packages("pfr_non_boost", { public = true })
     add_packages("nlohmann_json", { public = true })
     add_packages("unordered_dense", { public = true })
 

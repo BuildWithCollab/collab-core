@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <boost/pfr.hpp>
+#include <pfr.hpp>
 
 #include <memory>
 #include <string>
@@ -129,10 +129,10 @@ TEST_CASE("Field in outer struct", "[field][aggregate]") {
 // ── PFR get_name ────────────────────────────────────────────────────────
 
 TEST_CASE("PFR get_name extracts field names", "[field][pfr]") {
-    constexpr auto n0 = boost::pfr::get_name<0, WeatherArgs>();
-    constexpr auto n1 = boost::pfr::get_name<1, WeatherArgs>();
-    constexpr auto n2 = boost::pfr::get_name<2, WeatherArgs>();
-    constexpr auto n3 = boost::pfr::get_name<3, WeatherArgs>();
+    constexpr auto n0 = pfr::get_name<0, WeatherArgs>();
+    constexpr auto n1 = pfr::get_name<1, WeatherArgs>();
+    constexpr auto n2 = pfr::get_name<2, WeatherArgs>();
+    constexpr auto n3 = pfr::get_name<3, WeatherArgs>();
 
     REQUIRE(n0 == "city");
     REQUIRE(n1 == "days");

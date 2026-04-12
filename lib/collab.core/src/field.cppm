@@ -1,6 +1,6 @@
 module;
 
-#include <boost/pfr.hpp>
+#include <pfr.hpp>
 
 #include <concepts>
 #include <cstddef>
@@ -41,7 +41,7 @@ struct with : Exts... {};
 // class-type NTTPs touch its specialization, so MSVC 14.50's duplicate-
 // COMDAT bug (LNK1179) cannot fire.
 //
-// The field's compile-time name comes from boost::pfr::get_name on the
+// The field's compile-time name comes from pfr::get_name on the
 // outer struct, not from a template parameter. Users write the member
 // name once as the C++ identifier and never duplicate it as a string.
 template <typename T, typename WithPack = with<>>
@@ -90,17 +90,17 @@ namespace detail {
 
     template <typename T, std::size_t... Is>
     consteval bool any_member_is_field(std::index_sequence<Is...>) {
-        return (IsField<boost::pfr::tuple_element_t<Is, T>> || ...);
+        return (IsField<pfr::tuple_element_t<Is, T>> || ...);
     }
 
     template <typename T>
     consteval bool has_any_field_member() {
         if constexpr (!std::is_aggregate_v<T>) {
             return false;
-        } else if constexpr (boost::pfr::tuple_size_v<T> == std::size_t{0}) {
+        } else if constexpr (pfr::tuple_size_v<T> == std::size_t{0}) {
             return false;
         } else {
-            return any_member_is_field<T>(std::make_index_sequence<boost::pfr::tuple_size_v<T>>{});
+            return any_member_is_field<T>(std::make_index_sequence<pfr::tuple_size_v<T>>{});
         }
     }
 

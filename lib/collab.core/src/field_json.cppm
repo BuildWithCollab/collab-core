@@ -1,6 +1,6 @@
 module;
 
-#include <boost/pfr.hpp>
+#include <pfr.hpp>
 #include <nlohmann/json.hpp>
 
 #include <ankerl/unordered_dense.h>
@@ -96,9 +96,9 @@ namespace detail {
             return obj;
         } else if constexpr (ReflectedStruct<T>) {
             nlohmann::json j = nlohmann::json::object();
-            boost::pfr::for_each_field(v, [&]<typename M>(const M& member, auto I) {
+            pfr::for_each_field(v, [&]<typename M>(const M& member, auto I) {
                 if constexpr (IsField<M>) {
-                    constexpr auto name = boost::pfr::get_name<I(), T>();
+                    constexpr auto name = pfr::get_name<I(), T>();
                     j[std::string(name)] = value_to_json(member.value);
                 }
             });
