@@ -20,6 +20,8 @@ struct with : Exts... {};
 
 template <typename T, typename WithPack = with<>>
 struct field {
+    using value_type = T;
+
     WithPack    with{};
     T           value{};
 

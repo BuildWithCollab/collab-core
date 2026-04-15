@@ -18,11 +18,13 @@
 - [ ] Move `field<T>`, `with<>`, `reflect_on<T>()`, field_info, field_descriptor from `collab::field` → `collab::model`
 - [ ] Kill the `collab::field` namespace entirely
 - [ ] Update all tests and imports
+- [ ] Duplicate test structs (SimpleArgs, WeatherArgs, MixedStruct) exist across test files with different shapes — consolidation opportunity during migration
 
 ### Kill `reflection<T>`
 - [ ] Remove `reflection<T>` wrapper class from `field_reflect.cppm`
 - [ ] Absorb anything useful into `type_def<T>` internals or free functions
 - [ ] Purr explicitly does not want a wrapper class called `reflection<T>`
+- [ ] Migrate or remove `test_field_reflect.cpp` and `test_field_reflect_on.cpp` — they test the old `reflect<T>()` API. Anything not already covered by `test_type_def.cpp` should be ported over.
 
 ### `set` by runtime name
 - [ ] `type_def<T>{}.set(instance, "field_name", value)` — type-checked assignment
@@ -67,4 +69,4 @@
 - Does the dynamic builder need `.build()` or can it be implicit?
 - What's the type-erased storage strategy for `object`? (`std::any` vs variant of common types vs something else)
 - How much of the polymorphic base do we actually need right now vs later?
-- Should `set` return a bool (like `get`) or throw/error on missing field?
+- ~~Should `set` return a bool (like `get`) or throw/error on missing field?~~ → `bool`, matching `get` semantics. Decided.
