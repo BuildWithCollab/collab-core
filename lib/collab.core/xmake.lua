@@ -5,6 +5,13 @@ target("collab.core")
     add_packages("fmt", { public = true })
     add_packages("spdlog")
     add_packages("rang")
+    add_packages("nlohmann_json", { public = true })
+    add_packages("unordered_dense", { public = true })
+
+    if get_config("enable_pfr") then
+        add_packages("pfr_non_boost", { public = true })
+        add_defines("COLLAB_FIELD_HAS_PFR", { public = true })
+    end
 
 if get_config("build_tests") then
     target("tests-collab.core")
