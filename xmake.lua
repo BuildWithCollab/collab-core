@@ -10,11 +10,6 @@ if is_plat("windows") then
     add_cxxflags("/utf-8", { public = true })
 end
 
--- xmake forces -D_GLIBCXX_USE_CXX11_ABI=0 for GCC < 15 when modules are on
--- (workaround for xmake#2716/#3855). That mismatches the default-new-ABI
--- Catch2 package and breaks the link. Opt back into the new ABI.
-set_policy("build.c++.modules.gcc.cxx11abi", true)
-
 add_requires("spdlog")
 add_requires("fmt")
 add_requires("rang")
