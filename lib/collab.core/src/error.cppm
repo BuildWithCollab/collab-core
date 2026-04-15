@@ -7,7 +7,7 @@ export module collab.core:error;
 
 export namespace collab::core {
 
-struct Error {
+struct error {
     std::string message;
     std::string category = "general";
 };

@@ -5,17 +5,17 @@
 
 import collab.core;
 
-using collab::core::Error;
+using collab::core::error;
 namespace ec = collab::core::error_category;
 
-TEST_CASE("Error default construction", "[error]") {
-    Error e;
+TEST_CASE("error default construction", "[error]") {
+    error e;
     REQUIRE(e.message == "");
     REQUIRE(e.category == "general");
 }
 
-TEST_CASE("Error explicit construction", "[error]") {
-    Error e{.message = "boom", .category = std::string{ec::network}};
+TEST_CASE("error explicit construction", "[error]") {
+    error e{.message = "boom", .category = std::string{ec::network}};
     REQUIRE(e.message == "boom");
     REQUIRE(e.category == "network");
 }
