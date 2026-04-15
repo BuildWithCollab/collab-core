@@ -63,15 +63,15 @@ jobs:
 
       - name: Configure (Linux GCC 14)
         if: matrix.toolchain == 'gcc-14'
-        run: xmake config --toolchain=gcc -y
+        run: xmake config --toolchain=gcc --enable_pfr=n -y
 
       - name: Configure (macOS LLVM)
         if: matrix.toolchain == 'llvm'
-        run: xmake config --toolchain=llvm --sdk="$(brew --prefix llvm)" -y
+        run: xmake config --toolchain=llvm --sdk="$(brew --prefix llvm)" --enable_pfr=n -y
 
       - name: Configure (Windows)
         if: matrix.toolchain == ''
-        run: xmake config -y
+        run: xmake config --enable_pfr=n -y
 
       - name: Build
         run: xmake build -a
