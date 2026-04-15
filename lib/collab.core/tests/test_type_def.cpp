@@ -27,17 +27,13 @@ struct tag_info {
     const char* value = "";
 };
 
-struct cli_options {
-    char        short_flag = '\0';
+struct cli_meta {
+    struct { char short_flag = '\0'; } cli;
 };
 
-struct render_options {
-    const char* style = "";
-    int         width = 0;
+struct render_meta {
+    struct { const char* style = ""; int width = 0; } render;
 };
-
-struct cli_meta    { cli_options cli{}; };
-struct render_meta { render_options render{}; };
 
 // ═════════════════════════════════════════════════════════════════════════
 // Test structs
