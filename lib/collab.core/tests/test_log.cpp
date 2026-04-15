@@ -8,6 +8,7 @@
 #include <string_view>
 #include <vector>
 
+
 import collab.core;
 
 using namespace collab::log;
@@ -215,6 +216,11 @@ TEST_CASE("file sink appends across multiple sessions", "[log]") {
     std::filesystem::remove(path);
 }
 
+
+// Color output uses Win32 console API on Windows (wincolor_sink), not ANSI
+// escapes. The color difference is untestable via fd capture — console
+// attribute calls don't appear in the byte stream.
+
 TEST_CASE("stdout sink can be created and receives messages", "[log]") {
     log_fixture fix;
 
@@ -223,6 +229,24 @@ TEST_CASE("stdout sink can be created and receives messages", "[log]") {
 
     warn("stdout test warning");
     error("stdout test error");
+
+    auto* cap = make_capture();
+
+    info("filtered out");
+    error("visible");
+
+    REQUIRE(cap->entries.size() == 1);
+    CHECK(cap->entries[0].msg == "visible");
+}
+
+TEST_CASE("stdout color sink can be created and receives messages", "[log]") {
+    log_fixture fix;
+
+    add_sink(make_stdout_color_sink());
+    set_level(level::warn);
+
+    warn("stdout color warning");
+    error("stdout color error");
 
     auto* cap = make_capture();
 
@@ -242,6 +266,25 @@ TEST_CASE("stderr sink can be created and receives messages", "[log]") {
     warn("stderr test warning");
     error("stderr test error");
     critical("stderr test critical");
+
+    auto* cap = make_capture();
+
+    info("filtered out");
+    error("visible");
+
+    REQUIRE(cap->entries.size() == 1);
+    CHECK(cap->entries[0].msg == "visible");
+}
+
+TEST_CASE("stderr color sink can be created and receives messages", "[log]") {
+    log_fixture fix;
+
+    add_sink(make_stderr_color_sink());
+    set_level(level::warn);
+
+    warn("stderr color warning");
+    error("stderr color error");
+    critical("stderr color critical");
 
     auto* cap = make_capture();
 

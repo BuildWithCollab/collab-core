@@ -9,6 +9,7 @@ module;
 #include <vector>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_sinks.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -56,11 +57,28 @@ namespace {
         s.logger_names.push_back(name);
     }
 
-    // ── spdlog-backed stdout sink ───────────────────────────────────
+    // ── spdlog-backed stdout sinks ──────────────────────────────────
 
     class stdout_sink final : public sink {
     public:
         stdout_sink() {
+            auto name = logger_prefix_stdout + std::to_string(++counter_);
+            logger_ = spdlog::stdout_logger_mt(name);
+            register_logger(logger_, name);
+        }
+
+        void write(level lvl, std::string_view msg) override {
+            logger_->log(to_spdlog_level(lvl), "{}", msg);
+        }
+
+    private:
+        std::shared_ptr<spdlog::logger> logger_;
+        static inline std::atomic<int> counter_{0};
+    };
+
+    class stdout_color_sink final : public sink {
+    public:
+        stdout_color_sink() {
             auto name = logger_prefix_stdout + std::to_string(++counter_);
             logger_ = spdlog::stdout_color_mt(name);
             register_logger(logger_, name);
@@ -75,11 +93,28 @@ namespace {
         static inline std::atomic<int> counter_{0};
     };
 
-    // ── spdlog-backed stderr sink ───────────────────────────────────
+    // ── spdlog-backed stderr sinks ──────────────────────────────────
 
     class stderr_sink final : public sink {
     public:
         stderr_sink() {
+            auto name = logger_prefix_stderr + std::to_string(++counter_);
+            logger_ = spdlog::stderr_logger_mt(name);
+            register_logger(logger_, name);
+        }
+
+        void write(level lvl, std::string_view msg) override {
+            logger_->log(to_spdlog_level(lvl), "{}", msg);
+        }
+
+    private:
+        std::shared_ptr<spdlog::logger> logger_;
+        static inline std::atomic<int> counter_{0};
+    };
+
+    class stderr_color_sink final : public sink {
+    public:
+        stderr_color_sink() {
             auto name = logger_prefix_stderr + std::to_string(++counter_);
             logger_ = spdlog::stderr_color_mt(name);
             register_logger(logger_, name);
@@ -162,8 +197,16 @@ std::unique_ptr<sink> make_stdout_sink() {
     return std::make_unique<stdout_sink>();
 }
 
+std::unique_ptr<sink> make_stdout_color_sink() {
+    return std::make_unique<stdout_color_sink>();
+}
+
 std::unique_ptr<sink> make_stderr_sink() {
     return std::make_unique<stderr_sink>();
+}
+
+std::unique_ptr<sink> make_stderr_color_sink() {
+    return std::make_unique<stderr_color_sink>();
 }
 
 std::unique_ptr<sink> make_file_sink(std::filesystem::path path) {

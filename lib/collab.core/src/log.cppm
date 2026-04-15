@@ -26,7 +26,9 @@ void clear_sinks();
 void log_message(level lvl, std::string_view msg);
 
 std::unique_ptr<sink> make_stdout_sink();
+std::unique_ptr<sink> make_stdout_color_sink();
 std::unique_ptr<sink> make_stderr_sink();
+std::unique_ptr<sink> make_stderr_color_sink();
 std::unique_ptr<sink> make_file_sink(std::filesystem::path path);
 
 // Plain string_view overloads
