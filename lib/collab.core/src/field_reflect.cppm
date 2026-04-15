@@ -93,13 +93,13 @@ namespace detail {
 
         template <std::size_t I, typename T>
         static constexpr decltype(auto) get_member(T&) {
-            static_assert(has_reflect_on<T>,
+            static_assert(has_reflect_on<std::remove_cvref_t<T>>,
                 "Type has no reflect_on<T>() specialization and PFR is not enabled.");
         }
 
         template <typename T, typename F>
         static constexpr void for_each_member(T&, F&&) {
-            static_assert(has_reflect_on<T>,
+            static_assert(has_reflect_on<std::remove_cvref_t<T>>,
                 "Type has no reflect_on<T>() specialization and PFR is not enabled.");
         }
     };
@@ -167,13 +167,13 @@ namespace detail {
 
     template <std::size_t I, typename T>
     constexpr decltype(auto) dispatch_get_member(T& obj) {
-        if constexpr (has_reflect_on<T>) return registry::get_member<I>(obj);
+        if constexpr (has_reflect_on<std::remove_cvref_t<T>>) return registry::get_member<I>(obj);
         else return pfr_fallback::template get_member<I>(obj);
     }
 
     template <typename T, typename F>
     constexpr void dispatch_for_each_member(T& obj, F&& fn) {
-        if constexpr (has_reflect_on<T>) registry::for_each_member(obj, std::forward<F>(fn));
+        if constexpr (has_reflect_on<std::remove_cvref_t<T>>) registry::for_each_member(obj, std::forward<F>(fn));
         else pfr_fallback::for_each_member(obj, std::forward<F>(fn));
     }
 

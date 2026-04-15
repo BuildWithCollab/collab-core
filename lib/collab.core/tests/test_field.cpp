@@ -26,6 +26,35 @@ struct render_options {
 struct posix_meta  { posix_options posix{}; };
 struct render_meta { render_options render{}; };
 
+// ── reflect_on fallbacks (non-PFR builds) ──────────────────────────────
+
+struct WeatherArgs;
+struct OnlyFields;
+struct MixedStruct;
+struct LoginResponse;
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::field::reflect_on<WeatherArgs>() {
+    return collab::field::field_info<WeatherArgs>("city", "days", "verbose", "tags");
+}
+
+template <>
+constexpr auto collab::field::reflect_on<OnlyFields>() {
+    return collab::field::field_info<OnlyFields>("a", "b");
+}
+
+template <>
+constexpr auto collab::field::reflect_on<MixedStruct>() {
+    return collab::field::field_info<MixedStruct>("a", "plain", "b", "helper");
+}
+
+template <>
+constexpr auto collab::field::reflect_on<LoginResponse>() {
+    return collab::field::field_info<LoginResponse>("session_id", "user_name");
+}
+#endif
+
 // ── Basic instantiation and defaults ────────────────────────────────────
 
 TEST_CASE("Field default construction", "[field]") {
@@ -229,8 +258,17 @@ TEST_CASE("reflected_struct accepts aggregates with Field members", "[field][con
 }
 
 TEST_CASE("reflected_struct rejects non-qualifying types", "[field][concept]") {
-    STATIC_REQUIRE(!reflected_struct<EmptyStruct>);
-    STATIC_REQUIRE(!reflected_struct<NoFieldsOnlyPlain>);
+    // int and NonAggregate fail is_aggregate_v, so they short-circuit
+    // without ever hitting the PFR/registry fallback.
     STATIC_REQUIRE(!reflected_struct<int>);
     STATIC_REQUIRE(!reflected_struct<NonAggregate>);
+
+#ifdef COLLAB_FIELD_HAS_PFR
+    // EmptyStruct and NoFieldsOnlyPlain are aggregates with no field<>
+    // members. Without PFR, evaluating dispatch_field_count on an
+    // unregistered type hits a static_assert — these checks are only
+    // possible when PFR can introspect arbitrary structs.
+    STATIC_REQUIRE(!reflected_struct<EmptyStruct>);
+    STATIC_REQUIRE(!reflected_struct<NoFieldsOnlyPlain>);
+#endif
 }

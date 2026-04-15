@@ -8,6 +8,29 @@ import collab.core;
 
 using namespace collab::field;
 
+// ── Forward declarations for reflect_on fallbacks ──────────────────────
+
+struct SimpleArgs;
+struct WeatherArgs;
+struct MixedStruct;
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::field::reflect_on<SimpleArgs>() {
+    return collab::field::field_info<SimpleArgs>("name", "age", "active");
+}
+
+template <>
+constexpr auto collab::field::reflect_on<WeatherArgs>() {
+    return collab::field::field_info<WeatherArgs>("city", "days", "verbose", "tags");
+}
+
+template <>
+constexpr auto collab::field::reflect_on<MixedStruct>() {
+    return collab::field::field_info<MixedStruct>("visible", "counter", "score");
+}
+#endif
+
 // ── Test structs ────────────────────────────────────────────────────────
 
 struct posix_options {

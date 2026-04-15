@@ -18,7 +18,7 @@ namespace collab::field::registry {
 
 template <std::size_t I, typename T>
 constexpr decltype(auto) get_member(T& obj) {
-    constexpr auto N = reflect_on<T>().names.size();
+    constexpr auto N = reflect_on<std::remove_cvref_t<T>>().names.size();
     if constexpr (N == 1) {
         auto& [m0] = obj;
         if constexpr (I == 0) return (m0);
@@ -202,7 +202,7 @@ constexpr void for_each_member_impl(T& obj, F&& fn, std::index_sequence<Is...>) 
 
 template <typename T, typename F>
 constexpr void for_each_member(T& obj, F&& fn) {
-    constexpr auto N = reflect_on<T>().names.size();
+    constexpr auto N = reflect_on<std::remove_cvref_t<T>>().names.size();
     for_each_member_impl(obj, std::forward<F>(fn), std::make_index_sequence<N>{});
 }
 
