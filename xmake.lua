@@ -5,7 +5,7 @@ set_languages("c++23")
 set_policy("build.c++.modules", true)
 
 if is_plat("windows") then
-    add_cxxflags("/utf-8")
+    add_cxxflags("/utf-8", { public = true })
 end
 
 -- xmake forces -D_GLIBCXX_USE_CXX11_ABI=0 for GCC < 15 when modules are on
