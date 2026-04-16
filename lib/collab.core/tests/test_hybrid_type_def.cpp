@@ -37,6 +37,22 @@ struct PlainPoint {
 };
 
 // ═════════════════════════════════════════════════════════════════════════
+// reflect_on fallbacks (non-PFR builds)
+// ═════════════════════════════════════════════════════════════════════════
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::reflect_on<PlainDog>() {
+    return collab::model::field_info<PlainDog>("name", "age", "breed");
+}
+
+template <>
+constexpr auto collab::model::reflect_on<PlainPoint>() {
+    return collab::model::field_info<PlainPoint>("x", "y");
+}
+#endif
+
+// ═════════════════════════════════════════════════════════════════════════
 // Tests: Hybrid construction and schema queries
 // ═════════════════════════════════════════════════════════════════════════
 
