@@ -34,13 +34,12 @@ consteval std::string_view field_name() {
 }
 
 // Runtime field name extraction — completely avoids consteval to work around
-// a clang bug where consteval results get assigned to the wrong template
-// instantiation across C++20 module boundaries.
+// a compiler bug where consteval results get assigned to the wrong template
+// instantiation across C++20 module boundaries. Affects clang and GCC.
 //
 // Uses __PRETTY_FUNCTION__ parsing at runtime (same technique as PFR, but
 // evaluated at runtime instead of compile time).
-// Only defined on clang — GCC and MSVC don't have this bug.
-#ifdef __clang__
+#if !defined(_MSC_VER) || defined(__clang__)
 template <auto ptr>
 const char* name_of_field_pretty_fn() {
     return __PRETTY_FUNCTION__;
@@ -50,13 +49,26 @@ template <auto ptr>
 std::string_view name_of_field_rt() {
     static const std::string_view result = [] {
         std::string_view sv = name_of_field_pretty_fn<ptr>();
-        // Find last "." before the closing "}]" and take everything after it
+#if defined(__clang__)
+        // Clang: ...{&Type.field_name}]
         auto end = sv.rfind("}]");
         if (end == std::string_view::npos) end = sv.size();
         auto sub = sv.substr(0, end);
-        auto dot = sub.rfind('.');
-        if (dot == std::string_view::npos) return sv; // fallback
-        return sub.substr(dot + 1);
+        auto sep = sub.rfind('.');
+#elif defined(__GNUC__)
+        // GCC: ...Type::field_name)]
+        auto end = sv.rfind(")]");
+        if (end == std::string_view::npos) end = sv.size();
+        auto sub = sv.substr(0, end);
+        auto sep = sub.rfind("::");
+#endif
+#if defined(__clang__)
+        constexpr std::size_t sep_len = 1;  // "."
+#elif defined(__GNUC__)
+        constexpr std::size_t sep_len = 2;  // "::"
+#endif
+        if (sep == std::string_view::npos) return sv;
+        return sub.substr(sep + sep_len);
     }();
     return result;
 }
@@ -69,7 +81,7 @@ std::string_view field_name_rt() {
         )))
     >();
 }
-#endif // __clang__
+#endif
 
 template <std::size_t I, typename T>
 using member_type = pfr::tuple_element_t<I, T>;
@@ -368,7 +380,7 @@ namespace detail {
             return "";
         }
 
-#ifdef __clang__
+#if !defined(_MSC_VER) || defined(__clang__)
         template <std::size_t I, typename T>
         static std::string_view field_name_rt() {
             static_assert(has_reflect_on<T>,
@@ -406,7 +418,7 @@ namespace detail {
             return pfr_impl::field_name<I, T>();
         }
 
-#ifdef __clang__
+#if !defined(_MSC_VER) || defined(__clang__)
         template <std::size_t I, typename T>
         static std::string_view field_name_rt() {
             return pfr_impl::field_name_rt<I, T>();
@@ -451,7 +463,7 @@ namespace detail {
     template <std::size_t I, typename T>
     std::string_view dispatch_field_name_rt() {
         if constexpr (has_reflect_on<T>) return reflect_on<T>().names[I];
-#if defined(__clang__)
+#if !defined(_MSC_VER) || defined(__clang__)
         else return pfr_fallback::template field_name_rt<I, T>();
 #else
         else return pfr_fallback::template field_name<I, T>();
