@@ -121,7 +121,7 @@ TEST_CASE("field_name via reflect_on — with extensions", "[reflect_on][name]")
 // ── field_names via registration ─────────────────────────────────────────
 
 TEST_CASE("field_names via reflect_on returns field<> names only", "[reflect_on][names]") {
-    constexpr auto names = field_names<RegSimple>();
+    auto names = field_names<RegSimple>();
     REQUIRE(names.size() == 3);
     REQUIRE(names[0] == "name");
     REQUIRE(names[1] == "age");
@@ -129,7 +129,7 @@ TEST_CASE("field_names via reflect_on returns field<> names only", "[reflect_on]
 }
 
 TEST_CASE("field_names via reflect_on — mixed struct skips plain members", "[reflect_on][names]") {
-    constexpr auto names = field_names<RegMixed>();
+    auto names = field_names<RegMixed>();
     REQUIRE(names.size() == 2);
     REQUIRE(names[0] == "label");
     REQUIRE(names[1] == "score");
@@ -145,7 +145,7 @@ TEST_CASE("reflect<T>() via reflect_on — name and count", "[reflect_on][reflec
 }
 
 TEST_CASE("reflect<T>().names() via reflect_on", "[reflect_on][reflection]") {
-    constexpr auto names = reflect<RegSimple>().names();
+    auto names = reflect<RegSimple>().names();
     REQUIRE(names[0] == "name");
     REQUIRE(names[1] == "age");
     REQUIRE(names[2] == "active");

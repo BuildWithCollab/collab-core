@@ -33,6 +33,41 @@ consteval std::string_view field_name() {
     return pfr::get_name<I, T>();
 }
 
+// Runtime field name extraction — completely avoids consteval to work around
+// a clang bug where consteval results get assigned to the wrong template
+// instantiation across C++20 module boundaries.
+//
+// Uses __PRETTY_FUNCTION__ parsing at runtime (same technique as PFR, but
+// evaluated at runtime instead of compile time).
+template <auto ptr>
+const char* name_of_field_pretty_fn() {
+    return __PRETTY_FUNCTION__;
+}
+
+template <auto ptr>
+std::string_view name_of_field_rt() {
+    static const std::string_view result = [] {
+        std::string_view sv = name_of_field_pretty_fn<ptr>();
+        // Find last "." before the closing "}]" and take everything after it
+        auto end = sv.rfind("}]");
+        if (end == std::string_view::npos) end = sv.size();
+        auto sub = sv.substr(0, end);
+        auto dot = sub.rfind('.');
+        if (dot == std::string_view::npos) return sv; // fallback
+        return sub.substr(dot + 1);
+    }();
+    return result;
+}
+
+template <std::size_t I, typename T>
+std::string_view field_name_rt() {
+    return name_of_field_rt<
+        pfr::detail::make_clang_wrapper(std::addressof(pfr::detail::sequence_tuple::get<I>(
+            pfr::detail::tie_as_tuple(pfr::detail::fake_object<T>())
+        )))
+    >();
+}
+
 template <std::size_t I, typename T>
 using member_type = pfr::tuple_element_t<I, T>;
 
@@ -331,6 +366,13 @@ namespace detail {
         }
 
         template <std::size_t I, typename T>
+        static std::string_view field_name_rt() {
+            static_assert(has_reflect_on<T>,
+                "Type has no reflect_on<T>() specialization and PFR is not enabled.");
+            return "";
+        }
+
+        template <std::size_t I, typename T>
         using member_type = void;
 
         template <std::size_t I, typename T>
@@ -357,6 +399,11 @@ namespace detail {
         template <std::size_t I, typename T>
         static consteval std::string_view field_name() {
             return pfr_impl::field_name<I, T>();
+        }
+
+        template <std::size_t I, typename T>
+        static std::string_view field_name_rt() {
+            return pfr_impl::field_name_rt<I, T>();
         }
 
         template <std::size_t I, typename T>
@@ -388,6 +435,16 @@ namespace detail {
     consteval std::string_view dispatch_field_name() {
         if constexpr (has_reflect_on<T>) return reflect_on<T>().names[I];
         else return pfr_fallback::template field_name<I, T>();
+    }
+
+    // Runtime-safe variant: avoids consteval string_view materialization
+    // to work around a clang bug where consteval string_views that reference
+    // inline constexpr variable templates across module boundaries get their
+    // pointer and size paired from different template instantiations.
+    template <std::size_t I, typename T>
+    std::string_view dispatch_field_name_rt() {
+        if constexpr (has_reflect_on<T>) return reflect_on<T>().names[I];
+        else return pfr_fallback::template field_name_rt<I, T>();
     }
 
     // Lazy member_type — only instantiates the chosen backend
@@ -475,7 +532,7 @@ namespace detail {
 
     // Collect only Field member names into an array
     template <typename T, std::size_t... Is>
-    consteval auto collect_field_names(std::index_sequence<Is...>) {
+    constexpr auto collect_field_names(std::index_sequence<Is...>) {
         constexpr std::size_t total = sizeof...(Is);
         // First pass: count Field members
         constexpr std::size_t field_n = (0 + ... + (is_field<member_type<Is, T>> ? 1 : 0));
@@ -483,14 +540,14 @@ namespace detail {
         std::array<std::string_view, field_n> result{};
         std::size_t idx = 0;
         ((is_field<member_type<Is, T>>
-            ? (result[idx++] = dispatch_field_name<Is, T>(), 0) : 0), ...);
+            ? (result[idx++] = dispatch_field_name_rt<Is, T>(), 0) : 0), ...);
         return result;
     }
 
 }  // namespace detail
 
 template <typename T>
-consteval auto field_names() {
+constexpr auto field_names() {
     constexpr auto N = detail::dispatch_field_count<T>();
     return detail::collect_field_names<T>(std::make_index_sequence<N>{});
 }
@@ -499,8 +556,8 @@ consteval auto field_names() {
 
 template <typename T, std::size_t I>
 struct field_descriptor {
-    consteval std::string_view name() const {
-        return detail::dispatch_field_name<I, T>();
+    std::string_view name() const {
+        return detail::dispatch_field_name_rt<I, T>();
     }
 
     consteval std::size_t index() const { return I; }
@@ -536,8 +593,8 @@ class bound_field {
 public:
     explicit constexpr bound_field(Ref& r) : ref_(r) {}
 
-    consteval std::string_view name() const {
-        return detail::dispatch_field_name<I, T>();
+    std::string_view name() const {
+        return detail::dispatch_field_name_rt<I, T>();
     }
 
     consteval std::size_t index() const { return I; }
@@ -587,7 +644,7 @@ struct reflection {
         return field_count<T>();
     }
 
-    consteval auto names() const {
+    auto names() const {
         return field_names<T>();
     }
 

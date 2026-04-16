@@ -102,7 +102,7 @@ namespace detail {
         using member_t = collab::field::detail::member_type<I, T>;
         if constexpr (collab::field::is_field<member_t>) {
             auto& member = collab::field::detail::dispatch_get_member<I>(obj);
-            fn(collab::field::detail::dispatch_field_name<I, T>(), member.value);
+            fn(collab::field::detail::dispatch_field_name_rt<I, T>(), member.value);
         }
     }
 
@@ -150,9 +150,9 @@ namespace detail {
         using T = std::remove_cvref_t<Obj>;
         using member_t = collab::field::detail::member_type<I, T>;
         if constexpr (collab::field::is_field<member_t>) {
-            if (collab::field::detail::dispatch_field_name<I, T>() == name) {
+            if (collab::field::detail::dispatch_field_name_rt<I, T>() == name) {
                 auto& member = collab::field::detail::dispatch_get_member<I>(obj);
-                fn(collab::field::detail::dispatch_field_name<I, T>(), member.value);
+                fn(collab::field::detail::dispatch_field_name_rt<I, T>(), member.value);
                 found = true;
             }
         }

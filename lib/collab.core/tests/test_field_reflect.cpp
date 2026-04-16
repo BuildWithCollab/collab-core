@@ -104,14 +104,14 @@ TEST_CASE("reflection count() returns Field member count", "[reflect]") {
 // ── reflect<T>().names() ────────────────────────────────────────────────
 
 TEST_CASE("reflection names() returns Field member names", "[reflect]") {
-    constexpr auto names = reflect<SimpleArgs>().names();
+    auto names = reflect<SimpleArgs>().names();
     REQUIRE(names[0] == "name");
     REQUIRE(names[1] == "age");
     REQUIRE(names[2] == "active");
 }
 
 TEST_CASE("reflection names() for WeatherArgs", "[reflect]") {
-    constexpr auto names = reflect<WeatherArgs>().names();
+    auto names = reflect<WeatherArgs>().names();
     REQUIRE(names[0] == "city");
     REQUIRE(names[1] == "days");
     REQUIRE(names[2] == "verbose");
@@ -119,7 +119,7 @@ TEST_CASE("reflection names() for WeatherArgs", "[reflect]") {
 }
 
 TEST_CASE("reflection names() filters to Field members only", "[reflect]") {
-    constexpr auto names = reflect<MixedStruct>().names();
+    auto names = reflect<MixedStruct>().names();
     REQUIRE(names.size() == 2);
     REQUIRE(names[0] == "visible");
     REQUIRE(names[1] == "score");
@@ -179,7 +179,7 @@ TEST_CASE("field_name free function", "[reflect][free]") {
 }
 
 TEST_CASE("field_names free function", "[reflect][free]") {
-    constexpr auto names = field_names<SimpleArgs>();
+    auto names = field_names<SimpleArgs>();
     REQUIRE(names.size() == 3);
     REQUIRE(names[0] == "name");
 }
