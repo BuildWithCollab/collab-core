@@ -1,3 +1,8 @@
+-- Configure:
+--   VS 2026 (default):  xmake f --qt=C:/qt/6.10.2/msvc2022_64 -m release -p windows -a x64 -c -y
+--   VS 2022 (no PFR):   xmake f --enable_pfr=n --toolchain=msvc --vs=2022 -m release -p windows -a x64 -c -y
+--   Linux / Mac:         xmake f -m release -c -y
+
 add_rules("mode.release")
 set_defaultmode("release")
 
