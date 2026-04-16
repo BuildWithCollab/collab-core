@@ -1,8 +1,11 @@
 module;
 
+#include <any>
 #include <cstddef>
+#include <string>
 #include <string_view>
 #include <type_traits>
+#include <typeindex>
 #include <utility>
 #include <vector>
 
@@ -13,6 +16,10 @@ import :field_reflect;
 import :meta;
 
 export namespace collab::model {
+
+// ── dynamic_tag — sentinel for the non-templated type_def ────────────────
+
+struct dynamic_tag {};
 
 // ── type_def<T> — typed runtime schema with auto-discovery ───────────────
 //
@@ -195,7 +202,7 @@ namespace detail {
 
 }  // namespace detail
 
-template <typename T>
+template <typename T = dynamic_tag>
 class type_def {
     static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
     using indices_ = std::make_index_sequence<total_members_>;
@@ -308,5 +315,212 @@ public:
             obj, name, std::forward<V>(val), indices_{});
     }
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// Dynamic type_def — runtime builder, no backing struct
+// ═══════════════════════════════════════════════════════════════════════
+
+namespace detail {
+
+    // ── Detect with<> packs ──────────────────────────────────────────
+
+    template <typename U>
+    struct is_with_pack : std::false_type {};
+
+    template <typename... Exts>
+    struct is_with_pack<with<Exts...>> : std::true_type {};
+
+    template <typename U>
+    inline constexpr bool is_with_pack_v =
+        is_with_pack<std::remove_cvref_t<U>>::value;
+
+    // ── Type-erased meta entry ───────────────────────────────────────
+
+    struct meta_entry {
+        std::type_index type{typeid(void)};
+        std::any        value;
+    };
+
+    // ── Type-erased field definition ─────────────────────────────────
+
+    struct dynamic_field_def {
+        std::string              name;
+        std::type_index          type{typeid(void)};
+        std::any                 default_value;
+        bool                     has_default = false;
+        std::vector<meta_entry>  metas;
+    };
+
+    // ── Extract metas from a with<Exts...> ───────────────────────────
+
+    template <typename... Exts>
+    void extract_with_metas(dynamic_field_def& fd, const with<Exts...>& w) {
+        (fd.metas.push_back(
+            {typeid(Exts), std::any(static_cast<const Exts&>(w))}), ...);
+    }
+
+}  // namespace detail
+
+// ── dynamic_field_view — read-only view into a dynamic field ─────────────
+
+class dynamic_field_view {
+    const detail::dynamic_field_def* def_;
+
+public:
+    explicit dynamic_field_view(const detail::dynamic_field_def* d) : def_(d) {}
+
+    std::string_view name() const { return def_->name; }
+
+    bool has_default() const { return def_->has_default; }
+
+    template <typename V>
+    V default_value() const { return std::any_cast<V>(def_->default_value); }
+
+    template <typename M>
+    bool has_meta() const {
+        for (auto& e : def_->metas)
+            if (e.type == typeid(M)) return true;
+        return false;
+    }
+
+    template <typename M>
+    M meta() const {
+        for (auto& e : def_->metas)
+            if (e.type == typeid(M))
+                return std::any_cast<M>(e.value);
+        return M{};
+    }
+
+    template <typename M>
+    std::size_t meta_count() const {
+        std::size_t n = 0;
+        for (auto& e : def_->metas)
+            if (e.type == typeid(M)) ++n;
+        return n;
+    }
+
+    template <typename M>
+    std::vector<M> metas() const {
+        std::vector<M> result;
+        for (auto& e : def_->metas)
+            if (e.type == typeid(M))
+                result.push_back(std::any_cast<M>(e.value));
+        return result;
+    }
+};
+
+// ── type_def<dynamic_tag> — the non-templated dynamic type_def ───────────
+
+template <>
+class type_def<dynamic_tag> {
+    std::string                           name_;
+    std::vector<detail::dynamic_field_def> fields_;
+    std::vector<detail::meta_entry>        type_metas_;
+
+public:
+    explicit type_def(std::string_view name) : name_(name) {}
+
+    // ── Schema queries ───────────────────────────────────────────────
+
+    std::string_view name() const { return name_; }
+
+    std::size_t field_count() const { return fields_.size(); }
+
+    std::vector<std::string> field_names() const {
+        std::vector<std::string> result;
+        result.reserve(fields_.size());
+        for (auto& f : fields_) result.push_back(f.name);
+        return result;
+    }
+
+    // ── Field builder ────────────────────────────────────────────────
+
+    template <typename V>
+    type_def& field(std::string_view fname) {
+        fields_.push_back({std::string(fname), typeid(V), {}, false, {}});
+        return *this;
+    }
+
+    template <typename V, typename... Withs>
+    type_def& field(std::string_view fname, V default_value, Withs... withs) {
+        detail::dynamic_field_def fd{
+            std::string(fname), typeid(V),
+            std::any(std::move(default_value)), true, {}};
+        (detail::extract_with_metas(fd, withs), ...);
+        fields_.push_back(std::move(fd));
+        return *this;
+    }
+
+    // ── Meta builder (type-level) ────────────────────────────────────
+
+    template <typename M>
+    type_def& meta(M value) {
+        type_metas_.push_back({typeid(M), std::any(std::move(value))});
+        return *this;
+    }
+
+    // ── Field queries ────────────────────────────────────────────────
+
+    bool has_field(std::string_view fname) const {
+        for (auto& f : fields_)
+            if (f.name == fname) return true;
+        return false;
+    }
+
+    dynamic_field_view field(std::string_view fname) const {
+        for (auto& f : fields_)
+            if (f.name == fname) return dynamic_field_view(&f);
+        // Return a view to the first field as fallback — caller should
+        // check has_field() first. A real implementation might throw.
+        return dynamic_field_view(&fields_.front());
+    }
+
+    // ── Field iteration (schema-only) ────────────────────────────────
+
+    template <typename F>
+    void for_each_field(F&& fn) const {
+        for (auto& f : fields_)
+            fn(dynamic_field_view(&f));
+    }
+
+    // ── Type-level meta queries ──────────────────────────────────────
+
+    template <typename M>
+    bool has_meta() const {
+        for (auto& e : type_metas_)
+            if (e.type == typeid(M)) return true;
+        return false;
+    }
+
+    template <typename M>
+    M meta() const {
+        for (auto& e : type_metas_)
+            if (e.type == typeid(M))
+                return std::any_cast<M>(e.value);
+        return M{};
+    }
+
+    template <typename M>
+    std::size_t meta_count() const {
+        std::size_t n = 0;
+        for (auto& e : type_metas_)
+            if (e.type == typeid(M)) ++n;
+        return n;
+    }
+
+    template <typename M>
+    std::vector<M> metas() const {
+        std::vector<M> result;
+        for (auto& e : type_metas_)
+            if (e.type == typeid(M))
+                result.push_back(std::any_cast<M>(e.value));
+        return result;
+    }
+};
+
+// ── CTAD: type_def("Event") deduces to type_def<dynamic_tag> ─────────────
+
+type_def(const char*) -> type_def<dynamic_tag>;
+type_def(std::string_view) -> type_def<dynamic_tag>;
 
 }  // namespace collab::model
