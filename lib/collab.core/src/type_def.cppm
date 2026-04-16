@@ -383,7 +383,7 @@ public:
     bool has_default() const { return def_->has_default; }
 
     template <typename V>
-    V default_value() const { return std::any_cast<V>(def_->default_value); }
+    V default_value() const { return *std::any_cast<V>(&def_->default_value); }
 
     template <typename M>
     bool has_meta() const {
@@ -396,7 +396,7 @@ public:
     M meta() const {
         for (auto& e : def_->metas)
             if (e.type == typeid(M))
-                return std::any_cast<M>(e.value);
+                return *std::any_cast<M>(&e.value);
         return M{};
     }
 
@@ -413,7 +413,7 @@ public:
         std::vector<M> result;
         for (auto& e : def_->metas)
             if (e.type == typeid(M))
-                result.push_back(std::any_cast<M>(e.value));
+                result.push_back(*std::any_cast<M>(&e.value));
         return result;
     }
 };
@@ -528,7 +528,7 @@ public:
     M meta() const {
         for (auto& e : type_metas_)
             if (e.type == typeid(M))
-                return std::any_cast<M>(e.value);
+                return *std::any_cast<M>(&e.value);
         return M{};
     }
 
@@ -545,7 +545,7 @@ public:
         std::vector<M> result;
         for (auto& e : type_metas_)
             if (e.type == typeid(M))
-                result.push_back(std::any_cast<M>(e.value));
+                result.push_back(*std::any_cast<M>(&e.value));
         return result;
     }
 
