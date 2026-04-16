@@ -6,10 +6,8 @@
 
 ## 🔥 Broken / Inconsistent
 
-- [ ] **Hybrid `for_each_field(fn)` doesn't iterate hybrid-registered fields** — but `field_count()` and `field_names()` DO include them. Inconsistency landmine.
-- [ ] **Hybrid `for_each(instance, fn)` doesn't iterate hybrid-registered fields** — same inconsistency.
-- [ ] **Typed `field(name)` returns garbage `thread_local` fallback** for auto-discovered fields. Only works for hybrid-registered fields. 💀
-- [ ] **Dynamic `for_each_meta(fn)` doesn't exist** — typed has it, dynamic doesn't.
+- [ ] **Hybrid `for_each_field(fn)` doesn't iterate hybrid-registered fields** — but `field_count()` and `field_names()` DO include them. Inconsistency. ⚠️ Design challenge: typed `for_each_field` passes `field_descriptor<T,I>`, hybrid needs `dynamic_field_view` — mixing both in one generic callback causes compile errors. Needs design discussion.
+- [ ] **Hybrid `for_each(instance, fn)` doesn't iterate hybrid-registered fields** — same inconsistency. Also has a type-erasure design challenge: hybrid fields are registered via member pointers but type-erased, so the generic callback can't receive typed references.
 
 ---
 
@@ -25,23 +23,10 @@ Missing from concept:
 - [ ] `meta_count<M>()`
 - [ ] `metas<M>()`
 - [ ] `for_each_field(fn)`
-- [ ] `for_each_meta(fn)` (needs dynamic impl first)
+- [ ] `for_each_meta(fn)` (dynamic impl done ✅, but callback types differ: typed gives `auto&`, dynamic gives `const std::any&`)
 - [ ] `create()` (different return types across modes — design question)
 
 Also: `dynamic_tag` leaks into public API (`type_def<dynamic_tag>` in static_assert).
-
----
-
-## 🧪 Missing tests (methods exist, zero coverage)
-
-### Typed `type_def<T>`
-- [ ] `has_field(name)`
-- [ ] `field(name)` — descriptor by runtime name
-- [ ] `get<T>(instance, name)` — optional-returning overload
-- [ ] `create()`
-
-### Hybrid `type_def<T>()`
-- [ ] `for_each_meta(fn)`
 
 ---
 
