@@ -2,6 +2,8 @@ module;
 
 #include <any>
 #include <cstddef>
+#include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -349,6 +351,13 @@ namespace detail {
         std::any                 default_value;
         bool                     has_default = false;
         std::vector<meta_entry>  metas;
+
+        // Type-erased setter: tries to assign incoming any to target any.
+        // Returns true on success (type matched).
+        std::function<bool(std::any&, std::any&&)> setter;
+
+        // Factory: creates a default-constructed value of the field's type.
+        std::function<std::any()> make_default;
     };
 
     // ── Extract metas from a with<Exts...> ───────────────────────────
@@ -409,10 +418,15 @@ public:
     }
 };
 
+// Forward declaration for object (defined below)
+class object;
+
 // ── type_def<dynamic_tag> — the non-templated dynamic type_def ───────────
 
 template <>
 class type_def<dynamic_tag> {
+    friend class object;
+
     std::string                           name_;
     std::vector<detail::dynamic_field_def> fields_;
     std::vector<detail::meta_entry>        type_metas_;
@@ -437,15 +451,33 @@ public:
 
     template <typename V>
     type_def& field(std::string_view fname) {
-        fields_.push_back({std::string(fname), typeid(V), {}, false, {}});
+        auto setter = [](std::any& target, std::any&& incoming) -> bool {
+            if (auto* p = std::any_cast<V>(&incoming)) {
+                target = std::move(*p);
+                return true;
+            }
+            return false;
+        };
+        auto factory = []() -> std::any { return std::any(V{}); };
+        fields_.push_back({std::string(fname), typeid(V), {}, false, {},
+                           std::move(setter), std::move(factory)});
         return *this;
     }
 
     template <typename V, typename... Withs>
     type_def& field(std::string_view fname, V default_value, Withs... withs) {
+        auto setter = [](std::any& target, std::any&& incoming) -> bool {
+            if (auto* p = std::any_cast<V>(&incoming)) {
+                target = std::move(*p);
+                return true;
+            }
+            return false;
+        };
+        auto factory = []() -> std::any { return std::any(V{}); };
         detail::dynamic_field_def fd{
             std::string(fname), typeid(V),
-            std::any(std::move(default_value)), true, {}};
+            std::any(std::move(default_value)), true, {},
+            std::move(setter), std::move(factory)};
         (detail::extract_with_metas(fd, withs), ...);
         fields_.push_back(std::move(fd));
         return *this;
@@ -516,11 +548,103 @@ public:
                 result.push_back(std::any_cast<M>(e.value));
         return result;
     }
+
+    // ── Create instance ─────────────────────────────────────────────
+
+    object create() const;
 };
 
 // ── CTAD: type_def("Event") deduces to type_def<dynamic_tag> ─────────────
 
 type_def(const char*) -> type_def<dynamic_tag>;
 type_def(std::string_view) -> type_def<dynamic_tag>;
+
+// ═══════════════════════════════════════════════════════════════════════
+// object — instance of a dynamic type_def
+// ═══════════════════════════════════════════════════════════════════════
+
+class object {
+    const type_def<dynamic_tag>* type_;
+    std::vector<std::any>        values_;
+
+    int find_field_index(std::string_view name) const {
+        auto& fields = type_->fields_;
+        for (int i = 0; i < static_cast<int>(fields.size()); ++i)
+            if (fields[i].name == name) return i;
+        return -1;
+    }
+
+public:
+    explicit object(const type_def<dynamic_tag>& t) : type_(&t) {
+        values_.reserve(t.fields_.size());
+        for (auto& fd : t.fields_) {
+            if (fd.has_default)
+                values_.push_back(fd.default_value);
+            else
+                values_.push_back(fd.make_default());
+        }
+    }
+
+    // ── Set ──────────────────────────────────────────────────────────
+
+    template <typename V>
+    bool set(std::string_view name, V&& value) {
+        int idx = find_field_index(name);
+        if (idx < 0) return false;
+        auto& fd = type_->fields_[idx];
+        std::any wrapped(std::forward<V>(value));
+        if (fd.setter(values_[idx], std::move(wrapped))) return true;
+        // Fallback: try string conversion for string-like types
+        if constexpr (std::is_constructible_v<std::string, V> &&
+                      !std::is_same_v<std::remove_cvref_t<V>, std::string>) {
+            std::any str(std::string(std::forward<V>(value)));
+            if (fd.setter(values_[idx], std::move(str))) return true;
+        }
+        return false;
+    }
+
+    // ── Get ──────────────────────────────────────────────────────────
+
+    template <typename V>
+    std::optional<V> get(std::string_view name) const {
+        int idx = find_field_index(name);
+        if (idx < 0) return std::nullopt;
+        if (auto* p = std::any_cast<V>(&values_[idx]))
+            return *p;
+        return std::nullopt;
+    }
+
+    // ── Has ──────────────────────────────────────────────────────────
+
+    bool has(std::string_view name) const {
+        return find_field_index(name) >= 0;
+    }
+
+    // ── Type access ──────────────────────────────────────────────────
+
+    const type_def<dynamic_tag>& type() const { return *type_; }
+
+    // ── Iteration ────────────────────────────────────────────────────
+
+    template <typename F>
+    void for_each(F&& fn) const {
+        auto& fields = type_->fields_;
+        for (std::size_t i = 0; i < fields.size(); ++i)
+            fn(std::string_view(fields[i].name), values_[i]);
+    }
+
+    template <typename F>
+    void for_each(F&& fn) {
+        auto& fields = type_->fields_;
+        for (std::size_t i = 0; i < fields.size(); ++i)
+            fn(std::string_view(fields[i].name), values_[i]);
+    }
+};
+
+// ── type_def<dynamic_tag>::create() ──────────────────────────────────────
+
+inline object type_def<dynamic_tag>::create() const {
+    return object(*this);
+}
 
 }  // namespace collab::model
