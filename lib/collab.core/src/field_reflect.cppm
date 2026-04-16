@@ -21,7 +21,7 @@ import :field;
 
 #ifdef COLLAB_FIELD_HAS_PFR
 
-namespace collab::field::pfr_impl {
+namespace collab::model::pfr_impl {
 
 template <typename T>
 consteval std::size_t field_count() {
@@ -84,7 +84,7 @@ constexpr void for_each_member(T& obj, F&& fn) {
     pfr::for_each_field(obj, std::forward<F>(fn));
 }
 
-}  // namespace collab::field::pfr_impl
+}  // namespace collab::model::pfr_impl
 
 #endif
 
@@ -92,7 +92,7 @@ constexpr void for_each_member(T& obj, F&& fn) {
 // Section 2 — Registry backend (structured-binding decomposition)
 // ════════════════════════════════════════════════════════════════════════════
 
-namespace collab::field::registry {
+namespace collab::model::registry {
 
 // Decomposes aggregates via structured bindings up to 16 members.
 // This is the non-PFR backend — works on any C++23 compiler.
@@ -287,13 +287,13 @@ constexpr void for_each_member(T& obj, F&& fn) {
     for_each_member_impl(obj, std::forward<F>(fn), std::make_index_sequence<N>{});
 }
 
-}  // namespace collab::field::registry
+}  // namespace collab::model::registry
 
 // ════════════════════════════════════════════════════════════════════════════
 // Section 3 — Exported API (dispatch logic, reflection, concepts, helpers)
 // ════════════════════════════════════════════════════════════════════════════
 
-export namespace collab::field {
+export namespace collab::model {
 
 // ── type_name<T>() ──────────────────────────────────────────────────────
 
@@ -595,4 +595,4 @@ struct field_descriptor {
     }
 };
 
-}  // namespace collab::field
+}  // namespace collab::model

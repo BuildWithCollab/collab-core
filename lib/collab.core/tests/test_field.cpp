@@ -8,7 +8,7 @@
 
 import collab.core;
 
-using namespace collab::field;
+using namespace collab::model;
 
 // ── Domain-specific extension structs ───────────────────────────────────
 
@@ -35,23 +35,23 @@ struct LoginResponse;
 
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
-constexpr auto collab::field::reflect_on<WeatherArgs>() {
-    return collab::field::field_info<WeatherArgs>("city", "days", "verbose", "tags");
+constexpr auto collab::model::reflect_on<WeatherArgs>() {
+    return collab::model::field_info<WeatherArgs>("city", "days", "verbose", "tags");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<OnlyFields>() {
-    return collab::field::field_info<OnlyFields>("a", "b");
+constexpr auto collab::model::reflect_on<OnlyFields>() {
+    return collab::model::field_info<OnlyFields>("a", "b");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<MixedStruct>() {
-    return collab::field::field_info<MixedStruct>("a", "plain", "b", "helper");
+constexpr auto collab::model::reflect_on<MixedStruct>() {
+    return collab::model::field_info<MixedStruct>("a", "plain", "b", "helper");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<LoginResponse>() {
-    return collab::field::field_info<LoginResponse>("session_id", "user_name");
+constexpr auto collab::model::reflect_on<LoginResponse>() {
+    return collab::model::field_info<LoginResponse>("session_id", "user_name");
 }
 #endif
 

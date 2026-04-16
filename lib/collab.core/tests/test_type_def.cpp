@@ -8,7 +8,6 @@
 import collab.core;
 
 using namespace collab::model;
-using namespace collab::field;
 
 // ═════════════════════════════════════════════════════════════════════════
 // Test metadata types
@@ -109,38 +108,38 @@ struct CliArgs {
 
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
-constexpr auto collab::field::reflect_on<SimpleArgs>() {
-    return collab::field::field_info<SimpleArgs>("name", "age", "active");
+constexpr auto collab::model::reflect_on<SimpleArgs>() {
+    return collab::model::field_info<SimpleArgs>("name", "age", "active");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<Dog>() {
-    return collab::field::field_info<Dog>("endpoint", "help", "name", "age", "breed");
+constexpr auto collab::model::reflect_on<Dog>() {
+    return collab::model::field_info<Dog>("endpoint", "help", "name", "age", "breed");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<MixedStruct>() {
-    return collab::field::field_info<MixedStruct>("help", "label", "counter", "score");
+constexpr auto collab::model::reflect_on<MixedStruct>() {
+    return collab::model::field_info<MixedStruct>("help", "label", "counter", "score");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<MultiTagged>() {
-    return collab::field::field_info<MultiTagged>("tag1", "tag2", "tag3", "name");
+constexpr auto collab::model::reflect_on<MultiTagged>() {
+    return collab::model::field_info<MultiTagged>("tag1", "tag2", "tag3", "name");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<MetaOnly>() {
-    return collab::field::field_info<MetaOnly>("endpoint", "help");
+constexpr auto collab::model::reflect_on<MetaOnly>() {
+    return collab::model::field_info<MetaOnly>("endpoint", "help");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<SingleField>() {
-    return collab::field::field_info<SingleField>("value");
+constexpr auto collab::model::reflect_on<SingleField>() {
+    return collab::model::field_info<SingleField>("value");
 }
 
 template <>
-constexpr auto collab::field::reflect_on<CliArgs>() {
-    return collab::field::field_info<CliArgs>("help", "query", "verbose", "limit");
+constexpr auto collab::model::reflect_on<CliArgs>() {
+    return collab::model::field_info<CliArgs>("help", "query", "verbose", "limit");
 }
 #endif
 

@@ -9,7 +9,7 @@ module;
 
 export module collab.core:field;
 
-export namespace collab::field {
+export namespace collab::model {
 
 // ── with<Exts...> ───────────────────────────────────────────────────────
 
@@ -65,8 +65,8 @@ concept is_field = detail::is_field_v<std::remove_cvref_t<T>>;
 //
 // Example:
 //   template <>
-//   constexpr auto collab::field::reflect_on<MyArgs>() {
-//       return collab::field::field_info<MyArgs>("name", "age", "active");
+//   constexpr auto collab::model::reflect_on<MyArgs>() {
+//       return collab::model::field_info<MyArgs>("name", "age", "active");
 //   }
 
 template <typename T>
@@ -93,4 +93,4 @@ namespace detail {
 
 }  // namespace detail
 
-}  // namespace collab::field
+}  // namespace collab::model

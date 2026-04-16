@@ -22,7 +22,7 @@ import :field_reflect;
 import :meta;
 import :type_def;
 
-export namespace collab::field {
+export namespace collab::model {
 
 // ── to_json ────────────────────────────────────────────────────────────
 //
@@ -112,4 +112,4 @@ std::string to_json_string(const T& obj, int indent = -1) {
     return indent < 0 ? j.dump() : j.dump(indent);
 }
 
-}  // namespace collab::field
+}  // namespace collab::model
