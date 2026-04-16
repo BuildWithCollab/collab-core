@@ -1,61 +1,50 @@
 # 🏗️ collab::model — TODO
 
-> What's left to build. Update as things get done or the design evolves.
+> Gaps verified against test files on 2026-04-16. Ephemeral — delete items as they're done.
 
 ---
 
-## ✅ Done
+## 🔥 Broken / Inconsistent
 
-- `meta<T>` — type-level metadata wrapper, `is_meta` concept, helpers
-- `type_def<T>` — typed auto-discovery (name, field_count, field_names, has_meta, meta, metas, for_each, for_each_field, for_each_meta, get, set)
-- `field<T>::value_type` alias
-- `set()` uses `is_constructible_v` (not `is_assignable_v`) to avoid `string::operator=(char)` gotcha
-- Killed `reflection<T>`, `bound_field`, `reflect()` — 773 lines deleted 🔥
-- Migrated `field_json.cppm` to use `type_def<T>::for_each()` directly
-- Namespace migration: `collab::field` → `collab::model` — one namespace for the whole DSL
-- Tests passing on VS 2026 + PFR, VS 2022 no PFR, GCC 15, Clang 22
+- [ ] **Hybrid `for_each_field(fn)` doesn't iterate hybrid-registered fields** — but `field_count()` and `field_names()` DO include them. Inconsistency landmine.
+- [ ] **Hybrid `for_each(instance, fn)` doesn't iterate hybrid-registered fields** — same inconsistency.
+- [ ] **Typed `field(name)` returns garbage `thread_local` fallback** for auto-discovered fields. Only works for hybrid-registered fields. 💀
+- [ ] **Dynamic `for_each_meta(fn)` doesn't exist** — typed has it, dynamic doesn't.
 
 ---
 
-## 🔧 TODO
+## 🧩 `type_schema` concept — incomplete
 
-### Dynamic `type_def` (fluent builder)
-- [ ] Non-templated `type_def("Event").field<T>("name").meta<M>({...}).build()`
-- [ ] Type-erased field storage
-- [ ] Builder pattern returning an immutable schema
+> ⚠️ Name not approved by Purr. Needs sign-off.
 
-### `object` — dynamic instance
-- [ ] `object party(event_t)` — instance of a dynamic type_def
-- [ ] `.set<T>("field", value)`, `.get<T>("field")`, `.has("field")`
-- [ ] `.type()` returns the schema
-- [ ] `.for_each(fn)` iteration
-- [ ] Type-erased value storage (`std::any` or variant)
+Currently only checks: `name()`, `field_count()`, `field_names()`, `has_field()`
 
-### Hybrid `type_def<T>` with `.member()` registration
-- [ ] `type_def<T>().member(&T::plain_member, "name").build()`
-- [ ] Registers plain (non-field<>) members alongside auto-discovered field<>/meta<>
-- [ ] Member pointers give read + write for free
+Missing from concept:
+- [ ] `has_meta<M>()`
+- [ ] `meta<M>()`
+- [ ] `meta_count<M>()`
+- [ ] `metas<M>()`
+- [ ] `for_each_field(fn)`
+- [ ] `for_each_meta(fn)` (needs dynamic impl first)
+- [ ] `create()` (different return types across modes — design question)
 
-### Polymorphic base
-- [ ] Typed `type_def<T>` and dynamic `type_def` share a common interface
-- [ ] `void print_schema(const type_def_base& t)` works with either
-- [ ] Requires type-erased runtime storage
-
-### JSON through type_def
-- [ ] Wire `to_json` / `to_json_string` through `type_def` for dynamic path too
-- [ ] Typed path already done ✅
+Also: `dynamic_tag` leaks into public API (`type_def<dynamic_tag>` in static_assert).
 
 ---
 
-## 🐛 Known issues
+## 🧪 Missing tests (methods exist, zero coverage)
 
-- **VS 2022 + PFR:** ICE in MSVC 14.44 on `pfr::detail::fields_count`. VS 2022 works fine without PFR. This combo stays out of the CI matrix.
+### Typed `type_def<T>`
+- [ ] `has_field(name)`
+- [ ] `field(name)` — descriptor by runtime name
+- [ ] `get<T>(instance, name)` — optional-returning overload
+- [ ] `create()`
+
+### Hybrid `type_def<T>()`
+- [ ] `for_each_meta(fn)`
 
 ---
 
-## 💡 Open questions
+## 📋 Still planned
 
-- Does the dynamic builder need `.build()` or can it be implicit?
-- What's the type-erased storage strategy for `object`? (`std::any` vs variant of common types vs something else)
-- How much of the polymorphic base do we actually need right now vs later?
-- Duplicate test structs (SimpleArgs, WeatherArgs, MixedStruct) exist across test files with different shapes — consolidation opportunity
+- [ ] **JSON for dynamic path** — `to_json` / `to_json_string` through dynamic `type_def` + `object` (typed path fully done ✅)
