@@ -19,13 +19,15 @@ export module collab.core:field_json;
 
 import :field;
 import :field_reflect;
+import :meta;
+import :type_def;
 
 export namespace collab::field {
 
 // ── to_json ────────────────────────────────────────────────────────────
 //
-// Serializes a reflected_struct to JSON via reflect<T>().for_each().
-// Only Field<> members are visited; non-Field members are skipped.
+// Serializes a reflected_struct to JSON via type_def<T>.for_each().
+// Only field<> members are visited; non-field members are skipped.
 // Nested reflected_structs recurse automatically.
 
 namespace detail {
@@ -86,8 +88,8 @@ namespace detail {
             return obj;
         } else if constexpr (reflected_struct<T>) {
             nlohmann::json j = nlohmann::json::object();
-            reflect<T>().for_each(v, [&](auto field) {
-                j[std::string(field.name())] = value_to_json(field.value());
+            collab::model::type_def<T>{}.for_each(v, [&](std::string_view name, const auto& value) {
+                j[std::string(name)] = value_to_json(value);
             });
             return j;
         } else {
