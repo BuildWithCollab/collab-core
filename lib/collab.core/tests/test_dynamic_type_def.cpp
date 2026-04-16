@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <any>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -280,6 +281,68 @@ TEST_CASE("dynamic type_def for_each_field() can query field metas", "[type_def]
     REQUIRE(!query_has_cli);
     REQUIRE(verbose_has_cli);
     REQUIRE(verbose_flag == 'v');
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tests: for_each_meta()
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic type_def for_each_meta() iterates type-level metas", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info_d>({.path = "/events"})
+        .meta<help_info_d>({.summary = "An event"});
+    int count = 0;
+    t.for_each_meta([&](const std::any&) { ++count; });
+    REQUIRE(count == 2);
+}
+
+TEST_CASE("dynamic type_def for_each_meta() on type with no metas", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Simple")
+        .field<int>("x");
+    int count = 0;
+    t.for_each_meta([&](const std::any&) { ++count; });
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("dynamic type_def for_each_meta() provides access via any_cast", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info_d>({.path = "/events", .method = "POST"})
+        .meta<help_info_d>({.summary = "An event"});
+
+    bool found_endpoint = false;
+    bool found_help = false;
+    t.for_each_meta([&](const std::any& meta_value) {
+        if (auto* ep = std::any_cast<endpoint_info_d>(&meta_value)) {
+            REQUIRE(std::string_view{ep->path} == "/events");
+            REQUIRE(std::string_view{ep->method} == "POST");
+            found_endpoint = true;
+        }
+        if (auto* h = std::any_cast<help_info_d>(&meta_value)) {
+            REQUIRE(std::string_view{h->summary} == "An event");
+            found_help = true;
+        }
+    });
+
+    REQUIRE(found_endpoint);
+    REQUIRE(found_help);
+}
+
+TEST_CASE("dynamic type_def for_each_meta() with multiple metas of same type", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Tagged")
+        .meta<tag_info_d>({.value = "a"})
+        .meta<tag_info_d>({.value = "b"})
+        .meta<tag_info_d>({.value = "c"});
+
+    std::vector<std::string> values;
+    t.for_each_meta([&](const std::any& meta_value) {
+        if (auto* tag = std::any_cast<tag_info_d>(&meta_value))
+            values.emplace_back(tag->value);
+    });
+
+    REQUIRE(values.size() == 3);
+    REQUIRE(values[0] == "a");
+    REQUIRE(values[1] == "b");
+    REQUIRE(values[2] == "c");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

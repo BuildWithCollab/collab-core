@@ -859,3 +859,145 @@ TEST_CASE("type_def set() round-trips with get()", "[type_def][set]") {
     REQUIRE(got_name == "Buddy");
     REQUIRE(got_age == 7);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tests: type_def<T>::has_field()
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("type_def has_field() finds field<> members by name", "[type_def][has_field]") {
+    type_def<Dog> t;
+    REQUIRE(t.has_field("name"));
+    REQUIRE(t.has_field("age"));
+    REQUIRE(t.has_field("breed"));
+}
+
+TEST_CASE("type_def has_field() returns false for unknown names", "[type_def][has_field]") {
+    type_def<Dog> t;
+    REQUIRE(!t.has_field("nope"));
+    REQUIRE(!t.has_field(""));
+    REQUIRE(!t.has_field("Name"));
+}
+
+TEST_CASE("type_def has_field() returns false for meta member names", "[type_def][has_field]") {
+    type_def<Dog> t;
+    REQUIRE(!t.has_field("endpoint"));
+    REQUIRE(!t.has_field("help"));
+}
+
+TEST_CASE("type_def has_field() returns false for plain member names", "[type_def][has_field]") {
+    type_def<MixedStruct> t;
+    REQUIRE(t.has_field("label"));
+    REQUIRE(t.has_field("score"));
+    REQUIRE(!t.has_field("counter"));
+}
+
+TEST_CASE("type_def has_field() on single-field struct", "[type_def][has_field]") {
+    type_def<SingleField> t;
+    REQUIRE(t.has_field("value"));
+    REQUIRE(!t.has_field("other"));
+}
+
+TEST_CASE("type_def has_field() on meta-only struct", "[type_def][has_field]") {
+    type_def<MetaOnly> t;
+    REQUIRE(!t.has_field("endpoint"));
+    REQUIRE(!t.has_field("help"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tests: type_def<T>::field() — field query by runtime name
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("type_def field() returns view with correct name", "[type_def][field_query]") {
+    type_def<SimpleArgs> t;
+    auto fv = t.field("name");
+    REQUIRE(fv.name() == "name");
+}
+
+TEST_CASE("type_def field() works for each field", "[type_def][field_query]") {
+    type_def<Dog> t;
+    REQUIRE(t.field("name").name() == "name");
+    REQUIRE(t.field("age").name() == "age");
+    REQUIRE(t.field("breed").name() == "breed");
+}
+
+TEST_CASE("type_def field() for unknown name returns view with that name", "[type_def][field_query]") {
+    type_def<Dog> t;
+    auto fv = t.field("nonexistent");
+    REQUIRE(fv.name() == "nonexistent");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tests: type_def<T>::get<V>() — optional-returning overload
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("type_def get<V>() returns value for matching type", "[type_def][get_typed]") {
+    SimpleArgs args;
+    args.name = "Alice";
+    args.age = 30;
+
+    type_def<SimpleArgs> t;
+    REQUIRE(t.get<std::string>(args, "name") == "Alice");
+    REQUIRE(t.get<int>(args, "age") == 30);
+}
+
+TEST_CASE("type_def get<V>() returns nullopt for unknown field", "[type_def][get_typed]") {
+    SimpleArgs args;
+    type_def<SimpleArgs> t;
+    REQUIRE(!t.get<int>(args, "nope").has_value());
+}
+
+TEST_CASE("type_def get<V>() returns nullopt for type mismatch", "[type_def][get_typed]") {
+    SimpleArgs args;
+    args.age = 42;
+    type_def<SimpleArgs> t;
+    REQUIRE(!t.get<std::string>(args, "age").has_value());
+}
+
+TEST_CASE("type_def get<V>() round-trips with set()", "[type_def][get_typed]") {
+    Dog rex;
+    type_def<Dog> t;
+
+    t.set(rex, "name", std::string("Rex"));
+    t.set(rex, "age", 5);
+    t.set(rex, "breed", std::string("Husky"));
+
+    REQUIRE(t.get<std::string>(rex, "name") == "Rex");
+    REQUIRE(t.get<int>(rex, "age") == 5);
+    REQUIRE(t.get<std::string>(rex, "breed") == "Husky");
+}
+
+TEST_CASE("type_def get<V>() on const instance", "[type_def][get_typed]") {
+    SimpleArgs args;
+    args.active = true;
+    const SimpleArgs& cargs = args;
+
+    type_def<SimpleArgs> t;
+    REQUIRE(t.get<bool>(cargs, "active") == true);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tests: type_def<T>::create()
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("type_def create() returns default-constructed instance", "[type_def][create]") {
+    type_def<SimpleArgs> t;
+    SimpleArgs args = t.create();
+    REQUIRE(args.name.value.empty());
+    REQUIRE(args.age.value == 0);
+    REQUIRE(args.active.value == false);
+}
+
+TEST_CASE("type_def create() preserves field defaults", "[type_def][create]") {
+    type_def<Dog> t;
+    Dog d = t.create();
+    REQUIRE(d.name.value.empty());
+    REQUIRE(d.age.value == 0);
+    REQUIRE(d.breed.value.empty());
+}
+
+TEST_CASE("type_def create() result is mutable and works with set", "[type_def][create]") {
+    type_def<Dog> t;
+    Dog d = t.create();
+    t.set(d, "name", std::string("Buddy"));
+    REQUIRE(t.get<std::string>(d, "name") == "Buddy");
+}

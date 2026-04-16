@@ -272,6 +272,26 @@ TEST_CASE("type_def<T> without hybrid still works", "[type_def][hybrid][compat]"
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// Tests: for_each_meta() on hybrid
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid type_def for_each_meta() on plain struct yields nothing", "[type_def][hybrid][for_each_meta]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    int count = 0;
+    t.for_each_meta([&](auto&) { ++count; });
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("hybrid type_def for_each_meta() on struct with metas", "[type_def][hybrid][for_each_meta]") {
+    // FieldDog has field<> members but no meta<> members, so count should be 0
+    type_def<FieldDog> t;
+    int count = 0;
+    t.for_each_meta([&](auto&) { ++count; });
+    REQUIRE(count == 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // Tests: Full integration
 // ═════════════════════════════════════════════════════════════════════════
 
