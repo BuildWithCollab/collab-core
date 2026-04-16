@@ -23,6 +23,16 @@ export namespace collab::model {
 
 struct dynamic_tag {};
 
+// ── type_schema — concept for anything that acts as a type definition ────
+
+template <typename T>
+concept type_schema = requires(const T& t, std::string_view sv) {
+    { t.name() } -> std::convertible_to<std::string_view>;
+    { t.field_count() } -> std::convertible_to<std::size_t>;
+    { t.field_names() } -> std::same_as<std::vector<std::string>>;
+    { t.has_field(sv) } -> std::same_as<bool>;
+};
+
 // ── type_def<T> — typed runtime schema with auto-discovery ───────────────
 //
 // Automatically discovers field<> and meta<> members of T via PFR or
