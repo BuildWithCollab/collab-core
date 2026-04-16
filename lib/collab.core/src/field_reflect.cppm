@@ -438,13 +438,17 @@ namespace detail {
     }
 
     // Runtime-safe variant: avoids consteval string_view materialization
-    // to work around a clang bug where consteval string_views that reference
-    // inline constexpr variable templates across module boundaries get their
-    // pointer and size paired from different template instantiations.
+    // to work around a clang bug where consteval results get assigned to
+    // the wrong template instantiation across C++20 module boundaries.
+    // GCC and MSVC don't have this bug, so they use the consteval path.
     template <std::size_t I, typename T>
     std::string_view dispatch_field_name_rt() {
         if constexpr (has_reflect_on<T>) return reflect_on<T>().names[I];
+#if defined(__clang__)
         else return pfr_fallback::template field_name_rt<I, T>();
+#else
+        else return pfr_fallback::template field_name<I, T>();
+#endif
     }
 
     // Lazy member_type — only instantiates the chosen backend
