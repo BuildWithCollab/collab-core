@@ -202,140 +202,6 @@ namespace detail {
         return found;
     }
 
-}  // namespace detail
-
-template <typename T = dynamic_tag>
-class type_def {
-    static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
-    using indices_ = std::make_index_sequence<total_members_>;
-
-public:
-    // ── Type name ────────────────────────────────────────────────────
-
-    constexpr std::string_view name() const {
-        return collab::model::type_name<T>();
-    }
-
-    // ── Field queries ────────────────────────────────────────────────
-
-    constexpr std::size_t field_count() const {
-        return collab::model::field_count<T>();
-    }
-
-    constexpr auto field_names() const {
-        return collab::model::field_names<T>();
-    }
-
-    // ── Meta queries ─────────────────────────────────────────────────
-
-    template <typename M>
-    constexpr bool has_meta() const {
-        return detail::count_meta_of<T, M>() > 0;
-    }
-
-    template <typename M>
-    M meta() const {
-        const T instance{};
-        return detail::extract_first_meta<const T, M>(instance, indices_{});
-    }
-
-    template <typename M>
-    constexpr std::size_t meta_count() const {
-        return detail::count_meta_of<T, M>();
-    }
-
-    template <typename M>
-    std::vector<M> metas() const {
-        const T instance{};
-        return detail::extract_all_metas<const T, M>(instance, indices_{});
-    }
-
-    // ── Instance iteration (field<> members only) ────────────────────
-    //
-    // Callback signature: fn(std::string_view name, auto& value)
-    // where value is the unwrapped field value (not the field<T> wrapper).
-
-    template <typename F>
-    constexpr void for_each(T& obj, F&& fn) const {
-        detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
-    }
-
-    template <typename F>
-    constexpr void for_each(const T& obj, F&& fn) const {
-        detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
-    }
-
-    // ── Schema-only field iteration ──────────────────────────────────
-    //
-    // Callback receives a field_descriptor<T, I> for each field<> member.
-    // Use .name(), .index(), .has_extension<E>(), .value(), .with().
-
-    template <typename F>
-    constexpr void for_each_field(F&& fn) const {
-        detail::for_each_field_descriptor<T>(std::forward<F>(fn), indices_{});
-    }
-
-    // ── Meta iteration ───────────────────────────────────────────────
-    //
-    // Callback receives the unwrapped meta value (not the meta<T> wrapper).
-    // Schema-only version constructs a default T to read meta values.
-
-    template <typename F>
-    void for_each_meta(F&& fn) const {
-        const T instance{};
-        detail::for_each_meta_value(instance, std::forward<F>(fn), indices_{});
-    }
-
-    template <typename F>
-    constexpr void for_each_meta(const T& obj, F&& fn) const {
-        detail::for_each_meta_value(obj, std::forward<F>(fn), indices_{});
-    }
-
-    // ── Get field by runtime name ────────────────────────────────────
-    //
-    // Callback signature: fn(std::string_view name, auto& value)
-    // Returns true if the field was found.
-
-    template <typename F>
-    constexpr bool get(T& obj, std::string_view name, F&& fn) const {
-        return detail::get_field_by_name(obj, name, std::forward<F>(fn), indices_{});
-    }
-
-    template <typename F>
-    constexpr bool get(const T& obj, std::string_view name, F&& fn) const {
-        return detail::get_field_by_name(obj, name, std::forward<F>(fn), indices_{});
-    }
-
-    // ── Set field by runtime name ────────────────────────────────────
-    //
-    // Returns true if the field was found and the value was assignable.
-    // Returns false if the field doesn't exist or the type doesn't match.
-
-    template <typename V>
-    constexpr bool set(T& obj, std::string_view name, V&& val) const {
-        return detail::set_field_by_name(
-            obj, name, std::forward<V>(val), indices_{});
-    }
-};
-
-// ═══════════════════════════════════════════════════════════════════════
-// Dynamic type_def — runtime builder, no backing struct
-// ═══════════════════════════════════════════════════════════════════════
-
-namespace detail {
-
-    // ── Detect with<> packs ──────────────────────────────────────────
-
-    template <typename U>
-    struct is_with_pack : std::false_type {};
-
-    template <typename... Exts>
-    struct is_with_pack<with<Exts...>> : std::true_type {};
-
-    template <typename U>
-    inline constexpr bool is_with_pack_v =
-        is_with_pack<std::remove_cvref_t<U>>::value;
-
     // ── Type-erased meta entry ───────────────────────────────────────
 
     struct meta_entry {
@@ -343,7 +209,7 @@ namespace detail {
         std::any        value;
     };
 
-    // ── Type-erased field definition ─────────────────────────────────
+    // ── Type-erased field definition (for dynamic type_def) ──────────
 
     struct dynamic_field_def {
         std::string              name;
@@ -352,20 +218,51 @@ namespace detail {
         bool                     has_default = false;
         std::vector<meta_entry>  metas;
 
-        // Type-erased setter: tries to assign incoming any to target any.
-        // Returns true on success (type matched).
         std::function<bool(std::any&, std::any&&)> setter;
-
-        // Factory: creates a default-constructed value of the field's type.
         std::function<std::any()> make_default;
     };
 
     // ── Extract metas from a with<Exts...> ───────────────────────────
 
     template <typename... Exts>
-    void extract_with_metas(dynamic_field_def& fd, const with<Exts...>& w) {
-        (fd.metas.push_back(
+    void extract_with_metas(std::vector<meta_entry>& out, const with<Exts...>& w) {
+        (out.push_back(
             {typeid(Exts), std::any(static_cast<const Exts&>(w))}), ...);
+    }
+
+    // ── Hybrid field registration (for type_def<T>) ──────────────────
+
+    template <typename T>
+    struct hybrid_field_reg {
+        std::string              name;
+        std::type_index          type{typeid(void)};
+        std::vector<meta_entry>  metas;
+
+        std::function<std::any(const T&)>  get_as_any;
+        std::function<bool(T&, std::any&&)> set_from_any;
+    };
+
+    template <typename T, typename MemT, typename... Withs>
+    hybrid_field_reg<T> make_hybrid_reg(
+            MemT T::* member, std::string_view fname, Withs... withs) {
+        hybrid_field_reg<T> reg;
+        reg.name = std::string(fname);
+        reg.type = typeid(MemT);
+
+        reg.get_as_any = [member](const T& obj) -> std::any {
+            return std::any(obj.*member);
+        };
+
+        reg.set_from_any = [member](T& obj, std::any&& incoming) -> bool {
+            if (auto* p = std::any_cast<MemT>(&incoming)) {
+                obj.*member = std::move(*p);
+                return true;
+            }
+            return false;
+        };
+
+        (extract_with_metas(reg.metas, withs), ...);
+        return reg;
     }
 
 }  // namespace detail
@@ -417,6 +314,225 @@ public:
         return result;
     }
 };
+
+template <typename T = dynamic_tag>
+class type_def {
+    static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
+    using indices_ = std::make_index_sequence<total_members_>;
+
+    // Hybrid field registrations (empty if pure auto-discovery)
+    std::vector<detail::hybrid_field_reg<T>> hybrid_fields_;
+
+    int find_hybrid_index(std::string_view fname) const {
+        for (int i = 0; i < static_cast<int>(hybrid_fields_.size()); ++i)
+            if (hybrid_fields_[i].name == fname) return i;
+        return -1;
+    }
+
+public:
+    // ── Type name ────────────────────────────────────────────────────
+
+    constexpr std::string_view name() const {
+        return collab::model::type_name<T>();
+    }
+
+    // ── Field queries ────────────────────────────────────────────────
+
+    std::size_t field_count() const {
+        return collab::model::field_count<T>() + hybrid_fields_.size();
+    }
+
+    std::vector<std::string> field_names() const {
+        auto discovered = collab::model::field_names<T>();
+        std::vector<std::string> result(discovered.begin(), discovered.end());
+        for (auto& reg : hybrid_fields_)
+            result.push_back(reg.name);
+        return result;
+    }
+
+    // ── Field builder (hybrid registration) ──────────────────────────
+
+    template <typename MemT, typename... Withs>
+    type_def& field(MemT T::* member, std::string_view fname, Withs... withs) {
+        hybrid_fields_.push_back(
+            detail::make_hybrid_reg<T>(member, fname, withs...));
+        return *this;
+    }
+
+    // ── Field queries by name ────────────────────────────────────────
+
+    bool has_field(std::string_view fname) const {
+        // Check auto-discovered fields
+        auto discovered = collab::model::field_names<T>();
+        for (auto& n : discovered)
+            if (n == fname) return true;
+        // Check hybrid registered fields
+        return find_hybrid_index(fname) >= 0;
+    }
+
+    dynamic_field_view field(std::string_view fname) const {
+        // Only works for hybrid registered fields (they have dynamic_field_def-like data)
+        int idx = find_hybrid_index(fname);
+        if (idx >= 0) {
+            // Build a temporary dynamic_field_def-compatible view
+            // Hybrid regs store the same data as dynamic_field_def
+            thread_local detail::dynamic_field_def temp;
+            auto& reg = hybrid_fields_[idx];
+            temp.name = reg.name;
+            temp.type = reg.type;
+            temp.has_default = false;
+            temp.metas = reg.metas;
+            return dynamic_field_view(&temp);
+        }
+        // Fallback — shouldn't normally reach here
+        thread_local detail::dynamic_field_def fallback;
+        return dynamic_field_view(&fallback);
+    }
+
+    // ── Meta queries ─────────────────────────────────────────────────
+
+    template <typename M>
+    constexpr bool has_meta() const {
+        return detail::count_meta_of<T, M>() > 0;
+    }
+
+    template <typename M>
+    M meta() const {
+        const T instance{};
+        return detail::extract_first_meta<const T, M>(instance, indices_{});
+    }
+
+    template <typename M>
+    constexpr std::size_t meta_count() const {
+        return detail::count_meta_of<T, M>();
+    }
+
+    template <typename M>
+    std::vector<M> metas() const {
+        const T instance{};
+        return detail::extract_all_metas<const T, M>(instance, indices_{});
+    }
+
+    // ── Instance iteration (field<> members only) ────────────────────
+    //
+    // Callback signature: fn(std::string_view name, auto& value)
+    // where value is the unwrapped field value (not the field<T> wrapper).
+    // Note: iterates auto-discovered field<> members only.
+
+    template <typename F>
+    constexpr void for_each(T& obj, F&& fn) const {
+        detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
+    }
+
+    template <typename F>
+    constexpr void for_each(const T& obj, F&& fn) const {
+        detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
+    }
+
+    // ── Schema-only field iteration ──────────────────────────────────
+    //
+    // Callback receives a field_descriptor<T, I> for each field<> member.
+    // Use .name(), .index(), .has_extension<E>(), .value(), .with().
+
+    template <typename F>
+    constexpr void for_each_field(F&& fn) const {
+        detail::for_each_field_descriptor<T>(std::forward<F>(fn), indices_{});
+    }
+
+    // ── Meta iteration ───────────────────────────────────────────────
+    //
+    // Callback receives the unwrapped meta value (not the meta<T> wrapper).
+    // Schema-only version constructs a default T to read meta values.
+
+    template <typename F>
+    void for_each_meta(F&& fn) const {
+        const T instance{};
+        detail::for_each_meta_value(instance, std::forward<F>(fn), indices_{});
+    }
+
+    template <typename F>
+    constexpr void for_each_meta(const T& obj, F&& fn) const {
+        detail::for_each_meta_value(obj, std::forward<F>(fn), indices_{});
+    }
+
+    // ── Get field by runtime name (callback) ─────────────────────────
+    //
+    // Callback signature: fn(std::string_view name, auto& value)
+    // Returns true if the field was found.
+    // Works for auto-discovered field<> members.
+
+    template <typename F>
+    constexpr bool get(T& obj, std::string_view name, F&& fn) const {
+        return detail::get_field_by_name(obj, name, std::forward<F>(fn), indices_{});
+    }
+
+    template <typename F>
+    constexpr bool get(const T& obj, std::string_view name, F&& fn) const {
+        return detail::get_field_by_name(obj, name, std::forward<F>(fn), indices_{});
+    }
+
+    // ── Get field by runtime name (typed) ────────────────────────────
+    //
+    // Returns optional<V>. Works for both auto-discovered and hybrid fields.
+
+    template <typename V>
+    std::optional<V> get(const T& obj, std::string_view name) const {
+        // Try auto-discovered fields first
+        std::optional<V> result;
+        detail::get_field_by_name(obj, name,
+            [&](std::string_view, const auto& value) {
+                if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, V>)
+                    result = value;
+            }, indices_{});
+        if (result) return result;
+
+        // Try hybrid registered fields
+        int idx = find_hybrid_index(name);
+        if (idx >= 0) {
+            std::any val = hybrid_fields_[idx].get_as_any(obj);
+            if (auto* p = std::any_cast<V>(&val))
+                return *p;
+        }
+        return std::nullopt;
+    }
+
+    // ── Set field by runtime name ────────────────────────────────────
+    //
+    // Returns true if the field was found and the value was assignable.
+    // Works for both auto-discovered and hybrid fields.
+
+    template <typename V>
+    bool set(T& obj, std::string_view name, V&& val) const {
+        // Try auto-discovered fields first
+        if (detail::set_field_by_name(
+                obj, name, std::forward<V>(val), indices_{}))
+            return true;
+
+        // Try hybrid registered fields
+        int idx = find_hybrid_index(name);
+        if (idx >= 0) {
+            std::any wrapped(std::forward<V>(val));
+            if (hybrid_fields_[idx].set_from_any(obj, std::move(wrapped)))
+                return true;
+            // Fallback: try string conversion
+            if constexpr (std::is_constructible_v<std::string, V> &&
+                          !std::is_same_v<std::remove_cvref_t<V>, std::string>) {
+                std::any str(std::string(std::forward<V>(val)));
+                if (hybrid_fields_[idx].set_from_any(obj, std::move(str)))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    // ── Create instance ──────────────────────────────────────────────
+
+    T create() const { return T{}; }
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// Dynamic type_def — runtime builder, no backing struct
+// ═══════════════════════════════════════════════════════════════════════
 
 // Forward declaration for object (defined below)
 class object;
@@ -478,7 +594,7 @@ public:
             std::string(fname), typeid(V),
             std::any(std::move(default_value)), true, {},
             std::move(setter), std::move(factory)};
-        (detail::extract_with_metas(fd, withs), ...);
+        (detail::extract_with_metas(fd.metas, withs), ...);
         fields_.push_back(std::move(fd));
         return *this;
     }
