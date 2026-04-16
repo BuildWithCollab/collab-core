@@ -174,7 +174,7 @@ namespace detail {
         using T = std::remove_cvref_t<Obj>;
         using member_t = collab::field::detail::member_type<I, T>;
         if constexpr (collab::field::is_field<member_t>) {
-            if (collab::field::detail::dispatch_field_name<I, T>() == name) {
+            if (collab::field::detail::dispatch_field_name_rt<I, T>() == name) {
                 using value_t = typename member_t::value_type;
                 if constexpr (std::is_constructible_v<value_t, V>) {
                     collab::field::detail::dispatch_get_member<I>(obj).value =
