@@ -22,12 +22,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-          - os: ubuntu-latest
-            toolchain: gcc-15
-          - os: macos-latest
+          - name: "macOS · Clang 22 · PFR"
+            os: macos-latest
             toolchain: llvm
+            enable_pfr: true
+          - name: "macOS · Clang 22 · no PFR"
+            os: macos-latest
+            toolchain: llvm
+            enable_pfr: false
+          - name: "Linux · GCC 15 · PFR"
+            os: ubuntu-latest
+            toolchain: gcc-15
+            enable_pfr: true
+          - name: "Linux · GCC 15 · no PFR"
+            os: ubuntu-latest
+            toolchain: gcc-15
+            enable_pfr: false
+          - name: "Windows · VS 2026 · PFR"
+            os: windows-2025-vs2026
+            enable_pfr: true
+          - name: "Windows · VS 2022 · no PFR"
+            os: windows-latest
+            enable_pfr: false
 
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -43,9 +61,9 @@ jobs:
           path: |
             ~/.xmake/packages
             ~/AppData/Local/.xmake/packages
-          key: xmake-${{ runner.os }}-${{ hashFiles('**/xmake.lua') }}
+          key: xmake-${{ runner.os }}-${{ matrix.enable_pfr && 'pfr' || 'nopfr' }}-${{ hashFiles('**/xmake.lua') }}
           restore-keys: |
-            xmake-${{ runner.os }}-
+            xmake-${{ runner.os }}-${{ matrix.enable_pfr && 'pfr' || 'nopfr' }}-
 
       - name: Install GCC 15 (Linux)
         if: matrix.toolchain == 'gcc-15'
@@ -56,7 +74,7 @@ jobs:
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100
           sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100
 
-      - name: Install LLVM/Clang (macOS)
+      - name: Install Clang (macOS)
         if: matrix.toolchain == 'llvm'
         run: |
           brew install llvm
@@ -64,16 +82,15 @@ jobs:
 
       - name: Configure (Linux GCC 15)
         if: matrix.toolchain == 'gcc-15'
-        run: xmake config --toolchain=gcc -y
+        run: xmake config --toolchain=gcc --enable_pfr=${{ matrix.enable_pfr && 'y' || 'n' }} -y
 
-      - name: Configure (macOS LLVM)
+      - name: Configure (macOS Clang)
         if: matrix.toolchain == 'llvm'
-        run: xmake config --toolchain=llvm --sdk="$(brew --prefix llvm)" -y
+        run: xmake config --toolchain=llvm --sdk="$(brew --prefix llvm)" --enable_pfr=${{ matrix.enable_pfr && 'y' || 'n' }} -y
 
       - name: Configure (Windows)
-        if: matrix.toolchain == ''
-        # PFR support in this library on Windows requires VS 2026; GHA runs VS 2022.
-        run: xmake config --enable_pfr=n -y
+        if: runner.os == 'Windows'
+        run: xmake config --enable_pfr=${{ matrix.enable_pfr && 'y' || 'n' }} -y
 
       - name: Build
         run: xmake build -a
@@ -89,4 +106,4 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ secrets.SLACK_GHA_FAILURES_CHANNEL_ID }}
-            text: "🚨 *${{ github.repository }}* failed on *${{ matrix.os }}*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            text: "🚨 *${{ github.repository }}* failed on *${{ matrix.name }}*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
