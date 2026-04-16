@@ -585,15 +585,23 @@ struct field_descriptor {
 
     consteval std::size_t index() const { return I; }
 
-    template <typename Ext>
-    consteval bool has_extension() const {
+    template <typename M>
+    consteval bool has_meta() const {
         using member_t = detail::member_type<I, T>;
         if constexpr (is_field<member_t>) {
             using with_type = std::remove_cvref_t<decltype(std::declval<member_t>().with)>;
-            return std::is_base_of_v<Ext, with_type>;
+            return std::is_base_of_v<M, with_type>;
         } else {
             return false;
         }
+    }
+
+    template <typename M>
+    constexpr M meta() const {
+        using member_t = detail::member_type<I, T>;
+        static_assert(is_field<member_t>, "meta<M>() requires a field<> member");
+        T instance{};
+        return static_cast<const M&>(detail::dispatch_get_member<I>(instance).with);
     }
 
     constexpr auto value() const {

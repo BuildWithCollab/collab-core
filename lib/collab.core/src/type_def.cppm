@@ -472,14 +472,18 @@ public:
 
     // ── Schema-only field iteration ──────────────────────────────────
     //
-    // Callback receives a field_descriptor<T, I> for each auto-discovered
-    // field<> member. Hybrid-registered fields are NOT included here —
-    // they use dynamic_field_view which has a different API surface.
-    // See the for_each_field / for_each design discussion in MODELS_TODO.
+    // Auto-discovered field<> members: callback receives field_descriptor<T, I>.
+    // Hybrid-registered fields: callback receives dynamic_field_view.
+    // Both expose .name() and .has_meta<M>() / .meta<M>().
 
     template <typename F>
-    constexpr void for_each_field(F&& fn) const {
+    void for_each_field(F&& fn) const {
         detail::for_each_field_descriptor<T>(std::forward<F>(fn), indices_{});
+        for (auto& reg : hybrid_fields_) {
+            detail::dynamic_field_def temp{
+                reg.name, reg.type, {}, false, reg.metas, {}, {}};
+            fn(dynamic_field_view(&temp));
+        }
     }
 
     // ── Meta iteration ───────────────────────────────────────────────

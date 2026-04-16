@@ -429,7 +429,9 @@ TEST_CASE("type_def for_each_field iterates field descriptors", "[type_def][for_
 
     type_def<Dog>{}.for_each_field([&](auto descriptor) {
         names.emplace_back(descriptor.name());
-        indices.push_back(descriptor.index());
+        if constexpr (requires { descriptor.index(); }) {
+            indices.push_back(descriptor.index());
+        }
     });
 
     REQUIRE(names.size() == 3);
@@ -595,21 +597,21 @@ TEST_CASE("type_def get() on const instance", "[type_def][get]") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// Tests: Field extensions via with<>
+// Tests: Field-level metadata via with<>
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("type_def for_each_field detects field extensions", "[type_def][extensions]") {
+TEST_CASE("type_def for_each_field detects field-level metas", "[type_def][field_meta]") {
     bool found_verbose_cli = false;
     bool found_limit_cli = false;
     bool found_limit_render = false;
 
     type_def<CliArgs>{}.for_each_field([&](auto descriptor) {
         if (descriptor.name() == "verbose") {
-            found_verbose_cli = descriptor.template has_extension<cli_meta>();
+            found_verbose_cli = descriptor.template has_meta<cli_meta>();
         }
         if (descriptor.name() == "limit") {
-            found_limit_cli = descriptor.template has_extension<cli_meta>();
-            found_limit_render = descriptor.template has_extension<render_meta>();
+            found_limit_cli = descriptor.template has_meta<cli_meta>();
+            found_limit_render = descriptor.template has_meta<render_meta>();
         }
     });
 
@@ -618,13 +620,15 @@ TEST_CASE("type_def for_each_field detects field extensions", "[type_def][extens
     REQUIRE(found_limit_render);
 }
 
-TEST_CASE("type_def for_each_field reads extension values via with()", "[type_def][extensions]") {
+TEST_CASE("type_def for_each_field reads meta values via meta<M>()", "[type_def][field_meta]") {
     char verbose_flag = '\0';
 
     type_def<CliArgs>{}.for_each_field([&](auto descriptor) {
-        if (descriptor.name() == "verbose") {
-            if constexpr (descriptor.template has_extension<cli_meta>()) {
-                verbose_flag = descriptor.with().cli.short_flag;
+        if constexpr (requires { descriptor.index(); }) {
+            if (descriptor.name() == "verbose") {
+                if constexpr (descriptor.template has_meta<cli_meta>()) {
+                    verbose_flag = descriptor.template meta<cli_meta>().cli.short_flag;
+                }
             }
         }
     });
@@ -632,12 +636,12 @@ TEST_CASE("type_def for_each_field reads extension values via with()", "[type_de
     REQUIRE(verbose_flag == 'v');
 }
 
-TEST_CASE("type_def for_each_field — query has no extension", "[type_def][extensions]") {
+TEST_CASE("type_def for_each_field — query has no meta", "[type_def][field_meta]") {
     bool query_has_cli = true;
 
     type_def<CliArgs>{}.for_each_field([&](auto descriptor) {
         if (descriptor.name() == "query") {
-            query_has_cli = descriptor.template has_extension<cli_meta>();
+            query_has_cli = descriptor.template has_meta<cli_meta>();
         }
     });
 

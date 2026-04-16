@@ -272,6 +272,78 @@ TEST_CASE("type_def<T> without hybrid still works", "[type_def][hybrid][compat]"
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// Tests: for_each_field() on hybrid — iterates registered fields
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid type_def for_each_field() iterates registered fields", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+
+    std::vector<std::string> names;
+    t.for_each_field([&](auto descriptor) {
+        names.emplace_back(descriptor.name());
+    });
+
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    REQUIRE(names[2] == "breed");
+}
+
+TEST_CASE("hybrid type_def for_each_field() count matches field_count()", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+
+    int visited = 0;
+    t.for_each_field([&](auto) { ++visited; });
+    REQUIRE(visited == static_cast<int>(t.field_count()));
+}
+
+TEST_CASE("hybrid type_def for_each_field() can query field metas", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name",
+            with<help_info_h>({.summary = "Dog's name"}))
+        .field(&PlainDog::age, "age");
+
+    bool name_has_help = false;
+    bool age_has_help = true;
+
+    t.for_each_field([&](auto descriptor) {
+        if (descriptor.name() == "name")
+            name_has_help = descriptor.template has_meta<help_info_h>();
+        if (descriptor.name() == "age")
+            age_has_help = descriptor.template has_meta<help_info_h>();
+    });
+
+    REQUIRE(name_has_help);
+    REQUIRE(!age_has_help);
+}
+
+TEST_CASE("hybrid type_def for_each_field() reads meta values", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name",
+            with<help_info_h>({.summary = "Dog's name"}));
+
+    std::string summary;
+    t.for_each_field([&](auto descriptor) {
+        if (descriptor.name() == "name" && descriptor.template has_meta<help_info_h>())
+            summary = descriptor.template meta<help_info_h>().summary;
+    });
+
+    REQUIRE(summary == "Dog's name");
+}
+
+TEST_CASE("hybrid type_def for_each_field() on empty hybrid yields nothing", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>();  // no fields registered
+    int count = 0;
+    t.for_each_field([&](auto) { ++count; });
+    REQUIRE(count == 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // Tests: for_each_meta() on hybrid
 // ═════════════════════════════════════════════════════════════════════════
 
