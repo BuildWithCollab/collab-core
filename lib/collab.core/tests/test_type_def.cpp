@@ -750,3 +750,113 @@ TEST_CASE("type_def CliArgs integration — fields, metas, and extensions", "[ty
     });
     REQUIRE(found);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tests: type_def<T>::set() — assign field by runtime name
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("type_def set() assigns a string field", "[type_def][set]") {
+    SimpleArgs args;
+
+    bool ok = type_def<SimpleArgs>{}.set(args, "name", std::string("Alice"));
+    REQUIRE(ok);
+    REQUIRE(args.name.value == "Alice");
+}
+
+TEST_CASE("type_def set() assigns an int field", "[type_def][set]") {
+    SimpleArgs args;
+
+    bool ok = type_def<SimpleArgs>{}.set(args, "age", 30);
+    REQUIRE(ok);
+    REQUIRE(args.age.value == 30);
+}
+
+TEST_CASE("type_def set() assigns a bool field", "[type_def][set]") {
+    SimpleArgs args;
+
+    bool ok = type_def<SimpleArgs>{}.set(args, "active", true);
+    REQUIRE(ok);
+    REQUIRE(args.active.value == true);
+}
+
+TEST_CASE("type_def set() returns false for unknown field name", "[type_def][set]") {
+    SimpleArgs args;
+
+    bool ok = type_def<SimpleArgs>{}.set(args, "nonexistent", 42);
+    REQUIRE(!ok);
+}
+
+TEST_CASE("type_def set() returns false for type mismatch", "[type_def][set]") {
+    SimpleArgs args;
+
+    // "name" is field<std::string>, passing an int
+    bool ok = type_def<SimpleArgs>{}.set(args, "name", 42);
+    REQUIRE(!ok);
+}
+
+TEST_CASE("type_def set() does not modify field on type mismatch", "[type_def][set]") {
+    SimpleArgs args;
+    args.name = "Original";
+
+    type_def<SimpleArgs>{}.set(args, "name", 42);
+    REQUIRE(args.name.value == "Original");
+}
+
+TEST_CASE("type_def set() ignores meta member names", "[type_def][set]") {
+    Dog rex;
+
+    bool ok = type_def<Dog>{}.set(rex, "endpoint", 42);
+    REQUIRE(!ok);
+}
+
+TEST_CASE("type_def set() works on struct with metas", "[type_def][set]") {
+    Dog rex;
+
+    REQUIRE(type_def<Dog>{}.set(rex, "name", std::string("Rex")));
+    REQUIRE(type_def<Dog>{}.set(rex, "age", 3));
+    REQUIRE(type_def<Dog>{}.set(rex, "breed", std::string("Husky")));
+
+    REQUIRE(rex.name.value == "Rex");
+    REQUIRE(rex.age.value == 3);
+    REQUIRE(rex.breed.value == "Husky");
+}
+
+TEST_CASE("type_def set() overwrites existing values", "[type_def][set]") {
+    SimpleArgs args;
+    args.name = "First";
+
+    type_def<SimpleArgs>{}.set(args, "name", std::string("Second"));
+    REQUIRE(args.name.value == "Second");
+}
+
+TEST_CASE("type_def set() with const char* to string field", "[type_def][set]") {
+    SimpleArgs args;
+
+    bool ok = type_def<SimpleArgs>{}.set(args, "name", "hello");
+    REQUIRE(ok);
+    REQUIRE(args.name.value == "hello");
+}
+
+TEST_CASE("type_def set() round-trips with get()", "[type_def][set]") {
+    Dog rex;
+    type_def<Dog> t;
+
+    t.set(rex, "name", std::string("Buddy"));
+    t.set(rex, "age", 7);
+
+    std::string got_name;
+    int got_age = 0;
+    t.get(rex, "name", [&](std::string_view, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            got_name = value;
+        }
+    });
+    t.get(rex, "age", [&](std::string_view, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
+            got_age = value;
+        }
+    });
+
+    REQUIRE(got_name == "Buddy");
+    REQUIRE(got_age == 7);
+}

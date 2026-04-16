@@ -166,6 +166,33 @@ namespace detail {
         return found;
     }
 
+    // ── Set by name ──────────────────────────────────────────────────
+
+    template <std::size_t I, typename Obj, typename V>
+    constexpr void try_set_field(Obj& obj, std::string_view name, V&& val, bool& found) {
+        if (found) return;
+        using T = std::remove_cvref_t<Obj>;
+        using member_t = collab::field::detail::member_type<I, T>;
+        if constexpr (collab::field::is_field<member_t>) {
+            if (collab::field::detail::dispatch_field_name<I, T>() == name) {
+                using value_t = typename member_t::value_type;
+                if constexpr (std::is_constructible_v<value_t, V>) {
+                    collab::field::detail::dispatch_get_member<I>(obj).value =
+                        std::forward<V>(val);
+                    found = true;
+                }
+            }
+        }
+    }
+
+    template <typename Obj, typename V, std::size_t... Is>
+    constexpr bool set_field_by_name(Obj& obj, std::string_view name, V&& val,
+                                     std::index_sequence<Is...>) {
+        bool found = false;
+        (try_set_field<Is>(obj, name, std::forward<V>(val), found), ...);
+        return found;
+    }
+
 }  // namespace detail
 
 template <typename T>
@@ -268,6 +295,17 @@ public:
     template <typename F>
     constexpr bool get(const T& obj, std::string_view name, F&& fn) const {
         return detail::get_field_by_name(obj, name, std::forward<F>(fn), indices_{});
+    }
+
+    // ── Set field by runtime name ────────────────────────────────────
+    //
+    // Returns true if the field was found and the value was assignable.
+    // Returns false if the field doesn't exist or the type doesn't match.
+
+    template <typename V>
+    constexpr bool set(T& obj, std::string_view name, V&& val) const {
+        return detail::set_field_by_name(
+            obj, name, std::forward<V>(val), indices_{});
     }
 };
 
