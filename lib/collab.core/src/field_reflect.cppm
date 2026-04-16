@@ -39,6 +39,8 @@ consteval std::string_view field_name() {
 //
 // Uses __PRETTY_FUNCTION__ parsing at runtime (same technique as PFR, but
 // evaluated at runtime instead of compile time).
+// Only defined on clang — GCC and MSVC don't have this bug.
+#ifdef __clang__
 template <auto ptr>
 const char* name_of_field_pretty_fn() {
     return __PRETTY_FUNCTION__;
@@ -67,6 +69,7 @@ std::string_view field_name_rt() {
         )))
     >();
 }
+#endif // __clang__
 
 template <std::size_t I, typename T>
 using member_type = pfr::tuple_element_t<I, T>;
@@ -365,12 +368,14 @@ namespace detail {
             return "";
         }
 
+#ifdef __clang__
         template <std::size_t I, typename T>
         static std::string_view field_name_rt() {
             static_assert(has_reflect_on<T>,
                 "Type has no reflect_on<T>() specialization and PFR is not enabled.");
             return "";
         }
+#endif
 
         template <std::size_t I, typename T>
         using member_type = void;
@@ -401,10 +406,12 @@ namespace detail {
             return pfr_impl::field_name<I, T>();
         }
 
+#ifdef __clang__
         template <std::size_t I, typename T>
         static std::string_view field_name_rt() {
             return pfr_impl::field_name_rt<I, T>();
         }
+#endif
 
         template <std::size_t I, typename T>
         using member_type = pfr_impl::member_type<I, T>;
