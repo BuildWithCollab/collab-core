@@ -1,0 +1,882 @@
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include <nlohmann/json.hpp>
+
+#include <ankerl/unordered_dense.h>
+
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+import collab.core;
+
+using namespace collab::model;
+using json = nlohmann::json;
+
+// ── Forward declarations for struct_info fallbacks ──────────────────────
+
+struct SimpleArgs;
+struct WithDefaults;
+struct Address;
+struct Person;
+struct TaggedItem;
+struct MaybeNickname;
+struct CliArgs;
+struct MixedStruct;
+struct Team;
+struct Config;
+struct Labels;
+struct Endpoint;
+struct ServiceMap;
+struct EmptyConfig;
+struct TagSet;
+struct IdSet;
+struct DenseMapStruct;
+struct DenseSetStruct;
+struct Measurement;
+struct FloatStruct;
+struct BigNumbers;
+struct Inner;
+struct Outer;
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<SimpleArgs>() {
+    return collab::model::field_info<SimpleArgs>("name", "age", "active");
+}
+
+template <>
+constexpr auto collab::model::struct_info<WithDefaults>() {
+    return collab::model::field_info<WithDefaults>("city", "days");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Address>() {
+    return collab::model::field_info<Address>("street", "zip");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Person>() {
+    return collab::model::field_info<Person>("name", "address");
+}
+
+template <>
+constexpr auto collab::model::struct_info<TaggedItem>() {
+    return collab::model::field_info<TaggedItem>("title", "tags");
+}
+
+template <>
+constexpr auto collab::model::struct_info<MaybeNickname>() {
+    return collab::model::field_info<MaybeNickname>("name", "nickname");
+}
+
+template <>
+constexpr auto collab::model::struct_info<CliArgs>() {
+    return collab::model::field_info<CliArgs>("query", "verbose");
+}
+
+template <>
+constexpr auto collab::model::struct_info<MixedStruct>() {
+    return collab::model::field_info<MixedStruct>("visible", "internal_counter", "score");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Team>() {
+    return collab::model::field_info<Team>("team_name", "members");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Config>() {
+    return collab::model::field_info<Config>("name", "settings");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Labels>() {
+    return collab::model::field_info<Labels>("tags");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Endpoint>() {
+    return collab::model::field_info<Endpoint>("url", "port");
+}
+
+template <>
+constexpr auto collab::model::struct_info<ServiceMap>() {
+    return collab::model::field_info<ServiceMap>("services");
+}
+
+template <>
+constexpr auto collab::model::struct_info<EmptyConfig>() {
+    return collab::model::field_info<EmptyConfig>("settings");
+}
+
+template <>
+constexpr auto collab::model::struct_info<TagSet>() {
+    return collab::model::field_info<TagSet>("tags");
+}
+
+template <>
+constexpr auto collab::model::struct_info<IdSet>() {
+    return collab::model::field_info<IdSet>("ids");
+}
+
+template <>
+constexpr auto collab::model::struct_info<DenseMapStruct>() {
+    return collab::model::field_info<DenseMapStruct>("scores");
+}
+
+template <>
+constexpr auto collab::model::struct_info<DenseSetStruct>() {
+    return collab::model::field_info<DenseSetStruct>("names");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Measurement>() {
+    return collab::model::field_info<Measurement>("unit", "value");
+}
+
+template <>
+constexpr auto collab::model::struct_info<FloatStruct>() {
+    return collab::model::field_info<FloatStruct>("weight");
+}
+
+template <>
+constexpr auto collab::model::struct_info<BigNumbers>() {
+    return collab::model::field_info<BigNumbers>("signed_big", "unsigned_big");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Inner>() {
+    return collab::model::field_info<Inner>("x");
+}
+
+template <>
+constexpr auto collab::model::struct_info<Outer>() {
+    return collab::model::field_info<Outer>("name", "extra");
+}
+#endif
+
+// ── Test structs ─────────────────────────────────────────────────────────
+
+struct SimpleArgs {
+    field<std::string> name;
+    field<int>         age;
+    field<bool>        active;
+};
+
+struct WithDefaults {
+    field<std::string> city    {.value = "Portland"};
+    field<int>         days    {.value = 7};
+};
+
+struct Address {
+    field<std::string> street;
+    field<std::string> zip;
+};
+
+struct Person {
+    field<std::string> name;
+    field<Address>     address;
+};
+
+struct TaggedItem {
+    field<std::string>              title;
+    field<std::vector<std::string>> tags;
+};
+
+struct MaybeNickname {
+    field<std::string>                name;
+    field<std::optional<std::string>> nickname;
+};
+
+struct posix_options {
+    char short_flag = '\0';
+    bool from_stdin = false;
+};
+
+struct posix_meta { posix_options posix{}; };
+
+struct CliArgs {
+    field<std::string, with<posix_meta>> query {
+        .with = {{.posix = {.short_flag = 'q', .from_stdin = true}}}
+    };
+    field<bool, with<posix_meta>> verbose {
+        .with = {{.posix = {.short_flag = 'v'}}}
+    };
+};
+
+struct MixedStruct {
+    field<std::string> visible;
+    int                internal_counter = 0;
+    field<int>         score;
+};
+
+struct Team {
+    field<std::string>             team_name;
+    field<std::vector<SimpleArgs>> members;
+};
+
+struct Config {
+    field<std::string>                name;
+    field<std::map<std::string, int>> settings;
+};
+
+struct Labels {
+    field<std::unordered_map<std::string, std::string>> tags;
+};
+
+struct Endpoint {
+    field<std::string> url;
+    field<int>         port;
+};
+
+struct ServiceMap {
+    field<std::map<std::string, Endpoint>> services;
+};
+
+struct EmptyConfig {
+    field<std::map<std::string, int>> settings;
+};
+
+struct TagSet {
+    field<std::set<std::string>> tags;
+};
+
+struct IdSet {
+    field<std::unordered_set<int>> ids;
+};
+
+struct DenseMapStruct {
+    field<ankerl::unordered_dense::map<std::string, int>> scores;
+};
+
+struct DenseSetStruct {
+    field<ankerl::unordered_dense::set<std::string>> names;
+};
+
+struct Measurement {
+    field<std::string> unit;
+    field<double>      value;
+};
+
+struct FloatStruct {
+    field<float> weight;
+};
+
+struct BigNumbers {
+    field<int64_t>  signed_big;
+    field<uint64_t> unsigned_big;
+};
+
+struct Inner {
+    field<int> x;
+};
+
+struct Outer {
+    field<std::string>          name;
+    field<std::optional<Inner>> extra;
+};
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — primitives
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: primitive fields", "[from_json][typed]") {
+    auto j = json{{"name", "Alice"}, {"age", 30}, {"active", true}};
+    auto args = from_json<SimpleArgs>(j);
+
+    REQUIRE(args.name.value == "Alice");
+    REQUIRE(args.age.value == 30);
+    REQUIRE(args.active.value == true);
+}
+
+TEST_CASE("typed from_json: preserves struct defaults for missing keys", "[from_json][typed]") {
+    auto j = json::object();
+    auto w = from_json<WithDefaults>(j);
+
+    REQUIRE(w.city.value == "Portland");
+    REQUIRE(w.days.value == 7);
+}
+
+TEST_CASE("typed from_json: partial overlay — some keys present, some missing", "[from_json][typed]") {
+    auto j = json{{"city", "Seattle"}};
+    auto w = from_json<WithDefaults>(j);
+
+    REQUIRE(w.city.value == "Seattle");
+    REQUIRE(w.days.value == 7);
+}
+
+TEST_CASE("typed from_json: extra keys are silently ignored", "[from_json][typed]") {
+    auto j = json{{"name", "Bob"}, {"age", 25}, {"active", false},
+                   {"unknown_field", "ignored"}, {"another", 999}};
+    auto args = from_json<SimpleArgs>(j);
+
+    REQUIRE(args.name.value == "Bob");
+    REQUIRE(args.age.value == 25);
+    REQUIRE(args.active.value == false);
+}
+
+TEST_CASE("typed from_json: empty JSON object gives all defaults", "[from_json][typed]") {
+    auto args = from_json<SimpleArgs>(json::object());
+
+    REQUIRE(args.name.value.empty());
+    REQUIRE(args.age.value == 0);
+    REQUIRE(args.active.value == false);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — nested structs
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: nested reflected struct", "[from_json][typed][nested]") {
+    auto j = json{
+        {"name", "Bob"},
+        {"address", {{"street", "123 Main St"}, {"zip", "97201"}}}
+    };
+    auto p = from_json<Person>(j);
+
+    REQUIRE(p.name.value == "Bob");
+    REQUIRE(p.address.value.street.value == "123 Main St");
+    REQUIRE(p.address.value.zip.value == "97201");
+}
+
+TEST_CASE("typed from_json: nested struct with missing inner keys", "[from_json][typed][nested]") {
+    auto j = json{
+        {"name", "Bob"},
+        {"address", {{"street", "123 Main St"}}}
+    };
+    auto p = from_json<Person>(j);
+
+    REQUIRE(p.address.value.street.value == "123 Main St");
+    REQUIRE(p.address.value.zip.value.empty());
+}
+
+TEST_CASE("typed from_json: missing nested object entirely", "[from_json][typed][nested]") {
+    auto j = json{{"name", "Bob"}};
+    auto p = from_json<Person>(j);
+
+    REQUIRE(p.name.value == "Bob");
+    REQUIRE(p.address.value.street.value.empty());
+    REQUIRE(p.address.value.zip.value.empty());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — vectors
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: vector of strings", "[from_json][typed][vector]") {
+    auto j = json{{"title", "My Post"}, {"tags", {"c++", "modules", "reflection"}}};
+    auto item = from_json<TaggedItem>(j);
+
+    REQUIRE(item.title.value == "My Post");
+    REQUIRE(item.tags.value.size() == 3);
+    REQUIRE(item.tags.value[0] == "c++");
+    REQUIRE(item.tags.value[1] == "modules");
+    REQUIRE(item.tags.value[2] == "reflection");
+}
+
+TEST_CASE("typed from_json: empty vector", "[from_json][typed][vector]") {
+    auto j = json{{"title", "Empty"}, {"tags", json::array()}};
+    auto item = from_json<TaggedItem>(j);
+
+    REQUIRE(item.tags.value.empty());
+}
+
+TEST_CASE("typed from_json: vector of nested reflected structs", "[from_json][typed][vector]") {
+    auto j = json{
+        {"team_name", "Pirates"},
+        {"members", {
+            {{"name", "Alice"}, {"age", 30}, {"active", true}},
+            {{"name", "Bob"}, {"age", 25}, {"active", false}}
+        }}
+    };
+    auto t = from_json<Team>(j);
+
+    REQUIRE(t.team_name.value == "Pirates");
+    REQUIRE(t.members.value.size() == 2);
+    REQUIRE(t.members.value[0].name.value == "Alice");
+    REQUIRE(t.members.value[0].age.value == 30);
+    REQUIRE(t.members.value[0].active.value == true);
+    REQUIRE(t.members.value[1].name.value == "Bob");
+    REQUIRE(t.members.value[1].age.value == 25);
+    REQUIRE(t.members.value[1].active.value == false);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — optionals
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: optional present", "[from_json][typed][optional]") {
+    auto j = json{{"name", "Alice"}, {"nickname", "Ali"}};
+    auto m = from_json<MaybeNickname>(j);
+
+    REQUIRE(m.name.value == "Alice");
+    REQUIRE(m.nickname.value.has_value());
+    REQUIRE(*m.nickname.value == "Ali");
+}
+
+TEST_CASE("typed from_json: optional null", "[from_json][typed][optional]") {
+    auto j = json{{"name", "Bob"}, {"nickname", nullptr}};
+    auto m = from_json<MaybeNickname>(j);
+
+    REQUIRE(m.name.value == "Bob");
+    REQUIRE(!m.nickname.value.has_value());
+}
+
+TEST_CASE("typed from_json: optional missing key", "[from_json][typed][optional]") {
+    auto j = json{{"name", "Bob"}};
+    auto m = from_json<MaybeNickname>(j);
+
+    REQUIRE(m.name.value == "Bob");
+    REQUIRE(!m.nickname.value.has_value());
+}
+
+TEST_CASE("typed from_json: optional nested struct — present", "[from_json][typed][optional][nested]") {
+    auto j = json{{"name", "test"}, {"extra", {{"x", 42}}}};
+    auto o = from_json<Outer>(j);
+
+    REQUIRE(o.name.value == "test");
+    REQUIRE(o.extra.value.has_value());
+    REQUIRE(o.extra.value->x.value == 42);
+}
+
+TEST_CASE("typed from_json: optional nested struct — null", "[from_json][typed][optional][nested]") {
+    auto j = json{{"name", "test"}, {"extra", nullptr}};
+    auto o = from_json<Outer>(j);
+
+    REQUIRE(o.name.value == "test");
+    REQUIRE(!o.extra.value.has_value());
+}
+
+TEST_CASE("typed from_json: optional nested struct — missing", "[from_json][typed][optional][nested]") {
+    auto j = json{{"name", "test"}};
+    auto o = from_json<Outer>(j);
+
+    REQUIRE(!o.extra.value.has_value());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — maps
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: std::map<string, int>", "[from_json][typed][map]") {
+    auto j = json{{"name", "my-app"}, {"settings", {{"timeout", 30}, {"retries", 3}}}};
+    auto c = from_json<Config>(j);
+
+    REQUIRE(c.name.value == "my-app");
+    REQUIRE(c.settings.value.at("timeout") == 30);
+    REQUIRE(c.settings.value.at("retries") == 3);
+}
+
+TEST_CASE("typed from_json: std::unordered_map<string, string>", "[from_json][typed][map]") {
+    auto j = json{{"tags", {{"env", "prod"}, {"region", "us-west"}}}};
+    auto l = from_json<Labels>(j);
+
+    REQUIRE(l.tags.value.at("env") == "prod");
+    REQUIRE(l.tags.value.at("region") == "us-west");
+}
+
+TEST_CASE("typed from_json: map of reflected structs", "[from_json][typed][map]") {
+    auto j = json{{"services", {
+        {"api", {{"url", "https://api.example.com"}, {"port", 443}}},
+        {"db",  {{"url", "localhost"}, {"port", 5432}}}
+    }}};
+    auto sm = from_json<ServiceMap>(j);
+
+    REQUIRE(sm.services.value.at("api").url.value == "https://api.example.com");
+    REQUIRE(sm.services.value.at("api").port.value == 443);
+    REQUIRE(sm.services.value.at("db").url.value == "localhost");
+    REQUIRE(sm.services.value.at("db").port.value == 5432);
+}
+
+TEST_CASE("typed from_json: empty map", "[from_json][typed][map]") {
+    auto j = json{{"settings", json::object()}};
+    auto ec = from_json<EmptyConfig>(j);
+
+    REQUIRE(ec.settings.value.empty());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — sets
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: std::set<string>", "[from_json][typed][set]") {
+    auto j = json{{"tags", {"alpha", "beta", "gamma"}}};
+    auto ts = from_json<TagSet>(j);
+
+    REQUIRE(ts.tags.value.size() == 3);
+    REQUIRE(ts.tags.value.count("alpha") == 1);
+    REQUIRE(ts.tags.value.count("beta") == 1);
+    REQUIRE(ts.tags.value.count("gamma") == 1);
+}
+
+TEST_CASE("typed from_json: std::unordered_set<int>", "[from_json][typed][set]") {
+    auto j = json{{"ids", {10, 20, 30}}};
+    auto is = from_json<IdSet>(j);
+
+    REQUIRE(is.ids.value.size() == 3);
+    REQUIRE(is.ids.value.count(10) == 1);
+    REQUIRE(is.ids.value.count(20) == 1);
+    REQUIRE(is.ids.value.count(30) == 1);
+}
+
+TEST_CASE("typed from_json: empty set", "[from_json][typed][set]") {
+    auto j = json{{"tags", json::array()}};
+    auto ts = from_json<TagSet>(j);
+
+    REQUIRE(ts.tags.value.empty());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — ankerl::unordered_dense
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: ankerl::unordered_dense::map", "[from_json][typed][dense]") {
+    auto j = json{{"scores", {{"alice", 100}, {"bob", 85}}}};
+    auto dm = from_json<DenseMapStruct>(j);
+
+    REQUIRE(dm.scores.value.at("alice") == 100);
+    REQUIRE(dm.scores.value.at("bob") == 85);
+}
+
+TEST_CASE("typed from_json: ankerl::unordered_dense::set", "[from_json][typed][dense]") {
+    auto j = json{{"names", {"x", "y", "z"}}};
+    auto ds = from_json<DenseSetStruct>(j);
+
+    REQUIRE(ds.names.value.size() == 3);
+    REQUIRE(ds.names.value.count("x") == 1);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — numeric types
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: double field", "[from_json][typed][numeric]") {
+    auto j = json{{"unit", "celsius"}, {"value", 72.5}};
+    auto m = from_json<Measurement>(j);
+
+    REQUIRE(m.unit.value == "celsius");
+    REQUIRE(m.value.value == 72.5);
+}
+
+TEST_CASE("typed from_json: float field", "[from_json][typed][numeric]") {
+    auto j = json{{"weight", 3.14}};
+    auto fs = from_json<FloatStruct>(j);
+
+    REQUIRE(fs.weight.value == Catch::Approx(3.14f));
+}
+
+TEST_CASE("typed from_json: int64 and uint64", "[from_json][typed][numeric]") {
+    auto j = json{{"signed_big", 9000000000LL}, {"unsigned_big", 18000000000ULL}};
+    auto bn = from_json<BigNumbers>(j);
+
+    REQUIRE(bn.signed_big.value == 9'000'000'000LL);
+    REQUIRE(bn.unsigned_big.value == 18'000'000'000ULL);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — extensions (with<>) are untouched
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: extensions untouched — only value deserialized", "[from_json][typed][with]") {
+    auto j = json{{"query", "hello world"}, {"verbose", true}};
+    auto args = from_json<CliArgs>(j);
+
+    REQUIRE(args.query.value == "hello world");
+    REQUIRE(args.verbose.value == true);
+    REQUIRE(args.query.with.posix.short_flag == 'q');
+    REQUIRE(args.query.with.posix.from_stdin == true);
+    REQUIRE(args.verbose.with.posix.short_flag == 'v');
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — mixed struct (skips non-field members)
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: skips non-field members", "[from_json][typed][mixed]") {
+    auto j = json{{"visible", "hello"}, {"score", 42}, {"internal_counter", 999}};
+    auto ms = from_json<MixedStruct>(j);
+
+    REQUIRE(ms.visible.value == "hello");
+    REQUIRE(ms.score.value == 42);
+    REQUIRE(ms.internal_counter == 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — from string
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: from JSON string", "[from_json][typed][string]") {
+    auto args = from_json<SimpleArgs>(std::string(R"({"name":"Alice","age":30,"active":true})"));
+
+    REQUIRE(args.name.value == "Alice");
+    REQUIRE(args.age.value == 30);
+    REQUIRE(args.active.value == true);
+}
+
+TEST_CASE("typed from_json: from pretty JSON string", "[from_json][typed][string]") {
+    std::string pretty = R"({
+        "name": "Bob",
+        "age": 25,
+        "active": false
+    })";
+    auto args = from_json<SimpleArgs>(pretty);
+
+    REQUIRE(args.name.value == "Bob");
+    REQUIRE(args.age.value == 25);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — round-trip (to_json → from_json)
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: round-trip simple struct", "[from_json][typed][roundtrip]") {
+    SimpleArgs original;
+    original.name = "Alice";
+    original.age = 30;
+    original.active = true;
+
+    auto j = to_json(original);
+    auto restored = from_json<SimpleArgs>(j);
+
+    REQUIRE(restored.name.value == original.name.value);
+    REQUIRE(restored.age.value == original.age.value);
+    REQUIRE(restored.active.value == original.active.value);
+}
+
+TEST_CASE("typed from_json: round-trip nested struct", "[from_json][typed][roundtrip]") {
+    Person original;
+    original.name = "Bob";
+    original.address.value.street = "123 Main";
+    original.address.value.zip = "97201";
+
+    auto j = to_json(original);
+    auto restored = from_json<Person>(j);
+
+    REQUIRE(restored.name.value == "Bob");
+    REQUIRE(restored.address.value.street.value == "123 Main");
+    REQUIRE(restored.address.value.zip.value == "97201");
+}
+
+TEST_CASE("typed from_json: round-trip vector of structs", "[from_json][typed][roundtrip]") {
+    Team original;
+    original.team_name = "Pirates";
+    SimpleArgs a1; a1.name = "Alice"; a1.age = 30; a1.active = true;
+    SimpleArgs a2; a2.name = "Bob"; a2.age = 25; a2.active = false;
+    original.members.value = {a1, a2};
+
+    auto j = to_json(original);
+    auto restored = from_json<Team>(j);
+
+    REQUIRE(restored.team_name.value == "Pirates");
+    REQUIRE(restored.members.value.size() == 2);
+    REQUIRE(restored.members.value[0].name.value == "Alice");
+    REQUIRE(restored.members.value[1].name.value == "Bob");
+}
+
+TEST_CASE("typed from_json: round-trip map of structs", "[from_json][typed][roundtrip]") {
+    ServiceMap original;
+    Endpoint api; api.url = "https://api.example.com"; api.port = 443;
+    Endpoint db; db.url = "localhost"; db.port = 5432;
+    original.services.value = {{"api", api}, {"db", db}};
+
+    auto j = to_json(original);
+    auto restored = from_json<ServiceMap>(j);
+
+    REQUIRE(restored.services.value.at("api").url.value == "https://api.example.com");
+    REQUIRE(restored.services.value.at("api").port.value == 443);
+    REQUIRE(restored.services.value.at("db").port.value == 5432);
+}
+
+TEST_CASE("typed from_json: round-trip optional present", "[from_json][typed][roundtrip]") {
+    MaybeNickname original;
+    original.name = "Alice";
+    original.nickname.value = "Ali";
+
+    auto j = to_json(original);
+    auto restored = from_json<MaybeNickname>(j);
+
+    REQUIRE(restored.nickname.value.has_value());
+    REQUIRE(*restored.nickname.value == "Ali");
+}
+
+TEST_CASE("typed from_json: round-trip optional absent", "[from_json][typed][roundtrip]") {
+    MaybeNickname original;
+    original.name = "Bob";
+
+    auto j = to_json(original);
+    auto restored = from_json<MaybeNickname>(j);
+
+    REQUIRE(!restored.nickname.value.has_value());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed from_json — error cases
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: throws on non-object JSON", "[from_json][typed][throw]") {
+    REQUIRE_THROWS_AS(from_json<SimpleArgs>(json(42)), std::logic_error);
+    REQUIRE_THROWS_AS(from_json<SimpleArgs>(json("string")), std::logic_error);
+    REQUIRE_THROWS_AS(from_json<SimpleArgs>(json::array()), std::logic_error);
+    REQUIRE_THROWS_AS(from_json<SimpleArgs>(json(true)), std::logic_error);
+}
+
+TEST_CASE("typed from_json: throws on type mismatch — string field gets int", "[from_json][typed][throw]") {
+    auto j = json{{"name", 42}, {"age", 30}, {"active", true}};
+    REQUIRE_THROWS_AS(from_json<SimpleArgs>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: throws on type mismatch — int field gets string", "[from_json][typed][throw]") {
+    auto j = json{{"name", "Alice"}, {"age", "thirty"}, {"active", true}};
+    REQUIRE_THROWS_AS(from_json<SimpleArgs>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: throws on type mismatch — bool field gets int", "[from_json][typed][throw]") {
+    auto j = json{{"name", "Alice"}, {"age", 30}, {"active", 1}};
+    REQUIRE_THROWS_AS(from_json<SimpleArgs>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: throws on type mismatch — vector field gets object", "[from_json][typed][throw]") {
+    auto j = json{{"title", "test"}, {"tags", {{"not", "an array"}}}};
+    REQUIRE_THROWS_AS(from_json<TaggedItem>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: throws on type mismatch — nested struct gets array", "[from_json][typed][throw]") {
+    auto j = json{{"name", "Bob"}, {"address", json::array({1, 2, 3})}};
+    REQUIRE_THROWS_AS(from_json<Person>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: throws on invalid JSON string", "[from_json][typed][throw]") {
+    REQUIRE_THROWS(from_json<SimpleArgs>(std::string("not valid json")));
+}
+
+TEST_CASE("typed from_json: throws on type mismatch — map field gets array", "[from_json][typed][throw]") {
+    auto j = json{{"settings", json::array({1, 2, 3})}};
+    REQUIRE_THROWS_AS(from_json<EmptyConfig>(j), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic from_json — factory
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic from_json: factory creates instance with values", "[from_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100)
+        .field<bool>("active", false);
+
+    auto j = json{{"title", "Party"}, {"count", 50}, {"active", true}};
+    auto obj = t.create(j);
+
+    REQUIRE(obj.get<std::string>("title") == "Party");
+    REQUIRE(obj.get<int>("count") == 50);
+    REQUIRE(obj.get<bool>("active") == true);
+}
+
+TEST_CASE("dynamic from_json: factory preserves defaults for missing keys", "[from_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Untitled"))
+        .field<int>("count", 100);
+
+    auto j = json{{"title", "Custom"}};
+    auto obj = t.create(j);
+
+    REQUIRE(obj.get<std::string>("title") == "Custom");
+    REQUIRE(obj.get<int>("count") == 100);
+}
+
+TEST_CASE("dynamic from_json: factory ignores extra keys", "[from_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+
+    auto j = json{{"title", "Party"}, {"unknown", 42}};
+    auto obj = t.create(j);
+
+    REQUIRE(obj.get<std::string>("title") == "Party");
+}
+
+TEST_CASE("dynamic from_json: factory with empty JSON", "[from_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Default"))
+        .field<int>("count", 0);
+
+    auto obj = t.create(json::object());
+
+    REQUIRE(obj.get<std::string>("title") == "Default");
+    REQUIRE(obj.get<int>("count") == 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic load_json — in-place overlay
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic load_json: overlays values onto existing instance", "[from_json][dynamic][load_json]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100);
+    auto obj = t.create();
+
+    obj.set("title", std::string("Original"));
+
+    obj.load_json(json{{"count", 50}});
+
+    REQUIRE(obj.get<std::string>("title") == "Original");
+    REQUIRE(obj.get<int>("count") == 50);
+}
+
+TEST_CASE("dynamic load_json: overwrites previously set values", "[from_json][dynamic][load_json]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+    auto obj = t.create();
+
+    obj.set("title", std::string("First"));
+    obj.load_json(json{{"title", "Second"}});
+
+    REQUIRE(obj.get<std::string>("title") == "Second");
+}
+
+TEST_CASE("dynamic load_json: throws on non-object JSON", "[from_json][dynamic][load_json][throw]") {
+    auto t = type_def("Event")
+        .field<int>("x");
+    auto obj = t.create();
+
+    REQUIRE_THROWS_AS(obj.load_json(json(42)), std::logic_error);
+    REQUIRE_THROWS_AS(obj.load_json(json::array()), std::logic_error);
+    REQUIRE_THROWS_AS(obj.load_json(json("string")), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic from_json — error cases
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic from_json: factory throws on non-object", "[from_json][dynamic][throw]") {
+    auto t = type_def("Event")
+        .field<int>("x");
+
+    REQUIRE_THROWS_AS(t.create(json(42)), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic from_json — type_instance preserves type() access
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic from_json: type() metadata accessible after deserialization", "[from_json][dynamic][meta]") {
+    struct endpoint_info { const char* path = ""; };
+
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
+        .field<std::string>("title")
+        .field<int>("count", 100);
+
+    auto obj = t.create(json{{"title", "Party"}});
+
+    REQUIRE(obj.type().name() == "Event");
+    REQUIRE(obj.type().has_meta<endpoint_info>());
+    REQUIRE(obj.type().field_count() == 2);
+}

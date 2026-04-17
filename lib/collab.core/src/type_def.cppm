@@ -12,6 +12,8 @@ module;
 #include <utility>
 #include <vector>
 
+#include <nlohmann/json_fwd.hpp>
+
 export module collab.core:type_def;
 
 import :field;
@@ -914,6 +916,11 @@ public:
     // ── Create instance ─────────────────────────────────────────────
 
     type_instance create() const;
+
+    // ── Create instance from JSON ────────────────────────────────────
+    // Defined in :field_json partition (needs full nlohmann::json).
+
+    type_instance create(const nlohmann::json& j) const;
 };
 
 // ── CTAD: type_def("Event") deduces to type_def<detail::dynamic_tag> ─────────────
@@ -1017,6 +1024,14 @@ public:
             fn(std::string_view(fields[i].name),
                field_value(&values_[i]));
     }
+
+    // ── JSON deserialization ─────────────────────────────────────────
+    //
+    // Overlay semantics: missing keys keep their current/default values.
+    // Extra JSON keys are silently ignored. Type mismatches throw.
+    // Defined in :field_json partition (needs full nlohmann::json).
+
+    void load_json(const nlohmann::json& j);
 };
 
 // ── type_def<detail::dynamic_tag>::create() ──────────────────────────────────────

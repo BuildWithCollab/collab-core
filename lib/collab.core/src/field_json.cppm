@@ -8,6 +8,7 @@ module;
 #include <map>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -24,15 +25,9 @@ import :type_def;
 
 export namespace collab::model {
 
-// ── to_json ────────────────────────────────────────────────────────────
-//
-// Serializes a reflected_struct to JSON via type_def<T>.for_each_field().
-// Only field<> members are visited; non-field members are skipped.
-// Nested reflected_structs recurse automatically.
+// ── Shared type traits ──────────────────────────────────────────────────
 
 namespace detail {
-
-    // ── Type traits for dispatching ──────────────────────────────────
 
     template <typename T>
     inline constexpr bool is_optional_v = false;
@@ -67,9 +62,57 @@ namespace detail {
     template <typename V, typename Hash, typename Eq>
     inline constexpr bool is_map_v<ankerl::unordered_dense::map<std::string, V, Hash, Eq>> = true;
 
-    // ── Single dispatch point ────────────────────────────────────────
-    //
-    // if constexpr handles all cases without overload resolution issues.
+    // ── Extract inner type from containers ──────────────────────────
+
+    template <typename T>
+    struct array_element;
+
+    template <typename T>
+    struct array_element<std::vector<T>> { using type = T; };
+
+    template <typename T, typename Cmp, typename Alloc>
+    struct array_element<std::set<T, Cmp, Alloc>> { using type = T; };
+
+    template <typename T, typename Hash, typename Eq, typename Alloc>
+    struct array_element<std::unordered_set<T, Hash, Eq, Alloc>> { using type = T; };
+
+    template <typename T, typename Hash, typename Eq>
+    struct array_element<ankerl::unordered_dense::set<T, Hash, Eq>> { using type = T; };
+
+    template <typename T>
+    using array_element_t = typename array_element<T>::type;
+
+    template <typename T>
+    struct map_value;
+
+    template <typename V, typename Cmp, typename Alloc>
+    struct map_value<std::map<std::string, V, Cmp, Alloc>> { using type = V; };
+
+    template <typename V, typename Hash, typename Eq, typename Alloc>
+    struct map_value<std::unordered_map<std::string, V, Hash, Eq, Alloc>> { using type = V; };
+
+    template <typename V, typename Hash, typename Eq>
+    struct map_value<ankerl::unordered_dense::map<std::string, V, Hash, Eq>> { using type = V; };
+
+    template <typename T>
+    using map_value_t = typename map_value<T>::type;
+
+    // ── Optional inner type ──────────────────────────────────────────
+
+    template <typename T>
+    struct optional_inner;
+
+    template <typename T>
+    struct optional_inner<std::optional<T>> { using type = T; };
+
+    template <typename T>
+    using optional_inner_t = typename optional_inner<T>::type;
+
+}  // namespace detail
+
+// ── to_json ────────────────────────────────────────────────────────────
+
+namespace detail {
 
     template <typename T>
     nlohmann::json value_to_json(const T& v) {
@@ -99,17 +142,116 @@ namespace detail {
 
 }  // namespace detail
 
-// Returns a nlohmann::json object for programmatic use.
 template <detail::reflected_struct T>
 nlohmann::json to_json(const T& obj) {
     return detail::value_to_json(obj);
 }
 
-// Returns a JSON string. indent < 0 → compact, indent >= 0 → pretty.
 template <detail::reflected_struct T>
 std::string to_json_string(const T& obj, int indent = -1) {
     auto j = detail::value_to_json(obj);
     return indent < 0 ? j.dump() : j.dump(indent);
 }
+
+// ── from_json ──────────────────────────────────────────────────────────
+//
+// Deserializes JSON into a reflected_struct. Overlay semantics:
+// - Missing keys leave the field at its default value.
+// - Extra JSON keys are silently ignored.
+// - Type mismatches throw std::logic_error.
+// - Nested reflected_structs recurse automatically.
+// - meta<> and non-field<> members are untouched.
+
+namespace detail {
+
+    template <typename T>
+    void value_from_json(const nlohmann::json& j, T& out) {
+        if constexpr (is_optional_v<T>) {
+            using Inner = optional_inner_t<T>;
+            if (j.is_null()) {
+                out = std::nullopt;
+            } else {
+                Inner inner{};
+                value_from_json(j, inner);
+                out = std::move(inner);
+            }
+        } else if constexpr (is_iterable_array_v<T>) {
+            if (!j.is_array())
+                throw std::logic_error("from_json: expected array");
+            using Elem = array_element_t<T>;
+            out.clear();
+            for (const auto& elem : j) {
+                Elem e{};
+                value_from_json(elem, e);
+                if constexpr (requires { out.push_back(e); }) {
+                    out.push_back(std::move(e));
+                } else {
+                    out.insert(std::move(e));
+                }
+            }
+        } else if constexpr (is_map_v<T>) {
+            if (!j.is_object())
+                throw std::logic_error("from_json: expected object for map");
+            using V = map_value_t<T>;
+            out.clear();
+            for (auto& [key, val] : j.items()) {
+                V v{};
+                value_from_json(val, v);
+                out[key] = std::move(v);
+            }
+        } else if constexpr (detail::reflected_struct<T>) {
+            if (!j.is_object())
+                throw std::logic_error("from_json: expected object for struct");
+            collab::model::type_def<T>{}.for_each_field(out, [&](std::string_view name, auto& value) {
+                std::string key(name);
+                if (j.contains(key)) {
+                    value_from_json(j[key], value);
+                }
+            });
+        } else if constexpr (std::is_same_v<T, std::string>) {
+            if (!j.is_string())
+                throw std::logic_error("from_json: expected string");
+            out = j.get<std::string>();
+        } else if constexpr (std::is_same_v<T, bool>) {
+            if (!j.is_boolean())
+                throw std::logic_error("from_json: expected boolean");
+            out = j.get<bool>();
+        } else if constexpr (std::is_integral_v<T>) {
+            if (!j.is_number())
+                throw std::logic_error("from_json: expected number");
+            out = j.get<T>();
+        } else if constexpr (std::is_floating_point_v<T>) {
+            if (!j.is_number())
+                throw std::logic_error("from_json: expected number");
+            out = j.get<T>();
+        } else {
+            out = j.get<T>();
+        }
+    }
+
+}  // namespace detail
+
+// ── Typed from_json: JSON object → reflected_struct ─────────────────────
+
+template <detail::reflected_struct T>
+T from_json(const nlohmann::json& j) {
+    T result{};
+    detail::value_from_json(j, result);
+    return result;
+}
+
+// ── Typed from_json: JSON string → reflected_struct ─────────────────────
+
+template <detail::reflected_struct T>
+T from_json(const std::string& json_str) {
+    auto j = nlohmann::json::parse(json_str);
+    return from_json<T>(j);
+}
+
+// ── Dynamic JSON deserialization ─────────────────────────────────────────
+//
+// type_instance::load_json and type_def::create(json) are defined in
+// field_json.cpp (module implementation unit) to avoid MSVC linker issues
+// with inline cross-partition member definitions.
 
 }  // namespace collab::model
