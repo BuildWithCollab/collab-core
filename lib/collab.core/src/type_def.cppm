@@ -23,14 +23,31 @@ export namespace collab::model {
 
 struct dynamic_tag {};
 
-// ── type_schema — concept for anything that acts as a type definition ────
+class field_view;  // forward declaration for concept
+
+// ── type_definition — concept satisfied by every type_def mode ───────────
+//
+// The constraint that says "this thing describes a type's shape."
+// type_def<T>, type_def("Event"), and type_def<T>().field(...) all satisfy it.
+
+namespace detail {
+    struct concept_sentinel_meta {};
+}
 
 template <typename T>
-concept type_schema = requires(const T& t, std::string_view sv) {
+concept type_definition = requires(const T& t, std::string_view sv) {
+    // Schema queries
     { t.name() } -> std::convertible_to<std::string_view>;
     { t.field_count() } -> std::convertible_to<std::size_t>;
     { t.field_names() } -> std::same_as<std::vector<std::string>>;
     { t.has_field(sv) } -> std::same_as<bool>;
+    // Field query by name
+    { t.field(sv) } -> std::same_as<field_view>;
+    // Meta queries
+    { t.template has_meta<detail::concept_sentinel_meta>() } -> std::same_as<bool>;
+    { t.template meta<detail::concept_sentinel_meta>() } -> std::same_as<detail::concept_sentinel_meta>;
+    { t.template meta_count<detail::concept_sentinel_meta>() } -> std::convertible_to<std::size_t>;
+    { t.template metas<detail::concept_sentinel_meta>() } -> std::same_as<std::vector<detail::concept_sentinel_meta>>;
 };
 
 // ── type_def<T> — typed runtime schema with auto-discovery ───────────────
