@@ -207,16 +207,17 @@ namespace detail {
 
 }  // namespace detail
 
-// ── install_json_codec — populates to_json_fn / from_json_fn ────────────
+// ── init_json_codec — populates to_json_fn / from_json_fn ───────────────
 //
-// Called from type_def<dynamic_tag>::field<V>() at registration time.
-// The lambdas wrap/unwrap nlohmann::json in std::any so the function
-// signatures in dynamic_field_def don't need json.hpp.
+// Definition of the template forward-declared in :type_def.
+// Called lazily from field_json.cpp the first time to_json()/load_json()
+// is invoked — NOT at .field<V>() time — so VS 2022 never triggers
+// json template instantiation from user code.
 
 namespace detail {
 
     template <typename V>
-    void install_json_codec(dynamic_field_def& fd) {
+    void init_json_codec(dynamic_field_def& fd) {
         fd.to_json_fn = [](const std::any& a) -> std::any {
             return std::any(value_to_json(*std::any_cast<V>(&a)));
         };

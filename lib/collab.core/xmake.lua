@@ -5,7 +5,7 @@ target("collab.core")
     add_packages("fmt", { public = true })
     add_packages("spdlog")
     add_packages("rang")
-    add_packages("nlohmann_json", { public = true })
+    add_packages("nlohmann_json-module-support", { public = true })
     add_packages("unordered_dense", { public = true })
     add_packages("magic_enum", { public = true })
 

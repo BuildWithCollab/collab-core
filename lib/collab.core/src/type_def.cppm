@@ -238,16 +238,16 @@ namespace detail {
         (try_set_field<Is>(obj, name, std::forward<V>(val), set_ok, name_matched), ...);
     }
 
-    // ── JSON codec installer — defined in :field_json partition ─────
+    // ── JSON codec initializer — forward-declared, defined in :field_json
     //
-    // Forward-declared here so .field<V>() can call it. The partition
-    // provides the definition which captures value_to_json/value_from_json
-    // lambdas that handle all types (vectors, maps, enums, etc.).
+    // .field<V>() stores a function pointer to this template. The pointer
+    // is NOT called at registration time — only when to_json()/load_json()
+    // is first invoked, from field_json.cpp where json.hpp is available.
 
-    struct dynamic_field_def;  // forward for install_json_codec
+    struct dynamic_field_def;
 
     template <typename V>
-    void install_json_codec(dynamic_field_def& fd);
+    void init_json_codec(dynamic_field_def& fd);
 
     // ── Type-erased meta entry ───────────────────────────────────────
 
@@ -268,8 +268,11 @@ namespace detail {
         std::function<bool(std::any&, std::any&&)> setter;
         std::function<std::any()> make_default;
 
-        // JSON serialization — uses std::any to avoid json.hpp dependency.
-        // Populated by install_json_codec<V>() from the :field_json partition.
+        // JSON codec — lazily initialized. _json_init stores a function
+        // that calls init_json_codec<V> to populate to_json_fn/from_json_fn.
+        // The std::function wraps a generic lambda whose body is NOT
+        // instantiated until called (from field_json.cpp).
+        std::function<void(dynamic_field_def&)> _json_init;
         std::function<std::any(const std::any&)>        to_json_fn;
         std::function<void(std::any&, const std::any&)> from_json_fn;
     };
@@ -830,11 +833,12 @@ public:
             return false;
         };
         auto factory = []() -> std::any { return std::any(V{}); };
-        detail::dynamic_field_def fd{
-            std::string(fname), typeid(V), {}, false, {},
-            std::move(setter), std::move(factory), {}, {}};
-        detail::install_json_codec<V>(fd);
-        fields_.push_back(std::move(fd));
+        auto json_init = [](detail::dynamic_field_def& fd) {
+            detail::init_json_codec<V>(fd);
+        };
+        fields_.push_back({std::string(fname), typeid(V), {}, false, {},
+                           std::move(setter), std::move(factory),
+                           std::move(json_init), {}, {}});
         return *this;
     }
 
@@ -848,11 +852,14 @@ public:
             return false;
         };
         auto factory = []() -> std::any { return std::any(V{}); };
+        auto json_init = [](detail::dynamic_field_def& fd) {
+            detail::init_json_codec<V>(fd);
+        };
         detail::dynamic_field_def fd{
             std::string(fname), typeid(V),
             std::any(std::move(default_value)), true, {},
-            std::move(setter), std::move(factory), {}, {}};
-        detail::install_json_codec<V>(fd);
+            std::move(setter), std::move(factory),
+            std::move(json_init), {}, {}};
         (detail::extract_with_metas(fd.metas, withs), ...);
         fields_.push_back(std::move(fd));
         return *this;
