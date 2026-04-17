@@ -459,6 +459,8 @@ public:
     const V* try_as() const { return std::any_cast<V>(value_); }
 };
 
+namespace detail {
+
 // ── Compile-time index filter: keep only indices where Pred<I, T> is true ──
 template <typename T, template<std::size_t, typename> class Pred, std::size_t... Is>
 consteval auto filter_indices(std::index_sequence<Is...>) {
@@ -484,11 +486,13 @@ template <std::size_t I, typename T>
 struct is_field_at : std::bool_constant<collab::model::is_field<
     collab::model::detail::member_type<I, T>>> {};
 
+}  // namespace detail
+
 template <typename T = dynamic_tag, typename... Regs>
 class type_def {
     static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
     using indices_ = std::make_index_sequence<total_members_>;
-    using field_indices_ = decltype(make_filtered_sequence<T, is_field_at>(indices_{}));
+    using field_indices_ = decltype(detail::make_filtered_sequence<T, detail::is_field_at>(indices_{}));
 
     // Typed hybrid registrations — each Reg is a typed_field_reg<T, MemT>
     // preserving the real member type for real typed references in for_each.
