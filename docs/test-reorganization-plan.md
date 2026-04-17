@@ -79,13 +79,13 @@ Sections:
 
 ---
 
-**`test_field_query.cpp`** — field(name), field_view properties
+**`test_field_query.cpp`** — field(name), field_def properties
 
 Sections:
 - field() returns view with correct name — typed, hybrid, dynamic
 - field() works for each field in a multi-field struct — typed (add hybrid, dynamic)
-- field_view has_default() — dynamic (typed/hybrid fields don't have runtime defaults)
-- field_view default_value<V>() — dynamic
+- field_def has_default() — dynamic (typed/hybrid fields don't have runtime defaults)
+- field_def default_value<V>() — dynamic
 - Single-field struct field access — typed (add hybrid, dynamic)
 
 ---
@@ -186,8 +186,8 @@ Sections:
 - field() throws for unknown name — typed, hybrid, dynamic
 - field() throws on empty type_def — dynamic
 - meta() throws for absent meta — dynamic
-- field_view default_value throws for wrong type — dynamic (shared class, one test sufficient)
-- field_view meta() throws for absent meta — dynamic (shared class, one test sufficient)
+- field_def default_value throws for wrong type — dynamic (shared class, one test sufficient)
+- field_def meta() throws for absent meta — dynamic (shared class, one test sufficient)
 
 ---
 

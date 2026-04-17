@@ -85,13 +85,13 @@ TEST_CASE("dynamic: for_each_field detects field-level metas", "[type_def][dynam
     REQUIRE(limit_has_render);
 }
 
-TEST_CASE("typed: field() with single meta via field_view", "[type_def][typed][field_meta]") {
+TEST_CASE("typed: field() with single meta via field_def", "[type_def][typed][field_meta]") {
     auto fv = type_def<CliArgs>{}.field("verbose");
     REQUIRE(fv.has_meta<cli_meta>());
     REQUIRE(fv.meta<cli_meta>().cli.short_flag == 'v');
 }
 
-TEST_CASE("typed: field() with multiple metas via field_view", "[type_def][typed][field_meta]") {
+TEST_CASE("typed: field() with multiple metas via field_def", "[type_def][typed][field_meta]") {
     auto fv = type_def<CliArgs>{}.field("limit");
     REQUIRE(fv.has_meta<cli_meta>());
     REQUIRE(fv.has_meta<render_meta>());
@@ -100,7 +100,7 @@ TEST_CASE("typed: field() with multiple metas via field_view", "[type_def][typed
     REQUIRE(fv.meta<render_meta>().render.width == 10);
 }
 
-TEST_CASE("typed: field() without meta via field_view", "[type_def][typed][field_meta]") {
+TEST_CASE("typed: field() without meta via field_def", "[type_def][typed][field_meta]") {
     auto fv = type_def<CliArgs>{}.field("query");
     REQUIRE(!fv.has_meta<cli_meta>());
     REQUIRE(!fv.has_meta<render_meta>());
@@ -213,7 +213,7 @@ TEST_CASE("typed: field has_meta and meta via for_each_field", "[type_def][typed
     REQUIRE(limit_short_flag == 'l');
 }
 
-TEST_CASE("typed: field meta_count via field_view", "[type_def][typed][field_meta]") {
+TEST_CASE("typed: field meta_count via field_def", "[type_def][typed][field_meta]") {
     auto limit_fv = type_def<CliArgs>{}.field("limit");
     REQUIRE(limit_fv.meta_count<cli_meta>() == 1);
     REQUIRE(limit_fv.meta_count<render_meta>() == 1);
@@ -226,7 +226,7 @@ TEST_CASE("typed: field meta_count via field_view", "[type_def][typed][field_met
     REQUIRE(verbose_fv.meta_count<render_meta>() == 0);
 }
 
-TEST_CASE("typed: field metas<M>() via field_view", "[type_def][typed][field_meta]") {
+TEST_CASE("typed: field metas<M>() via field_def", "[type_def][typed][field_meta]") {
     type_def<CliArgs> t;
     auto cli_metas = t.field("limit").metas<cli_meta>();
     REQUIRE(cli_metas.size() == 1);
@@ -356,28 +356,28 @@ TEST_CASE("dynamic: for_each_field reads meta values", "[type_def][dynamic][fiel
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// field_view meta() throws for absent meta
+// field_def meta() throws for absent meta
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("dynamic: field_view meta() throws for absent meta", "[type_def][dynamic][field_meta][throw]") {
+TEST_CASE("dynamic: field_def meta() throws for absent meta", "[type_def][dynamic][field_meta][throw]") {
     auto t = type_def("Event")
         .field<std::string>("title");
 
     REQUIRE_THROWS_AS(t.field("title").meta<cli_meta>(), std::logic_error);
 }
 
-TEST_CASE("typed: field_view meta() throws for absent meta", "[type_def][typed][field_meta][throw]") {
+TEST_CASE("typed: field_def meta() throws for absent meta", "[type_def][typed][field_meta][throw]") {
     REQUIRE_THROWS_AS(type_def<CliArgs>{}.field("query").meta<cli_meta>(), std::logic_error);
 }
 
-TEST_CASE("hybrid: field_view meta() throws for absent meta", "[type_def][hybrid][field_meta][throw]") {
+TEST_CASE("hybrid: field_def meta() throws for absent meta", "[type_def][hybrid][field_meta][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
 
     REQUIRE_THROWS_AS(t.field("name").meta<cli_meta>(), std::logic_error);
 }
 
-TEST_CASE("type_instance: field_view meta() throws for absent meta", "[type_instance][field_meta][throw]") {
+TEST_CASE("type_instance: field_def meta() throws for absent meta", "[type_instance][field_meta][throw]") {
     auto t = type_def("Event")
         .field<std::string>("title");
     auto obj = t.create();

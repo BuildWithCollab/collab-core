@@ -12,8 +12,7 @@ If a function is callable by a user of this library, **you do not get to decide 
 
 ## 🔥 Renames
 
-- [ ] **`object` → `type_instance`** — an instance of a type definition
-- [ ] **`field_view` / `field_value` naming confusion** — Purr couldn't tell them apart. Needs clearer names or consolidation.
+- [ ] **`field_def` / `field_value` naming confusion** — Purr couldn't tell them apart. Needs clearer names or consolidation.
 
 ---
 

@@ -54,7 +54,7 @@ TEST_CASE("dynamic: field() works for each field", "[type_def][dynamic][field_qu
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// field_view has_default()
+// field_def has_default()
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("dynamic: field().has_default() false", "[type_def][dynamic][field_query]") {
@@ -70,7 +70,7 @@ TEST_CASE("dynamic: field().has_default() true", "[type_def][dynamic][field_quer
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// field_view default_value<V>()
+// field_def default_value<V>()
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("dynamic: field().default_value<T>()", "[type_def][dynamic][field_query]") {
@@ -107,7 +107,7 @@ TEST_CASE("typed: field() returns valid view for each Dog field", "[type_def][ty
     REQUIRE(t.field("breed").name() == "breed");
 }
 
-TEST_CASE("type_instance: field() returns field_view via type()", "[type_instance][field_query]") {
+TEST_CASE("type_instance: field() returns field_def via type()", "[type_instance][field_query]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 100);
@@ -129,7 +129,7 @@ TEST_CASE("hybrid: field().has_default() returns false", "[type_def][hybrid][fie
     REQUIRE(t.field("name").has_default() == false);
 }
 
-TEST_CASE("type_instance: field_view has_default() false", "[type_instance][field_query]") {
+TEST_CASE("type_instance: field_def has_default() false", "[type_instance][field_query]") {
     auto t = type_def("Event")
         .field<std::string>("title");
     auto obj = t.create();
@@ -205,26 +205,26 @@ TEST_CASE("typed: field() throws for plain member names", "[type_def][typed][fie
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// field_view default_value throws
+// field_def default_value throws
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("dynamic: field_view default_value throws for wrong type", "[type_def][dynamic][field_query][throw]") {
+TEST_CASE("dynamic: field_def default_value throws for wrong type", "[type_def][dynamic][field_query][throw]") {
     auto t = type_def("Event")
         .field<int>("count", 100);
     REQUIRE_THROWS_AS(t.field("count").default_value<std::string>(), std::logic_error);
 }
 
-TEST_CASE("dynamic: field_view default_value throws when no default set", "[type_def][dynamic][field_query][throw]") {
+TEST_CASE("dynamic: field_def default_value throws when no default set", "[type_def][dynamic][field_query][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     REQUIRE_THROWS_AS(t.field("count").default_value<int>(), std::logic_error);
 }
 
-TEST_CASE("typed: field_view default_value throws", "[type_def][typed][field_query][throw]") {
+TEST_CASE("typed: field_def default_value throws", "[type_def][typed][field_query][throw]") {
     REQUIRE_THROWS_AS(type_def<SimpleArgs>{}.field("name").default_value<std::string>(), std::logic_error);
 }
 
-TEST_CASE("hybrid: field_view default_value throws", "[type_def][hybrid][field_query][throw]") {
+TEST_CASE("hybrid: field_def default_value throws", "[type_def][hybrid][field_query][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
     REQUIRE_THROWS_AS(t.field("name").default_value<std::string>(), std::logic_error);

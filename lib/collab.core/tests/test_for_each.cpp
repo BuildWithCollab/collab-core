@@ -417,7 +417,7 @@ TEST_CASE("dynamic: for_each_field()", "[type_def][dynamic][for_each_field]") {
 
     std::vector<std::string> names;
     bool found_default = false;
-    t.for_each_field([&](field_view fd) {
+    t.for_each_field([&](field_def fd) {
         names.emplace_back(fd.name());
         if (fd.name() == "count" && fd.has_default())
             found_default = true;
@@ -467,7 +467,7 @@ TEST_CASE("dynamic: for_each_field skips meta members", "[type_def][dynamic][for
         .field<std::string>("title");
 
     std::vector<std::string> names;
-    t.for_each_field([&](field_view fd) {
+    t.for_each_field([&](field_def fd) {
         names.emplace_back(fd.name());
     });
 
@@ -497,7 +497,7 @@ TEST_CASE("hybrid: for_each_field() on empty hybrid yields nothing", "[type_def]
 TEST_CASE("dynamic: for_each_field() empty", "[type_def][dynamic][for_each_field]") {
     auto t = type_def("Empty");
     int count = 0;
-    t.for_each_field([&](field_view) { ++count; });
+    t.for_each_field([&](field_def) { ++count; });
     REQUIRE(count == 0);
 }
 
@@ -508,7 +508,7 @@ TEST_CASE("type_instance: for_each_field() via type()", "[type_instance][for_eac
     auto obj = t.create();
 
     std::vector<std::string> names;
-    obj.type().for_each_field([&](field_view fd) {
+    obj.type().for_each_field([&](field_def fd) {
         names.emplace_back(fd.name());
     });
 
@@ -570,7 +570,7 @@ TEST_CASE("dynamic: for_each_field() can query field metas", "[type_def][dynamic
     bool verbose_has_cli = false;
     char verbose_flag = '\0';
 
-    t.for_each_field([&](field_view fd) {
+    t.for_each_field([&](field_def fd) {
         if (fd.name() == "query")
             query_has_cli = fd.has_meta<cli_meta_fe>();
         if (fd.name() == "verbose") {
@@ -595,7 +595,7 @@ TEST_CASE("type_instance: for_each_field() can query field metas via type()", "[
     bool verbose_has_cli = false;
     bool query_has_cli = true;
 
-    obj.type().for_each_field([&](field_view fd) {
+    obj.type().for_each_field([&](field_def fd) {
         if (fd.name() == "verbose")
             verbose_has_cli = fd.has_meta<cli_meta>();
         if (fd.name() == "query")
@@ -632,7 +632,7 @@ TEST_CASE("dynamic: for_each_field count matches field_count()", "[type_def][dyn
         .field<int>("count", 0);
 
     int visited = 0;
-    t.for_each_field([&](field_view) { ++visited; });
+    t.for_each_field([&](field_def) { ++visited; });
     REQUIRE(visited == static_cast<int>(t.field_count()));
 }
 

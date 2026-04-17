@@ -24,7 +24,7 @@ export namespace collab::model {
 
 struct dynamic_tag {};
 
-class field_view;  // forward declaration for concept
+class field_def;  // forward declaration for concept
 
 // ── type_definition — concept satisfied by every type_def mode ───────────
 //
@@ -43,7 +43,7 @@ concept type_definition = requires(const T& t, std::string_view sv) {
     { t.field_names() } -> std::same_as<std::vector<std::string>>;
     { t.has_field(sv) } -> std::same_as<bool>;
     // Field query by name
-    { t.field(sv) } -> std::same_as<field_view>;
+    { t.field(sv) } -> std::same_as<field_def>;
     // Meta queries
     { t.template has_meta<detail::concept_sentinel_meta>() } -> std::same_as<bool>;
     { t.template meta<detail::concept_sentinel_meta>() } -> std::same_as<detail::concept_sentinel_meta>;
@@ -317,13 +317,13 @@ namespace detail {
 
 }  // namespace detail
 
-// ── field_view — read-only view into a dynamic field ─────────────
+// ── field_def — read-only view into a dynamic field ─────────────
 
-class field_view {
+class field_def {
     const detail::dynamic_field_def* def_;
 
 public:
-    explicit field_view(const detail::dynamic_field_def* d) : def_(d) {}
+    explicit field_def(const detail::dynamic_field_def* d) : def_(d) {}
 
     std::string_view name() const { return def_->name; }
 
@@ -518,7 +518,7 @@ public:
         return found;
     }
 
-    field_view field(std::string_view fname) const {
+    field_def field(std::string_view fname) const {
         // Check hybrid registered fields
         thread_local detail::dynamic_field_def temp;
         bool found = false;
@@ -531,13 +531,13 @@ public:
                 temp.metas = regs.metas,
                 found = true, true)), ...);
         }, typed_regs_);
-        if (found) return field_view(&temp);
+        if (found) return field_def(&temp);
         // Check auto-discovered field<> members
         thread_local detail::dynamic_field_def discovered;
         found = false;
         detail::build_discovered_field_def<T>(
             discovered, fname, found, indices_{});
-        if (found) return field_view(&discovered);
+        if (found) return field_def(&discovered);
         throw std::logic_error(
             "type_def '" + std::string(name()) + "': no field named '" +
             std::string(fname) + "'");
@@ -592,7 +592,7 @@ public:
     // ── Schema-only field iteration ──────────────────────────────────
     //
     // Auto-discovered field<> members: callback receives field_descriptor<T, I>.
-    // Hybrid-registered fields: callback receives field_view.
+    // Hybrid-registered fields: callback receives field_def.
     // Both expose .name() and .has_meta<M>() / .meta<M>().
 
     template <typename F>
@@ -605,7 +605,7 @@ public:
                     typeid(std::remove_reference_t<
                         decltype(std::declval<T>().*(regs.member))>),
                     {}, false, regs.metas, {}, {}};
-                fn(field_view(&temp));
+                fn(field_def(&temp));
             }(), ...);
         }, typed_regs_);
     }
@@ -821,9 +821,9 @@ public:
         return false;
     }
 
-    field_view field(std::string_view fname) const {
+    field_def field(std::string_view fname) const {
         for (auto& f : fields_)
-            if (f.name == fname) return field_view(&f);
+            if (f.name == fname) return field_def(&f);
         throw std::logic_error(
             "type_def '" + std::string(name_) + "': no field named '" +
             std::string(fname) + "'");
@@ -834,7 +834,7 @@ public:
     template <typename F>
     void for_each_field(F&& fn) const {
         for (auto& f : fields_)
-            fn(field_view(&f));
+            fn(field_def(&f));
     }
 
     // ── Type-level meta queries ──────────────────────────────────────

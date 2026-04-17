@@ -27,7 +27,7 @@
 | test_model_types.hpp | Shared test structs, metadata types, reflect_on specializations |
 | test_schema_queries.cpp | name(), field_count(), field_names(), stateless |
 | test_has_field.cpp | has_field() |
-| test_field_query.cpp | field(name), field_view, has_default(), default_value() |
+| test_field_query.cpp | field(name), field_def, has_default(), default_value() |
 | test_meta_queries.cpp | has_meta(), meta(), meta_count(), metas() (type-level) |
 | test_field_level_metas.cpp | with<> per-field metas |
 | test_for_each.cpp | for_each(instance), for_each_field(), for_each_meta() |
@@ -237,8 +237,8 @@
 - [x] `dynamic type_def field() throws for unknown name`
 - [x] `dynamic type_def field() throws on empty type_def`
 - [x] `dynamic type_def meta() throws for absent meta`
-- [x] `dynamic type_def field_view default_value throws for wrong type`
-- [x] `dynamic type_def field_view meta() throws for absent meta`
+- [x] `dynamic type_def field_def default_value throws for wrong type`
+- [x] `dynamic type_def field_def meta() throws for absent meta`
 
 ---
 
