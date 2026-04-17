@@ -1004,7 +1004,7 @@ public:
     type_instance create() const;
 
     // ── Create instance from JSON ────────────────────────────────────
-    // Defined in :field_json partition (needs full nlohmann::json).
+    // Defined in field_json.cpp (module implementation unit).
 
     type_instance create(const nlohmann::json& j) const;
 };
@@ -1115,13 +1115,13 @@ public:
     //
     // Overlay semantics: missing keys keep their current/default values.
     // Extra JSON keys are silently ignored. Type mismatches throw.
-    // Defined in :field_json partition (needs full nlohmann::json).
+    // Defined in field_json.cpp (module implementation unit).
 
     void load_json(const nlohmann::json& j);
 
     // ── JSON serialization ───────────────────────────────────────────
     //
-    // Defined in :field_json partition (needs full nlohmann::json).
+    // Defined in field_json.cpp (module implementation unit).
 
     nlohmann::json to_json() const;
     std::string to_json_string(int indent = -1) const;
@@ -1131,6 +1131,36 @@ public:
 
 inline type_instance type_def<detail::dynamic_tag>::create() const {
     return type_instance(*this);
+}
+
+// ── Typed JSON free functions ────────────────────────────────────────────
+//
+// to_json / from_json / to_json_string for reflected_struct types.
+// These use the same detail::value_to_json / value_from_json that the
+// dynamic path's captured lambdas use.
+
+template <detail::reflected_struct T>
+nlohmann::json to_json(const T& obj) {
+    return detail::value_to_json(obj);
+}
+
+template <detail::reflected_struct T>
+std::string to_json_string(const T& obj, int indent = -1) {
+    auto j = detail::value_to_json(obj);
+    return indent < 0 ? j.dump() : j.dump(indent);
+}
+
+template <detail::reflected_struct T>
+T from_json(const nlohmann::json& j) {
+    T result{};
+    detail::value_from_json(j, result);
+    return result;
+}
+
+template <detail::reflected_struct T>
+T from_json(const std::string& json_str) {
+    auto j = nlohmann::json::parse(json_str);
+    return from_json<T>(j);
 }
 
 // ── detail::value_to_json / value_from_json implementations ──────────────
