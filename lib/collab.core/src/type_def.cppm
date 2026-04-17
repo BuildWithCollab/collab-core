@@ -887,7 +887,7 @@ public:
         };
         auto factory = []() -> std::any { return std::any(V{}); };
         auto to_j = [](const std::any& a) -> nlohmann::json {
-            return detail::value_to_json(std::any_cast<const V&>(a));
+            return detail::value_to_json(*std::any_cast<V>(&a));
         };
         auto from_j = [](std::any& a, const nlohmann::json& j) {
             V val{}; detail::value_from_json(j, val); a = std::move(val);
@@ -909,7 +909,7 @@ public:
         };
         auto factory = []() -> std::any { return std::any(V{}); };
         auto to_j = [](const std::any& a) -> nlohmann::json {
-            return detail::value_to_json(std::any_cast<const V&>(a));
+            return detail::value_to_json(*std::any_cast<V>(&a));
         };
         auto from_j = [](std::any& a, const nlohmann::json& j) {
             V val{}; detail::value_from_json(j, val); a = std::move(val);
