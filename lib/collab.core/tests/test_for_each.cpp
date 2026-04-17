@@ -1,0 +1,587 @@
+#include "test_model_types.hpp"
+
+// Local meta types for hybrid/dynamic field-level meta tests
+// (distinct from the typed-path meta types in test_model_types.hpp)
+struct help_info_fe {
+    const char* summary = "";
+};
+
+struct cli_meta_fe {
+    struct { char short_flag = '\0'; } cli;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each iterates fields with name and value
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each iterates field<> members with name and value", "[type_def][typed][for_each]") {
+    SimpleArgs args;
+    args.name = "Alice";
+    args.age = 30;
+    args.active = true;
+
+    std::vector<std::string> collected_names;
+    type_def<SimpleArgs>{}.for_each(args, [&](std::string_view name, auto& value) {
+        collected_names.emplace_back(name);
+    });
+
+    REQUIRE(collected_names.size() == 3);
+    REQUIRE(collected_names[0] == "name");
+    REQUIRE(collected_names[1] == "age");
+    REQUIRE(collected_names[2] == "active");
+}
+
+TEST_CASE("hybrid: for_each() iterates registered fields with typed refs", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    std::vector<std::string> names;
+    t.for_each(rex, [&](std::string_view name, auto& value) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    REQUIRE(names[2] == "breed");
+}
+
+TEST_CASE("object: for_each() iterates all fields", "[object][for_each]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100);
+    auto obj = t.create();
+    obj.set("title", std::string("Party"));
+
+    std::vector<std::string> names;
+    obj.for_each([&](std::string_view name, field_value) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "title");
+    REQUIRE(names[1] == "count");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each provides typed value access
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each provides access to field values", "[type_def][typed][for_each]") {
+    SimpleArgs args;
+    args.name = "Bob";
+    args.age = 25;
+    args.active = false;
+
+    std::string found_name;
+    int found_age = 0;
+
+    type_def<SimpleArgs>{}.for_each(args, [&](std::string_view name, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            if (name == "name") found_name = value;
+        } else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
+            if (name == "age") found_age = value;
+        }
+    });
+
+    REQUIRE(found_name == "Bob");
+    REQUIRE(found_age == 25);
+}
+
+TEST_CASE("hybrid: for_each() provides real typed values", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    std::string found_name;
+    int found_age = 0;
+    t.for_each(rex, [&](std::string_view name, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            if (name == "name") found_name = value;
+        } else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
+            if (name == "age") found_age = value;
+        }
+    });
+
+    REQUIRE(found_name == "Rex");
+    REQUIRE(found_age == 3);
+}
+
+TEST_CASE("object: for_each() provides typed access via field_value", "[object][for_each]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count");
+    auto obj = t.create();
+    obj.set("title", std::string("Party"));
+    obj.set("count", 42);
+
+    std::string found_title;
+    int found_count = 0;
+    obj.for_each([&](std::string_view name, field_value value) {
+        if (name == "title")
+            found_title = value.as<std::string>();
+        if (name == "count")
+            found_count = value.as<int>();
+    });
+
+    REQUIRE(found_title == "Party");
+    REQUIRE(found_count == 42);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each provides mutable access
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each provides mutable value access", "[type_def][typed][for_each]") {
+    SimpleArgs args;
+    args.name = "Original";
+
+    type_def<SimpleArgs>{}.for_each(args, [](std::string_view name, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            value = "Changed";
+        }
+    });
+
+    REQUIRE(args.name.value == "Changed");
+}
+
+TEST_CASE("hybrid: for_each() provides mutable access", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    t.for_each(rex, [](std::string_view name, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            value = "Buddy";
+        }
+    });
+
+    REQUIRE(rex.name == "Buddy");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each skips meta/plain members
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each skips meta<> members", "[type_def][typed][for_each]") {
+    Dog rex;
+    rex.name = "Rex";
+    rex.age = 3;
+    rex.breed = "Husky";
+
+    std::vector<std::string> names;
+    type_def<Dog>{}.for_each(rex, [&](std::string_view name, auto&) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    REQUIRE(names[2] == "breed");
+}
+
+TEST_CASE("typed: for_each skips plain members", "[type_def][typed][for_each]") {
+    MixedStruct ms;
+    ms.label = "hello";
+    ms.counter = 999;
+    ms.score = 42;
+
+    std::vector<std::string> names;
+    type_def<MixedStruct>{}.for_each(ms, [&](std::string_view name, auto&) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "label");
+    REQUIRE(names[1] == "score");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each on empty/meta-only
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each on meta-only struct calls nothing", "[type_def][typed][for_each]") {
+    MetaOnly mo;
+
+    int count = 0;
+    type_def<MetaOnly>{}.for_each(mo, [&](std::string_view, auto&) {
+        ++count;
+    });
+
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("object: for_each() on empty type_def", "[object][for_each]") {
+    auto t = type_def("Empty");
+    auto obj = t.create();
+
+    int count = 0;
+    obj.for_each([&](std::string_view, field_value) { ++count; });
+    REQUIRE(count == 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each with const instance
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each with const instance", "[type_def][typed][for_each]") {
+    SimpleArgs args;
+    args.name = "Const";
+    args.age = 99;
+    args.active = true;
+    const SimpleArgs& cargs = args;
+
+    std::vector<std::string> names;
+    type_def<SimpleArgs>{}.for_each(cargs, [&](std::string_view name, const auto&) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 3);
+}
+
+TEST_CASE("hybrid: for_each() with const instance", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+
+    const PlainDog rex{"Rex", 3, "Husky"};
+
+    std::string found_name;
+    t.for_each(rex, [&](std::string_view name, const auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            if (name == "name") found_name = value;
+        }
+    });
+
+    REQUIRE(found_name == "Rex");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each count matches field_count
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid: for_each() count matches field_count()", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    int visited = 0;
+    t.for_each(rex, [&](std::string_view, auto&) { ++visited; });
+    REQUIRE(visited == static_cast<int>(t.field_count()));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each_field iterates field descriptors
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each_field iterates field descriptors", "[type_def][typed][for_each_field]") {
+    std::vector<std::string> names;
+    std::vector<std::size_t> indices;
+
+    type_def<Dog>{}.for_each_field([&](auto descriptor) {
+        names.emplace_back(descriptor.name());
+        if constexpr (requires { descriptor.index(); }) {
+            indices.push_back(descriptor.index());
+        }
+    });
+
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    REQUIRE(names[2] == "breed");
+    // Indices are raw struct member indices (metas occupy 0 and 1)
+    REQUIRE(indices[0] == 2);
+    REQUIRE(indices[1] == 3);
+    REQUIRE(indices[2] == 4);
+}
+
+TEST_CASE("hybrid: for_each_field() iterates registered fields", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+
+    std::vector<std::string> names;
+    t.for_each_field([&](auto descriptor) {
+        names.emplace_back(descriptor.name());
+    });
+
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    REQUIRE(names[2] == "breed");
+}
+
+TEST_CASE("dynamic: for_each_field()", "[type_def][dynamic][for_each_field]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100);
+
+    std::vector<std::string> names;
+    bool found_default = false;
+    t.for_each_field([&](field_view fd) {
+        names.emplace_back(fd.name());
+        if (fd.name() == "count" && fd.has_default())
+            found_default = true;
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "title");
+    REQUIRE(names[1] == "count");
+    REQUIRE(found_default);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each_field skips meta members
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each_field skips meta members", "[type_def][typed][for_each_field]") {
+    std::vector<std::string> names;
+    type_def<MixedStruct>{}.for_each_field([&](auto descriptor) {
+        names.emplace_back(descriptor.name());
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "label");
+    REQUIRE(names[1] == "score");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each_field on empty
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each_field on meta-only struct yields nothing", "[type_def][typed][for_each_field]") {
+    int count = 0;
+    type_def<MetaOnly>{}.for_each_field([&](auto) {
+        ++count;
+    });
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("hybrid: for_each_field() on empty hybrid yields nothing", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>();
+    int count = 0;
+    t.for_each_field([&](auto) { ++count; });
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("dynamic: for_each_field() empty", "[type_def][dynamic][for_each_field]") {
+    auto t = type_def("Empty");
+    int count = 0;
+    t.for_each_field([&](field_view) { ++count; });
+    REQUIRE(count == 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each_field can query field metas
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid: for_each_field() can query field metas", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name",
+            with<help_info_fe>({.summary = "Dog's name"}))
+        .field(&PlainDog::age, "age");
+
+    bool name_has_help = false;
+    bool age_has_help = true;
+
+    t.for_each_field([&](auto descriptor) {
+        if (descriptor.name() == "name")
+            name_has_help = descriptor.template has_meta<help_info_fe>();
+        if (descriptor.name() == "age")
+            age_has_help = descriptor.template has_meta<help_info_fe>();
+    });
+
+    REQUIRE(name_has_help);
+    REQUIRE(!age_has_help);
+}
+
+TEST_CASE("dynamic: for_each_field() can query field metas", "[type_def][dynamic][for_each_field]") {
+    auto t = type_def("CLI")
+        .field<std::string>("query")
+        .field<bool>("verbose", false,
+            with<cli_meta_fe>({.cli = {.short_flag = 'v'}}));
+
+    bool query_has_cli = true;
+    bool verbose_has_cli = false;
+    char verbose_flag = '\0';
+
+    t.for_each_field([&](field_view fd) {
+        if (fd.name() == "query")
+            query_has_cli = fd.has_meta<cli_meta_fe>();
+        if (fd.name() == "verbose") {
+            verbose_has_cli = fd.has_meta<cli_meta_fe>();
+            if (verbose_has_cli)
+                verbose_flag = fd.meta<cli_meta_fe>().cli.short_flag;
+        }
+    });
+
+    REQUIRE(!query_has_cli);
+    REQUIRE(verbose_has_cli);
+    REQUIRE(verbose_flag == 'v');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each_field count matches
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid: for_each_field() count matches field_count()", "[type_def][hybrid][for_each_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+
+    int visited = 0;
+    t.for_each_field([&](auto) { ++visited; });
+    REQUIRE(visited == static_cast<int>(t.field_count()));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// for_each_meta
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each_meta iterates meta values (schema-only)", "[type_def][typed][for_each_meta]") {
+    int meta_count = 0;
+    type_def<Dog>{}.for_each_meta([&](auto& meta_value) {
+        ++meta_count;
+    });
+    REQUIRE(meta_count == 2);
+}
+
+TEST_CASE("typed: for_each_meta provides correct values", "[type_def][typed][for_each_meta]") {
+    bool found_endpoint = false;
+    bool found_help = false;
+
+    type_def<Dog>{}.for_each_meta([&](auto& meta_value) {
+        using M = std::remove_cvref_t<decltype(meta_value)>;
+        if constexpr (std::is_same_v<M, endpoint_info>) {
+            REQUIRE(std::string_view{meta_value.path} == "/dogs");
+            found_endpoint = true;
+        } else if constexpr (std::is_same_v<M, help_info>) {
+            REQUIRE(std::string_view{meta_value.summary} == "A good boy");
+            found_help = true;
+        }
+    });
+
+    REQUIRE(found_endpoint);
+    REQUIRE(found_help);
+}
+
+TEST_CASE("typed: for_each_meta on struct with no metas", "[type_def][typed][for_each_meta]") {
+    int count = 0;
+    type_def<SimpleArgs>{}.for_each_meta([&](auto&) {
+        ++count;
+    });
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("typed: for_each_meta with multiple metas of same type", "[type_def][typed][for_each_meta]") {
+    std::vector<std::string> tag_values;
+    type_def<MultiTagged>{}.for_each_meta([&](auto& meta_value) {
+        using M = std::remove_cvref_t<decltype(meta_value)>;
+        if constexpr (std::is_same_v<M, tag_info>) {
+            tag_values.emplace_back(meta_value.value);
+        }
+    });
+
+    REQUIRE(tag_values.size() == 3);
+    REQUIRE(tag_values[0] == "pet");
+    REQUIRE(tag_values[1] == "animal");
+    REQUIRE(tag_values[2] == "good-boy");
+}
+
+TEST_CASE("typed: for_each_meta with instance reads from that instance", "[type_def][typed][for_each_meta]") {
+    Dog rex;
+    bool found = false;
+    type_def<Dog>{}.for_each_meta(rex, [&](auto& meta_value) {
+        using M = std::remove_cvref_t<decltype(meta_value)>;
+        if constexpr (std::is_same_v<M, endpoint_info>) {
+            REQUIRE(std::string_view{meta_value.path} == "/dogs");
+            found = true;
+        }
+    });
+    REQUIRE(found);
+}
+
+TEST_CASE("hybrid: for_each_meta() on plain struct yields nothing", "[type_def][hybrid][for_each_meta]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    int count = 0;
+    t.for_each_meta([&](auto&) { ++count; });
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("hybrid: for_each_meta() on struct with metas", "[type_def][hybrid][for_each_meta]") {
+    type_def<MetaDog> t;
+    int count = 0;
+    t.for_each_meta([&](auto&) { ++count; });
+    REQUIRE(count == 1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// dynamic full integration
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic: full integration", "[type_def][dynamic][integration]") {
+    auto event_t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
+        .meta<help_info>({.summary = "An event"})
+        .field<std::string>("title")
+        .field<int>("attendees", 100,
+            with<render_meta>({.render = {.style = "bold", .width = 10}}))
+        .field<bool>("verbose", false,
+            with<cli_meta>({.cli = {.short_flag = 'v'}}),
+            with<render_meta>({.render = {.style = "dim"}}));
+
+    // Schema
+    REQUIRE(event_t.name() == "Event");
+    REQUIRE(event_t.field_count() == 3);
+    auto names = event_t.field_names();
+    REQUIRE(names[0] == "title");
+    REQUIRE(names[1] == "attendees");
+    REQUIRE(names[2] == "verbose");
+
+    // Type-level metas
+    REQUIRE(event_t.has_meta<endpoint_info>());
+    REQUIRE(std::string_view{event_t.meta<endpoint_info>().path} == "/events");
+    REQUIRE(event_t.has_meta<help_info>());
+    REQUIRE(std::string_view{event_t.meta<help_info>().summary} == "An event");
+    REQUIRE(!event_t.has_meta<tag_info>());
+
+    // Field queries
+    REQUIRE(event_t.has_field("title"));
+    REQUIRE(event_t.has_field("attendees"));
+    REQUIRE(event_t.has_field("verbose"));
+    REQUIRE(!event_t.has_field("nope"));
+
+    REQUIRE(!event_t.field("title").has_default());
+    REQUIRE(event_t.field("attendees").has_default());
+    REQUIRE(event_t.field("attendees").default_value<int>() == 100);
+    REQUIRE(event_t.field("verbose").has_default());
+    REQUIRE(event_t.field("verbose").default_value<bool>() == false);
+
+    // Field-level metas
+    REQUIRE(!event_t.field("title").has_meta<cli_meta>());
+    REQUIRE(!event_t.field("title").has_meta<render_meta>());
+
+    REQUIRE(event_t.field("attendees").has_meta<render_meta>());
+    REQUIRE(!event_t.field("attendees").has_meta<cli_meta>());
+    REQUIRE(std::string_view{
+        event_t.field("attendees").meta<render_meta>().render.style} == "bold");
+    REQUIRE(event_t.field("attendees").meta<render_meta>().render.width == 10);
+
+    REQUIRE(event_t.field("verbose").has_meta<cli_meta>());
+    REQUIRE(event_t.field("verbose").has_meta<render_meta>());
+    REQUIRE(event_t.field("verbose").meta<cli_meta>().cli.short_flag == 'v');
+    REQUIRE(std::string_view{
+        event_t.field("verbose").meta<render_meta>().render.style} == "dim");
+}

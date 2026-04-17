@@ -1,0 +1,160 @@
+#include "test_model_types.hpp"
+
+// ═══════════════════════════════════════════════════════════════════════════
+// create() returns default-constructed instance
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: create() returns default-constructed instance", "[type_def][typed][create]") {
+    type_def<SimpleArgs> t;
+    SimpleArgs args = t.create();
+    REQUIRE(args.name.value.empty());
+    REQUIRE(args.age.value == 0);
+    REQUIRE(args.active.value == false);
+}
+
+TEST_CASE("hybrid: create()", "[type_def][hybrid][create]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+    PlainDog dog = t.create();
+    REQUIRE(dog.name.empty());
+    REQUIRE(dog.age == 0);
+}
+
+TEST_CASE("object: constructed via create()", "[object][create]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100);
+    auto obj = t.create();
+    REQUIRE(obj.type().name() == "Event");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// create() preserves field defaults
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: create() preserves field defaults", "[type_def][typed][create]") {
+    type_def<Dog> t;
+    Dog d = t.create();
+    REQUIRE(d.name.value.empty());
+    REQUIRE(d.age.value == 0);
+    REQUIRE(d.breed.value.empty());
+}
+
+TEST_CASE("object: has default values from type_def", "[object][create][defaults]") {
+    auto t = type_def("Event")
+        .field<int>("count", 100)
+        .field<std::string>("title", std::string("Untitled"));
+    auto obj = t.create();
+    REQUIRE(obj.get<int>("count") == 100);
+    REQUIRE(obj.get<std::string>("title") == "Untitled");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// create() result is mutable and works with set
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: create() result is mutable and works with set", "[type_def][typed][create]") {
+    type_def<Dog> t;
+    Dog d = t.create();
+    t.set(d, "name", std::string("Buddy"));
+    REQUIRE(t.get<std::string>(d, "name") == "Buddy");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Fields without defaults get default-constructed values
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("object: fields without defaults get default-constructed values", "[object][create][defaults]") {
+    auto t = type_def("Event")
+        .field<int>("count")
+        .field<std::string>("title");
+    auto obj = t.create();
+    REQUIRE(obj.get<int>("count") == 0);
+    REQUIRE(obj.get<std::string>("title") == "");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Construction from type_def
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("object: construction from type_def", "[object][create]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100);
+    object obj(t);
+    REQUIRE(obj.type().name() == "Event");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Multiple instances are independent
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("object: multiple objects from same type_def are independent", "[object][create][independence]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Default"))
+        .field<int>("count", 0);
+
+    auto a = t.create();
+    auto b = t.create();
+
+    a.set("title", std::string("Party A"));
+    a.set("count", 10);
+
+    b.set("title", std::string("Party B"));
+    b.set("count", 20);
+
+    REQUIRE(a.get<std::string>("title") == "Party A");
+    REQUIRE(a.get<int>("count") == 10);
+    REQUIRE(b.get<std::string>("title") == "Party B");
+    REQUIRE(b.get<int>("count") == 20);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Full integration
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("object: full integration", "[object][integration]") {
+    auto event_t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
+        .meta<help_info>({.summary = "An event"})
+        .field<std::string>("title")
+        .field<int>("attendees", 100)
+        .field<bool>("verbose", false);
+
+    // Create + defaults
+    auto party = event_t.create();
+    REQUIRE(party.get<int>("attendees") == 100);
+    REQUIRE(party.get<bool>("verbose") == false);
+    REQUIRE(party.get<std::string>("title") == "");
+
+    // Set values
+    party.set("title", std::string("Dog Party"));
+    party.set("attendees", 50);
+    party.set("verbose", true);
+
+    // Get values back
+    REQUIRE(party.get<std::string>("title") == "Dog Party");
+    REQUIRE(party.get<int>("attendees") == 50);
+    REQUIRE(party.get<bool>("verbose") == true);
+
+    // Type mismatch throws
+    REQUIRE_THROWS_AS(party.set("title", 42), std::logic_error);
+    REQUIRE_THROWS_AS(party.get<int>("title"), std::logic_error);
+
+    // Unknown field throws
+    REQUIRE_THROWS_AS(party.set("nope", 1), std::logic_error);
+    REQUIRE_THROWS_AS(party.get<int>("nope"), std::logic_error);
+
+    // has() checks
+    REQUIRE(party.has("title"));
+    REQUIRE(party.has("attendees"));
+    REQUIRE(!party.has("nope"));
+
+    // type() access to metas and field defaults
+    REQUIRE(party.type().name() == "Event");
+    REQUIRE(party.type().has_meta<endpoint_info>());
+    REQUIRE(party.type().has_meta<help_info>());
+    REQUIRE(party.type().field("attendees").has_default());
+    REQUIRE(party.type().field("attendees").default_value<int>() == 100);
+}
