@@ -240,7 +240,7 @@ TEST_CASE("dynamic type_def for_each_field()", "[type_def][dynamic][for_each_fie
         .field<int>("count", 100);
     std::vector<std::string> names;
     bool found_default = false;
-    t.for_each_field([&](dynamic_field_view fd) {
+    t.for_each_field([&](field_view fd) {
         names.emplace_back(fd.name());
         if (fd.name() == "count" && fd.has_default())
             found_default = true;
@@ -254,7 +254,7 @@ TEST_CASE("dynamic type_def for_each_field()", "[type_def][dynamic][for_each_fie
 TEST_CASE("dynamic type_def for_each_field() empty", "[type_def][dynamic][for_each_field]") {
     auto t = type_def("Empty");
     int count = 0;
-    t.for_each_field([&](dynamic_field_view) { ++count; });
+    t.for_each_field([&](field_view) { ++count; });
     REQUIRE(count == 0);
 }
 
@@ -268,7 +268,7 @@ TEST_CASE("dynamic type_def for_each_field() can query field metas", "[type_def]
     bool verbose_has_cli = false;
     char verbose_flag = '\0';
 
-    t.for_each_field([&](dynamic_field_view fd) {
+    t.for_each_field([&](field_view fd) {
         if (fd.name() == "query")
             query_has_cli = fd.has_meta<cli_meta_d>();
         if (fd.name() == "verbose") {

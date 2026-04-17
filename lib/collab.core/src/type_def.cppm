@@ -302,13 +302,13 @@ namespace detail {
 
 }  // namespace detail
 
-// ── dynamic_field_view — read-only view into a dynamic field ─────────────
+// ── field_view — read-only view into a dynamic field ─────────────
 
-class dynamic_field_view {
+class field_view {
     const detail::dynamic_field_def* def_;
 
 public:
-    explicit dynamic_field_view(const detail::dynamic_field_def* d) : def_(d) {}
+    explicit field_view(const detail::dynamic_field_def* d) : def_(d) {}
 
     std::string_view name() const { return def_->name; }
 
@@ -405,7 +405,7 @@ public:
         return find_hybrid_index(fname) >= 0;
     }
 
-    dynamic_field_view field(std::string_view fname) const {
+    field_view field(std::string_view fname) const {
         // Check hybrid registered fields first
         int idx = find_hybrid_index(fname);
         if (idx >= 0) {
@@ -415,19 +415,19 @@ public:
             temp.type = reg.type;
             temp.has_default = false;
             temp.metas = reg.metas;
-            return dynamic_field_view(&temp);
+            return field_view(&temp);
         }
         // Check auto-discovered field<> members
         thread_local detail::dynamic_field_def discovered;
         bool found = false;
         detail::build_discovered_field_def<T>(
             discovered, fname, found, indices_{});
-        if (found) return dynamic_field_view(&discovered);
+        if (found) return field_view(&discovered);
         // Not found — return view with the requested name but no data
         thread_local detail::dynamic_field_def not_found;
         not_found = {};
         not_found.name = std::string(fname);
-        return dynamic_field_view(&not_found);
+        return field_view(&not_found);
     }
 
     // ── Meta queries ─────────────────────────────────────────────────
@@ -473,7 +473,7 @@ public:
     // ── Schema-only field iteration ──────────────────────────────────
     //
     // Auto-discovered field<> members: callback receives field_descriptor<T, I>.
-    // Hybrid-registered fields: callback receives dynamic_field_view.
+    // Hybrid-registered fields: callback receives field_view.
     // Both expose .name() and .has_meta<M>() / .meta<M>().
 
     template <typename F>
@@ -482,7 +482,7 @@ public:
         for (auto& reg : hybrid_fields_) {
             detail::dynamic_field_def temp{
                 reg.name, reg.type, {}, false, reg.metas, {}, {}};
-            fn(dynamic_field_view(&temp));
+            fn(field_view(&temp));
         }
     }
 
@@ -662,12 +662,12 @@ public:
         return false;
     }
 
-    dynamic_field_view field(std::string_view fname) const {
+    field_view field(std::string_view fname) const {
         for (auto& f : fields_)
-            if (f.name == fname) return dynamic_field_view(&f);
+            if (f.name == fname) return field_view(&f);
         // Return a view to the first field as fallback — caller should
         // check has_field() first. A real implementation might throw.
-        return dynamic_field_view(&fields_.front());
+        return field_view(&fields_.front());
     }
 
     // ── Field iteration (schema-only) ────────────────────────────────
@@ -675,7 +675,7 @@ public:
     template <typename F>
     void for_each_field(F&& fn) const {
         for (auto& f : fields_)
-            fn(dynamic_field_view(&f));
+            fn(field_view(&f));
     }
 
     // ── Meta iteration (type-level) ───────────────────────────────────
