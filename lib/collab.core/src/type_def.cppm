@@ -1032,6 +1032,13 @@ public:
     // Defined in :field_json partition (needs full nlohmann::json).
 
     void load_json(const nlohmann::json& j);
+
+    // ── JSON serialization ───────────────────────────────────────────
+    //
+    // Defined in :field_json partition (needs full nlohmann::json).
+
+    nlohmann::json to_json() const;
+    std::string to_json_string(int indent = -1) const;
 };
 
 // ── type_def<detail::dynamic_tag>::create() ──────────────────────────────────────

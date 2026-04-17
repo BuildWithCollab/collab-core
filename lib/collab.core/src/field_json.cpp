@@ -65,6 +65,30 @@ void collab::model::type_instance::load_json(const nlohmann::json& j) {
     }
 }
 
+// ── type_instance::to_json — serialize fields to JSON object ─────────────
+//
+// Iterates fields and probes common types via try_as<T>().
+
+nlohmann::json collab::model::type_instance::to_json() const {
+    nlohmann::json j = nlohmann::json::object();
+    for_each_field([&](std::string_view name, const_field_value value) {
+        if (auto* p = value.try_as<std::string>())   { j[std::string(name)] = *p; return; }
+        if (auto* p = value.try_as<bool>())           { j[std::string(name)] = *p; return; }
+        if (auto* p = value.try_as<int>())            { j[std::string(name)] = *p; return; }
+        if (auto* p = value.try_as<int64_t>())        { j[std::string(name)] = *p; return; }
+        if (auto* p = value.try_as<uint64_t>())       { j[std::string(name)] = *p; return; }
+        if (auto* p = value.try_as<double>())         { j[std::string(name)] = *p; return; }
+        if (auto* p = value.try_as<float>())          { j[std::string(name)] = *p; return; }
+    });
+    return j;
+}
+
+// ── type_instance::to_json_string — dump JSON as string ──────────────────
+
+std::string collab::model::type_instance::to_json_string(int indent) const {
+    return to_json().dump(indent);
+}
+
 // ── type_def<dynamic_tag>::create(json) — factory from JSON ──────────────
 
 collab::model::type_instance

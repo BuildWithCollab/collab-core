@@ -1027,3 +1027,220 @@ TEST_CASE("typed from_json: enum field throws on array value", "[json][enum][fro
     auto j = json{{"method", json::array()}, {"name", "test"}};
     REQUIRE_THROWS_AS(from_json<EnumStruct>(j), std::logic_error);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed structs used as "hybrid" — field<> members with to_json/from_json
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Note: hybrid plain structs (no field<> members) don't satisfy
+// reflected_struct, so from_json<PlainDog> isn't available through
+// the typed template. Hybrid set/get works via type_def<T>.field(&T::m, "name"),
+// but JSON serialization requires field<> members. These tests verify
+// that typed structs with field<> (which is also the hybrid base) work.
+
+TEST_CASE("typed/hybrid to_json: struct with field<> serializes correctly", "[to_json][hybrid]") {
+    SimpleArgs args;
+    args.name = "Alice";
+    args.age = 30;
+    args.active = true;
+
+    auto j = to_json(args);
+
+    REQUIRE(j["name"] == "Alice");
+    REQUIRE(j["age"] == 30);
+    REQUIRE(j["active"] == true);
+}
+
+TEST_CASE("typed/hybrid to_json + from_json round-trip", "[json][hybrid][roundtrip]") {
+    SimpleArgs original;
+    original.name = "Bob";
+    original.age = 25;
+    original.active = false;
+
+    auto j = to_json(original);
+    auto restored = from_json<SimpleArgs>(j);
+
+    REQUIRE(restored.name.value == "Bob");
+    REQUIRE(restored.age.value == 25);
+    REQUIRE(restored.active.value == false);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic to_json — type_instance serialization
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic to_json: basic primitive fields", "[to_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count")
+        .field<bool>("active");
+    auto obj = t.create();
+
+    obj.set("title", std::string("Party"));
+    obj.set("count", 42);
+    obj.set("active", true);
+
+    auto j = obj.to_json();
+
+    REQUIRE(j["title"] == "Party");
+    REQUIRE(j["count"] == 42);
+    REQUIRE(j["active"] == true);
+}
+
+TEST_CASE("dynamic to_json: preserves default values", "[to_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Untitled"))
+        .field<int>("count", 100);
+    auto obj = t.create();
+
+    auto j = obj.to_json();
+
+    REQUIRE(j["title"] == "Untitled");
+    REQUIRE(j["count"] == 100);
+}
+
+TEST_CASE("dynamic to_json: all primitive types", "[to_json][dynamic]") {
+    auto t = type_def("Types")
+        .field<std::string>("s", std::string("hello"))
+        .field<bool>("b", true)
+        .field<int>("i", 42)
+        .field<int64_t>("i64", int64_t(9000000000LL))
+        .field<uint64_t>("u64", uint64_t(18000000000ULL))
+        .field<double>("d", 3.14)
+        .field<float>("f", 2.5f);
+    auto obj = t.create();
+
+    auto j = obj.to_json();
+
+    REQUIRE(j["s"] == "hello");
+    REQUIRE(j["b"] == true);
+    REQUIRE(j["i"] == 42);
+    REQUIRE(j["i64"] == 9000000000LL);
+    REQUIRE(j["u64"] == 18000000000ULL);
+    REQUIRE(j["d"] == 3.14);
+    REQUIRE(j["f"].get<float>() == Catch::Approx(2.5f));
+}
+
+TEST_CASE("dynamic to_json: empty type_def produces empty object", "[to_json][dynamic]") {
+    auto t = type_def("Empty");
+    auto obj = t.create();
+
+    auto j = obj.to_json();
+
+    REQUIRE(j.is_object());
+    REQUIRE(j.empty());
+}
+
+TEST_CASE("dynamic to_json: fields with no defaults get default-constructed values", "[to_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count");
+    auto obj = t.create();
+
+    auto j = obj.to_json();
+
+    REQUIRE(j["title"] == "");
+    REQUIRE(j["count"] == 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic to_json_string
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic to_json_string: compact output", "[to_json][dynamic][string]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Party"));
+    auto obj = t.create();
+
+    auto s = obj.to_json_string();
+
+    auto j = json::parse(s);
+    REQUIRE(j["title"] == "Party");
+    REQUIRE(s.find('\n') == std::string::npos);
+}
+
+TEST_CASE("dynamic to_json_string: pretty output", "[to_json][dynamic][string]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Party"));
+    auto obj = t.create();
+
+    auto s = obj.to_json_string(2);
+
+    auto j = json::parse(s);
+    REQUIRE(j["title"] == "Party");
+    REQUIRE(s.find('\n') != std::string::npos);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic round-trip: to_json → load_json
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic round-trip: to_json then load_json", "[json][dynamic][roundtrip]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count")
+        .field<bool>("active");
+    auto obj = t.create();
+
+    obj.set("title", std::string("Dog Party"));
+    obj.set("count", 50);
+    obj.set("active", true);
+
+    auto j = obj.to_json();
+
+    auto obj2 = t.create();
+    obj2.load_json(j);
+
+    REQUIRE(obj2.get<std::string>("title") == "Dog Party");
+    REQUIRE(obj2.get<int>("count") == 50);
+    REQUIRE(obj2.get<bool>("active") == true);
+}
+
+TEST_CASE("dynamic round-trip: create(json) then to_json", "[json][dynamic][roundtrip]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100);
+
+    auto original = json{{"title", "Party"}, {"count", 50}};
+    auto obj = t.create(original);
+    auto roundtripped = obj.to_json();
+
+    REQUIRE(roundtripped["title"] == "Party");
+    REQUIRE(roundtripped["count"] == 50);
+}
+
+TEST_CASE("dynamic round-trip: partial load preserves untouched fields in to_json", "[json][dynamic][roundtrip]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Default"))
+        .field<int>("count", 100)
+        .field<bool>("active", false);
+    auto obj = t.create();
+
+    obj.load_json(json{{"title", "Custom"}});
+
+    auto j = obj.to_json();
+
+    REQUIRE(j["title"] == "Custom");
+    REQUIRE(j["count"] == 100);
+    REQUIRE(j["active"] == false);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic to_json with metas — metas don't appear in JSON
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic to_json: metas are not serialized", "[to_json][dynamic][meta]") {
+    struct endpoint_info { const char* path = ""; };
+
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
+        .field<std::string>("title", std::string("Party"));
+    auto obj = t.create();
+
+    auto j = obj.to_json();
+
+    REQUIRE(j.size() == 1);
+    REQUIRE(j["title"] == "Party");
+    REQUIRE(!j.contains("endpoint"));
+    REQUIRE(!j.contains("path"));
+}
