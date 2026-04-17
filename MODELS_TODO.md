@@ -10,12 +10,6 @@ If a function is callable by a user of this library, **you do not get to decide 
 
 ---
 
-## 🧹 Cleanup
-
-- [ ] **Local meta types in `test_for_each.cpp`**
-
-  Near the top of `test_for_each.cpp`, two local meta types are defined: `help_info_fe` and `cli_meta_fe`. These are duplicates of `help_info` and `cli_meta` that already exist in the shared `test_model_types.hpp` header. They were created because the hybrid/dynamic `for_each_field` tests needed meta types for field-level metas, and the author didn't realize shared ones existed. Replace all uses of `help_info_fe`/`cli_meta_fe` with the shared types from `test_model_types.hpp`, then delete the local definitions.
-
 ---
 
 ## 📋 Still planned

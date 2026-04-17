@@ -1,15 +1,5 @@
 #include "test_model_types.hpp"
 
-// Local meta types for hybrid/dynamic field-level meta tests
-// (distinct from the typed-path meta types in test_model_types.hpp)
-struct help_info_fe {
-    const char* summary = "";
-};
-
-struct cli_meta_fe {
-    struct { char short_flag = '\0'; } cli;
-};
-
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each_field iterates fields with name and value
 // ═══════════════════════════════════════════════════════════════════════════
@@ -543,7 +533,7 @@ TEST_CASE("typed: for_each_field can query field metas", "[type_def][typed][for_
 TEST_CASE("hybrid: for_each_field() can query field metas", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name",
-            with<help_info_fe>({.summary = "Dog's name"}))
+            with<help_info>({.summary = "Dog's name"}))
         .field(&PlainDog::age, "age");
 
     bool name_has_help = false;
@@ -551,9 +541,9 @@ TEST_CASE("hybrid: for_each_field() can query field metas", "[type_def][hybrid][
 
     t.for_each_field([&](auto descriptor) {
         if (descriptor.name() == "name")
-            name_has_help = descriptor.template has_meta<help_info_fe>();
+            name_has_help = descriptor.template has_meta<help_info>();
         if (descriptor.name() == "age")
-            age_has_help = descriptor.template has_meta<help_info_fe>();
+            age_has_help = descriptor.template has_meta<help_info>();
     });
 
     REQUIRE(name_has_help);
@@ -564,7 +554,7 @@ TEST_CASE("dynamic: for_each_field() can query field metas", "[type_def][dynamic
     auto t = type_def("CLI")
         .field<std::string>("query")
         .field<bool>("verbose", false,
-            with<cli_meta_fe>({.cli = {.short_flag = 'v'}}));
+            with<cli_meta>({.cli = {.short_flag = 'v'}}));
 
     bool query_has_cli = true;
     bool verbose_has_cli = false;
@@ -572,11 +562,11 @@ TEST_CASE("dynamic: for_each_field() can query field metas", "[type_def][dynamic
 
     t.for_each_field([&](field_def fd) {
         if (fd.name() == "query")
-            query_has_cli = fd.has_meta<cli_meta_fe>();
+            query_has_cli = fd.has_meta<cli_meta>();
         if (fd.name() == "verbose") {
-            verbose_has_cli = fd.has_meta<cli_meta_fe>();
+            verbose_has_cli = fd.has_meta<cli_meta>();
             if (verbose_has_cli)
-                verbose_flag = fd.meta<cli_meta_fe>().cli.short_flag;
+                verbose_flag = fd.meta<cli_meta>().cli.short_flag;
         }
     });
 
