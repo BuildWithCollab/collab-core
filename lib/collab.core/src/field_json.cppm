@@ -4,6 +4,10 @@ module;
 
 #include <ankerl/unordered_dense.h>
 
+#include <magic_enum/magic_enum.hpp>
+
+
+
 #include <cstddef>
 #include <map>
 #include <optional>
@@ -135,6 +139,11 @@ namespace detail {
                 j[std::string(name)] = value_to_json(value);
             });
             return j;
+        } else if constexpr (std::is_enum_v<T>) {
+            std::string_view name = magic_enum::enum_name(v);
+            if (name.empty())
+                return nlohmann::json(static_cast<std::underlying_type_t<T>>(v));
+            return nlohmann::json(std::string(name));
         } else {
             return nlohmann::json(v);
         }
@@ -208,6 +217,25 @@ namespace detail {
                     value_from_json(j[key], value);
                 }
             });
+        } else if constexpr (std::is_enum_v<T>) {
+            if (j.is_string()) {
+                auto str = j.get<std::string>();
+                bool found = false;
+                for (auto val : magic_enum::enum_values<T>()) {
+                    if (magic_enum::enum_name(val) == str) {
+                        out = val;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    throw std::logic_error(
+                        "from_json: unknown enum value '" + str + "'");
+            } else if (j.is_number()) {
+                out = static_cast<T>(j.get<std::underlying_type_t<T>>());
+            } else {
+                throw std::logic_error("from_json: expected string or number for enum");
+            }
         } else if constexpr (std::is_same_v<T, std::string>) {
             if (!j.is_string())
                 throw std::logic_error("from_json: expected string");

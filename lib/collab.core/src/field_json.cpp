@@ -1,12 +1,15 @@
 module;
 
 #include <nlohmann/json.hpp>
+#include <magic_enum/magic_enum.hpp>
 
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 module collab.core;
+
 
 // ── type_instance::load_json — in-place overlay from JSON ────────────────
 //

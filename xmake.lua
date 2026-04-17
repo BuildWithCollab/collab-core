@@ -19,6 +19,9 @@ add_requires("spdlog")
 add_requires("fmt")
 add_requires("rang")
 add_requires("unordered_dense")
+-- magic_enum v0.9.7 has a static_str→string_view implicit conversion
+-- that MSVC rejects inside C++ module partitions (commit 7d87efb)
+add_requires("magic_enum master")
 
 -- nlohmann_json PR#4952 added MSVC module support (commit 11cc676)
 -- currently only available on the develop branch

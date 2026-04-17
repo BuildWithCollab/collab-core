@@ -28,6 +28,8 @@ struct Person;
 struct TaggedItem;
 struct MaybeNickname;
 struct CliArgs;
+struct EnumStruct;
+struct MultiEnumStruct;
 struct MixedStruct;
 struct Team;
 struct Config;
@@ -159,6 +161,16 @@ constexpr auto collab::model::struct_info<Inner>() {
 template <>
 constexpr auto collab::model::struct_info<Outer>() {
     return collab::model::field_info<Outer>("name", "extra");
+}
+
+template <>
+constexpr auto collab::model::struct_info<EnumStruct>() {
+    return collab::model::field_info<EnumStruct>("method", "name");
+}
+
+template <>
+constexpr auto collab::model::struct_info<MultiEnumStruct>() {
+    return collab::model::field_info<MultiEnumStruct>("color", "method", "label");
 }
 #endif
 
@@ -879,4 +891,139 @@ TEST_CASE("dynamic from_json: type() metadata accessible after deserialization",
     REQUIRE(obj.type().name() == "Event");
     REQUIRE(obj.type().has_meta<endpoint_info>());
     REQUIRE(obj.type().field_count() == 2);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Enum fields — both directions
+// ═════════════════════════════════════════════════════════════════════════
+
+enum class HttpMethod { GET, POST, PUT, DELETE_METHOD };
+
+enum class Color : int { red = 0, green = 1, blue = 2 };
+
+struct EnumStruct {
+    field<HttpMethod>  method;
+    field<std::string> name;
+};
+
+struct MultiEnumStruct {
+    field<Color>       color;
+    field<HttpMethod>  method;
+    field<std::string> label;
+};
+
+// ── to_json: enums serialize as strings ──────────────────────────────────
+
+TEST_CASE("typed to_json: enum field serializes as string", "[json][enum][to_json]") {
+    EnumStruct es;
+    es.method = HttpMethod::POST;
+    es.name = "create-dog";
+
+    auto j = to_json(es);
+
+    REQUIRE(j["method"] == "POST");
+    REQUIRE(j["name"] == "create-dog");
+}
+
+TEST_CASE("typed to_json: enum default serializes as string", "[json][enum][to_json]") {
+    EnumStruct es;
+    es.name = "default";
+
+    auto j = to_json(es);
+
+    REQUIRE(j["method"] == "GET");
+}
+
+TEST_CASE("typed to_json: multiple enum fields serialize as strings", "[json][enum][to_json]") {
+    MultiEnumStruct ms;
+    ms.color = Color::blue;
+    ms.method = HttpMethod::PUT;
+    ms.label = "fancy";
+
+    auto j = to_json(ms);
+
+    REQUIRE(j["color"] == "blue");
+    REQUIRE(j["method"] == "PUT");
+    REQUIRE(j["label"] == "fancy");
+}
+
+// ── from_json: enums deserialize from strings ───────────────────────────
+
+TEST_CASE("typed from_json: enum field deserializes from string", "[json][enum][from_json]") {
+    auto j = json{{"method", "PUT"}, {"name", "update-dog"}};
+    auto es = from_json<EnumStruct>(j);
+
+    REQUIRE(es.method.value == HttpMethod::PUT);
+    REQUIRE(es.name.value == "update-dog");
+}
+
+TEST_CASE("typed from_json: enum field also accepts integer", "[json][enum][from_json]") {
+    auto j = json{{"method", 2}, {"name", "update-dog"}};
+    auto es = from_json<EnumStruct>(j);
+
+    REQUIRE(es.method.value == HttpMethod::PUT);
+}
+
+TEST_CASE("typed from_json: enum field default when key missing", "[json][enum][from_json]") {
+    auto j = json{{"name", "test"}};
+    auto es = from_json<EnumStruct>(j);
+
+    REQUIRE(es.method.value == HttpMethod::GET);
+}
+
+// ── round-trips ─────────────────────────────────────────────────────────
+
+TEST_CASE("typed: enum round-trip", "[json][enum][roundtrip]") {
+    EnumStruct original;
+    original.method = HttpMethod::DELETE_METHOD;
+    original.name = "remove-dog";
+
+    auto j = to_json(original);
+    REQUIRE(j["method"] == "DELETE_METHOD");
+
+    auto restored = from_json<EnumStruct>(j);
+
+    REQUIRE(restored.method.value == original.method.value);
+    REQUIRE(restored.name.value == original.name.value);
+}
+
+TEST_CASE("typed: multiple enum fields round-trip", "[json][enum][roundtrip]") {
+    MultiEnumStruct original;
+    original.color = Color::blue;
+    original.method = HttpMethod::POST;
+    original.label = "fancy";
+
+    auto j = to_json(original);
+
+    REQUIRE(j["color"] == "blue");
+    REQUIRE(j["method"] == "POST");
+    REQUIRE(j["label"] == "fancy");
+
+    auto restored = from_json<MultiEnumStruct>(j);
+
+    REQUIRE(restored.color.value == Color::blue);
+    REQUIRE(restored.method.value == HttpMethod::POST);
+    REQUIRE(restored.label.value == "fancy");
+}
+
+// ── error cases ─────────────────────────────────────────────────────────
+
+TEST_CASE("typed from_json: enum field throws on unknown string", "[json][enum][from_json][throw]") {
+    auto j = json{{"method", "PATCH"}, {"name", "test"}};
+    REQUIRE_THROWS_AS(from_json<EnumStruct>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: enum field throws on bool value", "[json][enum][from_json][throw]") {
+    auto j = json{{"method", true}, {"name", "test"}};
+    REQUIRE_THROWS_AS(from_json<EnumStruct>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: enum field throws on object value", "[json][enum][from_json][throw]") {
+    auto j = json{{"method", json::object()}, {"name", "test"}};
+    REQUIRE_THROWS_AS(from_json<EnumStruct>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: enum field throws on array value", "[json][enum][from_json][throw]") {
+    auto j = json{{"method", json::array()}, {"name", "test"}};
+    REQUIRE_THROWS_AS(from_json<EnumStruct>(j), std::logic_error);
 }
