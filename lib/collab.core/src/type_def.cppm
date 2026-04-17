@@ -3,24 +3,16 @@ module;
 #include <any>
 #include <cstddef>
 #include <functional>
-#include <map>
 #include <optional>
-#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <typeindex>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include <nlohmann/json.hpp>
-
-#include <ankerl/unordered_dense.h>
-
-#include <magic_enum/magic_enum.hpp>
+#include <nlohmann/json_fwd.hpp>
 
 export module collab.core:type_def;
 
@@ -246,65 +238,16 @@ namespace detail {
         (try_set_field<Is>(obj, name, std::forward<V>(val), set_ok, name_matched), ...);
     }
 
-    // ── JSON value helpers (used by dynamic field lambdas) ──────────
+    // ── JSON codec installer — defined in :field_json partition ─────
+    //
+    // Forward-declared here so .field<V>() can call it. The partition
+    // provides the definition which captures value_to_json/value_from_json
+    // lambdas that handle all types (vectors, maps, enums, etc.).
 
-    template <typename T>
-    inline constexpr bool is_optional_v = false;
-    template <typename T>
-    inline constexpr bool is_optional_v<std::optional<T>> = true;
+    struct dynamic_field_def;  // forward for install_json_codec
 
-    template <typename T>
-    inline constexpr bool is_iterable_array_v = false;
-    template <typename T>
-    inline constexpr bool is_iterable_array_v<std::vector<T>> = true;
-    template <typename T, typename Cmp, typename Alloc>
-    inline constexpr bool is_iterable_array_v<std::set<T, Cmp, Alloc>> = true;
-    template <typename T, typename Hash, typename Eq, typename Alloc>
-    inline constexpr bool is_iterable_array_v<std::unordered_set<T, Hash, Eq, Alloc>> = true;
-    template <typename T, typename Hash, typename Eq>
-    inline constexpr bool is_iterable_array_v<ankerl::unordered_dense::set<T, Hash, Eq>> = true;
-
-    template <typename T>
-    inline constexpr bool is_map_v = false;
-    template <typename V, typename Cmp, typename Alloc>
-    inline constexpr bool is_map_v<std::map<std::string, V, Cmp, Alloc>> = true;
-    template <typename V, typename Hash, typename Eq, typename Alloc>
-    inline constexpr bool is_map_v<std::unordered_map<std::string, V, Hash, Eq, Alloc>> = true;
-    template <typename V, typename Hash, typename Eq>
-    inline constexpr bool is_map_v<ankerl::unordered_dense::map<std::string, V, Hash, Eq>> = true;
-
-    template <typename T> struct array_element;
-    template <typename T> struct array_element<std::vector<T>> { using type = T; };
-    template <typename T, typename Cmp, typename Alloc>
-    struct array_element<std::set<T, Cmp, Alloc>> { using type = T; };
-    template <typename T, typename Hash, typename Eq, typename Alloc>
-    struct array_element<std::unordered_set<T, Hash, Eq, Alloc>> { using type = T; };
-    template <typename T, typename Hash, typename Eq>
-    struct array_element<ankerl::unordered_dense::set<T, Hash, Eq>> { using type = T; };
-    template <typename T>
-    using array_element_t = typename array_element<T>::type;
-
-    template <typename T> struct map_value;
-    template <typename V, typename Cmp, typename Alloc>
-    struct map_value<std::map<std::string, V, Cmp, Alloc>> { using type = V; };
-    template <typename V, typename Hash, typename Eq, typename Alloc>
-    struct map_value<std::unordered_map<std::string, V, Hash, Eq, Alloc>> { using type = V; };
-    template <typename V, typename Hash, typename Eq>
-    struct map_value<ankerl::unordered_dense::map<std::string, V, Hash, Eq>> { using type = V; };
-    template <typename T>
-    using map_value_t = typename map_value<T>::type;
-
-    template <typename T> struct optional_inner;
-    template <typename T> struct optional_inner<std::optional<T>> { using type = T; };
-    template <typename T>
-    using optional_inner_t = typename optional_inner<T>::type;
-
-    // Forward declare — defined after type_def<T> (needs for_each_field)
-    template <typename T>
-    nlohmann::json value_to_json(const T& v);
-
-    template <typename T>
-    void value_from_json(const nlohmann::json& j, T& out);
+    template <typename V>
+    void install_json_codec(dynamic_field_def& fd);
 
     // ── Type-erased meta entry ───────────────────────────────────────
 
@@ -325,9 +268,10 @@ namespace detail {
         std::function<bool(std::any&, std::any&&)> setter;
         std::function<std::any()> make_default;
 
-        // JSON serialization — captured at .field<V>() time
-        std::function<nlohmann::json(const std::any&)> to_json_fn;
-        std::function<void(std::any&, const nlohmann::json&)> from_json_fn;
+        // JSON serialization — uses std::any to avoid json.hpp dependency.
+        // Populated by install_json_codec<V>() from the :field_json partition.
+        std::function<std::any(const std::any&)>        to_json_fn;
+        std::function<void(std::any&, const std::any&)> from_json_fn;
     };
 
     // ── Extract metas from a with<Exts...> ───────────────────────────
@@ -886,15 +830,11 @@ public:
             return false;
         };
         auto factory = []() -> std::any { return std::any(V{}); };
-        auto to_j = [](const std::any& a) -> nlohmann::json {
-            return detail::value_to_json(*std::any_cast<V>(&a));
-        };
-        auto from_j = [](std::any& a, const nlohmann::json& j) {
-            V val{}; detail::value_from_json(j, val); a = std::move(val);
-        };
-        fields_.push_back({std::string(fname), typeid(V), {}, false, {},
-                           std::move(setter), std::move(factory),
-                           std::move(to_j), std::move(from_j)});
+        detail::dynamic_field_def fd{
+            std::string(fname), typeid(V), {}, false, {},
+            std::move(setter), std::move(factory), {}, {}};
+        detail::install_json_codec<V>(fd);
+        fields_.push_back(std::move(fd));
         return *this;
     }
 
@@ -908,17 +848,11 @@ public:
             return false;
         };
         auto factory = []() -> std::any { return std::any(V{}); };
-        auto to_j = [](const std::any& a) -> nlohmann::json {
-            return detail::value_to_json(*std::any_cast<V>(&a));
-        };
-        auto from_j = [](std::any& a, const nlohmann::json& j) {
-            V val{}; detail::value_from_json(j, val); a = std::move(val);
-        };
         detail::dynamic_field_def fd{
             std::string(fname), typeid(V),
             std::any(std::move(default_value)), true, {},
-            std::move(setter), std::move(factory),
-            std::move(to_j), std::move(from_j)};
+            std::move(setter), std::move(factory), {}, {}};
+        detail::install_json_codec<V>(fd);
         (detail::extract_with_metas(fd.metas, withs), ...);
         fields_.push_back(std::move(fd));
         return *this;
@@ -1132,134 +1066,5 @@ public:
 inline type_instance type_def<detail::dynamic_tag>::create() const {
     return type_instance(*this);
 }
-
-// ── Typed JSON free functions ────────────────────────────────────────────
-//
-// to_json / from_json / to_json_string for reflected_struct types.
-// These use the same detail::value_to_json / value_from_json that the
-// dynamic path's captured lambdas use.
-
-template <detail::reflected_struct T>
-nlohmann::json to_json(const T& obj) {
-    return detail::value_to_json(obj);
-}
-
-template <detail::reflected_struct T>
-std::string to_json_string(const T& obj, int indent = -1) {
-    auto j = detail::value_to_json(obj);
-    return indent < 0 ? j.dump() : j.dump(indent);
-}
-
-template <detail::reflected_struct T>
-T from_json(const nlohmann::json& j) {
-    T result{};
-    detail::value_from_json(j, result);
-    return result;
-}
-
-template <detail::reflected_struct T>
-T from_json(const std::string& json_str) {
-    auto j = nlohmann::json::parse(json_str);
-    return from_json<T>(j);
-}
-
-// ── detail::value_to_json / value_from_json implementations ──────────────
-//
-// Recursive helpers for JSON ↔ C++ value conversion. Handles optionals,
-// arrays (vector/set/unordered_set/dense set), maps, reflected_structs,
-// enums via magic_enum, and primitives. Used both by the typed free
-// functions (to_json/from_json) and by the captured lambdas in dynamic
-// field_def.
-
-namespace detail {
-
-    template <typename T>
-    nlohmann::json value_to_json(const T& v) {
-        if constexpr (is_optional_v<T>) {
-            if (v.has_value()) return value_to_json(*v);
-            return nlohmann::json(nullptr);
-        } else if constexpr (is_iterable_array_v<T>) {
-            nlohmann::json arr = nlohmann::json::array();
-            for (const auto& elem : v) arr.push_back(value_to_json(elem));
-            return arr;
-        } else if constexpr (is_map_v<T>) {
-            nlohmann::json obj = nlohmann::json::object();
-            for (const auto& [k, val] : v) obj[k] = value_to_json(val);
-            return obj;
-        } else if constexpr (reflected_struct<T>) {
-            nlohmann::json j = nlohmann::json::object();
-            type_def<T>{}.for_each_field(v, [&](std::string_view name, const auto& value) {
-                j[std::string(name)] = value_to_json(value);
-            });
-            return j;
-        } else if constexpr (std::is_enum_v<T>) {
-            std::string_view name = magic_enum::enum_name(v);
-            if (name.empty())
-                return nlohmann::json(static_cast<std::underlying_type_t<T>>(v));
-            return nlohmann::json(std::string(name));
-        } else {
-            return nlohmann::json(v);
-        }
-    }
-
-    template <typename T>
-    void value_from_json(const nlohmann::json& j, T& out) {
-        if constexpr (is_optional_v<T>) {
-            using Inner = optional_inner_t<T>;
-            if (j.is_null()) { out = std::nullopt; }
-            else { Inner inner{}; value_from_json(j, inner); out = std::move(inner); }
-        } else if constexpr (is_iterable_array_v<T>) {
-            if (!j.is_array()) throw std::logic_error("from_json: expected array");
-            using Elem = array_element_t<T>;
-            out.clear();
-            for (const auto& elem : j) {
-                Elem e{}; value_from_json(elem, e);
-                if constexpr (requires { out.push_back(e); }) out.push_back(std::move(e));
-                else out.insert(std::move(e));
-            }
-        } else if constexpr (is_map_v<T>) {
-            if (!j.is_object()) throw std::logic_error("from_json: expected object for map");
-            using V = map_value_t<T>;
-            out.clear();
-            for (auto& [key, val] : j.items()) {
-                V v{}; value_from_json(val, v); out[key] = std::move(v);
-            }
-        } else if constexpr (reflected_struct<T>) {
-            if (!j.is_object()) throw std::logic_error("from_json: expected object for struct");
-            type_def<T>{}.for_each_field(out, [&](std::string_view name, auto& value) {
-                std::string key(name);
-                if (j.contains(key)) value_from_json(j[key], value);
-            });
-        } else if constexpr (std::is_enum_v<T>) {
-            if (j.is_string()) {
-                auto str = j.get<std::string>();
-                bool found = false;
-                for (auto val : magic_enum::enum_values<T>()) {
-                    if (magic_enum::enum_name(val) == str) { out = val; found = true; break; }
-                }
-                if (!found) throw std::logic_error("from_json: unknown enum value '" + str + "'");
-            } else if (j.is_number()) {
-                out = static_cast<T>(j.get<std::underlying_type_t<T>>());
-            } else {
-                throw std::logic_error("from_json: expected string or number for enum");
-            }
-        } else if constexpr (std::is_same_v<T, std::string>) {
-            if (!j.is_string()) throw std::logic_error("from_json: expected string");
-            out = j.get<std::string>();
-        } else if constexpr (std::is_same_v<T, bool>) {
-            if (!j.is_boolean()) throw std::logic_error("from_json: expected boolean");
-            out = j.get<bool>();
-        } else if constexpr (std::is_integral_v<T>) {
-            if (!j.is_number()) throw std::logic_error("from_json: expected number");
-            out = j.get<T>();
-        } else if constexpr (std::is_floating_point_v<T>) {
-            if (!j.is_number()) throw std::logic_error("from_json: expected number");
-            out = j.get<T>();
-        } else {
-            out = j.get<T>();
-        }
-    }
-
-}  // namespace detail
 
 }  // namespace collab::model

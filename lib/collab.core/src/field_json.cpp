@@ -2,6 +2,7 @@ module;
 
 #include <nlohmann/json.hpp>
 
+#include <any>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -12,9 +13,8 @@ module collab.core;
 // ── type_instance::load_json — in-place overlay from JSON ────────────────
 //
 // Overlay semantics: missing keys keep defaults, extra keys ignored.
-// Uses the captured from_json_fn lambda from field registration time —
-// handles all types the typed path handles (vectors, maps, optionals,
-// nested structs, enums, etc.)
+// Uses the captured from_json_fn lambda from field registration time.
+// The lambda expects nlohmann::json wrapped in std::any.
 
 void collab::model::type_instance::load_json(const nlohmann::json& j) {
     if (!j.is_object())
@@ -24,20 +24,21 @@ void collab::model::type_instance::load_json(const nlohmann::json& j) {
         int idx = find_field_index(key);
         if (idx < 0) continue;  // extra keys silently ignored
         auto& fd = fields[idx];
-        fd.from_json_fn(values_[idx], val);
+        fd.from_json_fn(values_[idx], std::any(val));
     }
 }
 
 // ── type_instance::to_json — serialize fields to JSON object ─────────────
 //
-// Uses the captured to_json_fn lambda from field registration time —
-// handles all types the typed path handles.
+// Uses the captured to_json_fn lambda from field registration time.
+// The lambda returns nlohmann::json wrapped in std::any.
 
 nlohmann::json collab::model::type_instance::to_json() const {
     nlohmann::json j = nlohmann::json::object();
     auto& fields = type_->fields_;
     for (std::size_t i = 0; i < fields.size(); ++i) {
-        j[fields[i].name] = fields[i].to_json_fn(values_[i]);
+        auto result = fields[i].to_json_fn(values_[i]);
+        j[fields[i].name] = *std::any_cast<nlohmann::json>(&result);
     }
     return j;
 }
