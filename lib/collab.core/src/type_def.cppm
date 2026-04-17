@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -205,28 +206,29 @@ namespace detail {
     // ── Set by name ──────────────────────────────────────────────────
 
     template <std::size_t I, typename Obj, typename V>
-    constexpr void try_set_field(Obj& obj, std::string_view name, V&& val, bool& found) {
-        if (found) return;
+    constexpr void try_set_field(Obj& obj, std::string_view name, V&& val,
+                                 bool& set_ok, bool& name_matched) {
+        if (set_ok) return;
         using T = std::remove_cvref_t<Obj>;
         using member_t = collab::model::detail::member_type<I, T>;
         if constexpr (collab::model::is_field<member_t>) {
             if (collab::model::detail::dispatch_field_name_rt<I, T>() == name) {
+                name_matched = true;
                 using value_t = typename member_t::value_type;
                 if constexpr (std::is_constructible_v<value_t, V>) {
                     collab::model::detail::dispatch_get_member<I>(obj).value =
                         std::forward<V>(val);
-                    found = true;
+                    set_ok = true;
                 }
             }
         }
     }
 
     template <typename Obj, typename V, std::size_t... Is>
-    constexpr bool set_field_by_name(Obj& obj, std::string_view name, V&& val,
-                                     std::index_sequence<Is...>) {
-        bool found = false;
-        (try_set_field<Is>(obj, name, std::forward<V>(val), found), ...);
-        return found;
+    constexpr void set_field_by_name(Obj& obj, std::string_view name, V&& val,
+                                     std::index_sequence<Is...>,
+                                     bool& name_matched, bool& set_ok) {
+        (try_set_field<Is>(obj, name, std::forward<V>(val), set_ok, name_matched), ...);
     }
 
     // ── Type-erased meta entry ───────────────────────────────────────
@@ -317,7 +319,12 @@ public:
     bool has_default() const { return def_->has_default; }
 
     template <typename V>
-    V default_value() const { return *std::any_cast<V>(&def_->default_value); }
+    V default_value() const {
+        auto* p = std::any_cast<V>(&def_->default_value);
+        if (!p) throw std::logic_error(
+            "field '" + std::string(name()) + "': default_value type mismatch");
+        return *p;
+    }
 
     template <typename M>
     bool has_meta() const {
@@ -331,7 +338,8 @@ public:
         for (auto& e : def_->metas)
             if (e.type == typeid(M))
                 return *std::any_cast<M>(&e.value);
-        return M{};
+        throw std::logic_error(
+            "field '" + std::string(name()) + "': no meta of requested type");
     }
 
     template <typename M>
@@ -346,8 +354,12 @@ public:
     std::vector<M> metas() const {
         std::vector<M> result;
         for (auto& e : def_->metas)
-            if (e.type == typeid(M))
-                result.push_back(*std::any_cast<M>(&e.value));
+            if (e.type == typeid(M)) {
+                auto* p = std::any_cast<M>(&e.value);
+                if (!p) throw std::logic_error(
+                    "field '" + std::string(name()) + "': meta storage corrupted");
+                result.push_back(*p);
+            }
         return result;
     }
 };
@@ -364,10 +376,18 @@ class field_value {
 
 public:
     template <typename V>
-    V& as() { return *std::any_cast<V>(value_); }
+    V& as() {
+        auto* p = std::any_cast<V>(value_);
+        if (!p) throw std::logic_error("field_value: type mismatch in as<>()");
+        return *p;
+    }
 
     template <typename V>
-    const V& as() const { return *std::any_cast<V>(value_); }
+    const V& as() const {
+        auto* p = std::any_cast<V>(value_);
+        if (!p) throw std::logic_error("field_value: type mismatch in as<>()");
+        return *p;
+    }
 
     template <typename V>
     V* try_as() { return std::any_cast<V>(value_); }
@@ -383,7 +403,11 @@ class const_field_value {
 
 public:
     template <typename V>
-    const V& as() const { return *std::any_cast<V>(value_); }
+    const V& as() const {
+        auto* p = std::any_cast<V>(value_);
+        if (!p) throw std::logic_error("const_field_value: type mismatch in as<>()");
+        return *p;
+    }
 
     template <typename V>
     const V* try_as() const { return std::any_cast<V>(value_); }
@@ -477,11 +501,9 @@ public:
         detail::build_discovered_field_def<T>(
             discovered, fname, found, indices_{});
         if (found) return field_view(&discovered);
-        // Not found
-        thread_local detail::dynamic_field_def not_found;
-        not_found = {};
-        not_found.name = std::string(fname);
-        return field_view(&not_found);
+        throw std::logic_error(
+            "type_def '" + std::string(name()) + "': no field named '" +
+            std::string(fname) + "'");
     }
 
     // ── Meta queries ─────────────────────────────────────────────────
@@ -567,44 +589,52 @@ public:
     // ── Get field by runtime name (callback) ────────────────────────
 
     template <typename F>
-    bool get(T& obj, std::string_view fname, F&& fn) const {
+    void get(T& obj, std::string_view fname, F&& fn) const {
         if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), indices_{}))
-            return true;
+            return;
         bool found = false;
         std::apply([&](const auto&... regs) {
             ((regs.name == fname && !found &&
                 (fn(std::string_view(regs.name), obj.*(regs.member)),
                  found = true, true)), ...);
         }, typed_regs_);
-        return found;
+        if (!found)
+            throw std::logic_error(
+                "type_def '" + std::string(name()) + "': no field named '" +
+                std::string(fname) + "'");
     }
 
     template <typename F>
-    bool get(const T& obj, std::string_view fname, F&& fn) const {
+    void get(const T& obj, std::string_view fname, F&& fn) const {
         if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), indices_{}))
-            return true;
+            return;
         bool found = false;
         std::apply([&](const auto&... regs) {
             ((regs.name == fname && !found &&
                 (fn(std::string_view(regs.name), obj.*(regs.member)),
                  found = true, true)), ...);
         }, typed_regs_);
-        return found;
+        if (!found)
+            throw std::logic_error(
+                "type_def '" + std::string(name()) + "': no field named '" +
+                std::string(fname) + "'");
     }
 
     // ── Get field by runtime name (typed) ────────────────────────────
 
     template <typename V>
-    std::optional<V> get(const T& obj, std::string_view fname) const {
+    V get(const T& obj, std::string_view fname) const {
         std::optional<V> result;
-        detail::get_field_by_name(obj, fname,
+        bool field_found = detail::get_field_by_name(obj, fname,
             [&](std::string_view, const auto& value) {
                 if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, V>)
                     result = value;
             }, indices_{});
-        if (result) return result;
+        if (result) return *result;
+        bool name_found = field_found;
         std::apply([&](const auto&... regs) {
             ((regs.name == fname && !result.has_value() && [&] {
+                name_found = true;
                 using MemT = std::remove_reference_t<
                     decltype(std::declval<T>().*(regs.member))>;
                 if constexpr (std::is_same_v<MemT, V>)
@@ -612,29 +642,46 @@ public:
                 return true;
             }()), ...);
         }, typed_regs_);
-        return result;
+        if (result) return *result;
+        if (name_found)
+            throw std::logic_error(
+                "type_def '" + std::string(name()) + "': field '" +
+                std::string(fname) + "' type mismatch");
+        throw std::logic_error(
+            "type_def '" + std::string(name()) + "': no field named '" +
+            std::string(fname) + "'");
     }
 
     // ── Set field by runtime name ────────────────────────────────────
 
     template <typename V>
-    bool set(T& obj, std::string_view fname, V&& val) const {
-        if (detail::set_field_by_name(
-                obj, fname, std::forward<V>(val), indices_{}))
-            return true;
-        bool found = false;
+    void set(T& obj, std::string_view fname, V&& val) const {
+        bool name_matched = false;
+        bool set_ok = false;
+        detail::set_field_by_name(
+            obj, fname, std::forward<V>(val), indices_{},
+            name_matched, set_ok);
+        if (set_ok) return;
         std::apply([&](const auto&... regs) {
-            ((regs.name == fname && !found && [&] {
+            ((regs.name == fname && !set_ok && [&] {
+                name_matched = true;
                 using MemT = std::remove_reference_t<
                     decltype(std::declval<T>().*(regs.member))>;
                 if constexpr (std::is_constructible_v<MemT, V>) {
                     obj.*(regs.member) = MemT(std::forward<V>(val));
-                    found = true;
+                    set_ok = true;
                 }
                 return true;
             }()), ...);
         }, typed_regs_);
-        return found;
+        if (set_ok) return;
+        if (name_matched)
+            throw std::logic_error(
+                "type_def '" + std::string(name()) + "': field '" +
+                std::string(fname) + "' type mismatch");
+        throw std::logic_error(
+            "type_def '" + std::string(name()) + "': no field named '" +
+            std::string(fname) + "'");
     }
 
     // ── Create instance ──────────────────────────────────────────────
@@ -730,9 +777,9 @@ public:
     field_view field(std::string_view fname) const {
         for (auto& f : fields_)
             if (f.name == fname) return field_view(&f);
-        // Return a view to the first field as fallback — caller should
-        // check has_field() first. A real implementation might throw.
-        return field_view(&fields_.front());
+        throw std::logic_error(
+            "type_def '" + std::string(name_) + "': no field named '" +
+            std::string(fname) + "'");
     }
 
     // ── Field iteration (schema-only) ────────────────────────────────
@@ -757,7 +804,8 @@ public:
         for (auto& e : type_metas_)
             if (e.type == typeid(M))
                 return *std::any_cast<M>(&e.value);
-        return M{};
+        throw std::logic_error(
+            "type_def '" + std::string(name_) + "': no meta of requested type");
     }
 
     template <typename M>
@@ -816,30 +864,40 @@ public:
     // ── Set ──────────────────────────────────────────────────────────
 
     template <typename V>
-    bool set(std::string_view name, V&& value) {
+    void set(std::string_view name, V&& value) {
         int idx = find_field_index(name);
-        if (idx < 0) return false;
+        if (idx < 0)
+            throw std::logic_error(
+                "object (type '" + std::string(type_->name_) +
+                "'): no field named '" + std::string(name) + "'");
         auto& fd = type_->fields_[idx];
         std::any wrapped(std::forward<V>(value));
-        if (fd.setter(values_[idx], std::move(wrapped))) return true;
+        if (fd.setter(values_[idx], std::move(wrapped))) return;
         // Fallback: try string conversion for string-like types
         if constexpr (std::is_constructible_v<std::string, V> &&
                       !std::is_same_v<std::remove_cvref_t<V>, std::string>) {
             std::any str(std::string(std::forward<V>(value)));
-            if (fd.setter(values_[idx], std::move(str))) return true;
+            if (fd.setter(values_[idx], std::move(str))) return;
         }
-        return false;
+        throw std::logic_error(
+            "object (type '" + std::string(type_->name_) +
+            "'): field '" + std::string(name) + "' type mismatch");
     }
 
     // ── Get ──────────────────────────────────────────────────────────
 
     template <typename V>
-    std::optional<V> get(std::string_view name) const {
+    V get(std::string_view name) const {
         int idx = find_field_index(name);
-        if (idx < 0) return std::nullopt;
+        if (idx < 0)
+            throw std::logic_error(
+                "object (type '" + std::string(type_->name_) +
+                "'): no field named '" + std::string(name) + "'");
         if (auto* p = std::any_cast<V>(&values_[idx]))
             return *p;
-        return std::nullopt;
+        throw std::logic_error(
+            "object (type '" + std::string(type_->name_) +
+            "'): field '" + std::string(name) + "' type mismatch");
     }
 
     // ── Has ──────────────────────────────────────────────────────────

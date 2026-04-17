@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -74,32 +75,49 @@ TEST_CASE("object set() with matching type", "[object][set]") {
         .field<int>("count");
     auto obj = t.create();
 
-    REQUIRE(obj.set("title", std::string("Dog Party")));
-    REQUIRE(obj.set("count", 50));
+    obj.set("title", std::string("Dog Party"));
+    obj.set("count", 50);
+    REQUIRE(obj.get<std::string>("title") == "Dog Party");
+    REQUIRE(obj.get<int>("count") == 50);
 }
 
-TEST_CASE("object set() returns false for unknown field", "[object][set]") {
+TEST_CASE("object set() throws for unknown field", "[object][set][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
 
-    REQUIRE(!obj.set("nope", 42));
+    try {
+        obj.set("nope", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nope") != std::string::npos);
+        REQUIRE(msg.find("Event") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
-TEST_CASE("object set() returns false for type mismatch", "[object][set]") {
+TEST_CASE("object set() throws for type mismatch", "[object][set][throw]") {
     auto t = type_def("Event")
         .field<std::string>("title");
     auto obj = t.create();
 
-    REQUIRE(!obj.set("title", 42));
+    try {
+        obj.set("title", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("title") != std::string::npos);
+        REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
 }
 
-TEST_CASE("object set() does not modify field on type mismatch", "[object][set]") {
+TEST_CASE("object set() does not modify field on type mismatch", "[object][set][throw]") {
     auto t = type_def("Event")
         .field<std::string>("title", std::string("Original"));
     auto obj = t.create();
 
-    obj.set("title", 42);
+    try { obj.set("title", 42); } catch (const std::logic_error&) {}
     REQUIRE(obj.get<std::string>("title") == "Original");
 }
 
@@ -108,7 +126,7 @@ TEST_CASE("object set() with const char* to string field", "[object][set]") {
         .field<std::string>("title");
     auto obj = t.create();
 
-    REQUIRE(obj.set("title", "hello"));
+    obj.set("title", "hello");
     REQUIRE(obj.get<std::string>("title") == "hello");
 }
 
@@ -130,25 +148,38 @@ TEST_CASE("object get() returns value", "[object][get]") {
         .field<int>("count", 42);
     auto obj = t.create();
 
-    auto val = obj.get<int>("count");
-    REQUIRE(val.has_value());
-    REQUIRE(val.value() == 42);
+    REQUIRE(obj.get<int>("count") == 42);
 }
 
-TEST_CASE("object get() returns nullopt for unknown field", "[object][get]") {
+TEST_CASE("object get() throws for unknown field", "[object][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
 
-    REQUIRE(!obj.get<int>("nope").has_value());
+    try {
+        obj.get<int>("nope");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nope") != std::string::npos);
+        REQUIRE(msg.find("Event") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
-TEST_CASE("object get() returns nullopt for type mismatch", "[object][get]") {
+TEST_CASE("object get() throws for type mismatch", "[object][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count", 42);
     auto obj = t.create();
 
-    REQUIRE(!obj.get<std::string>("count").has_value());
+    try {
+        obj.get<std::string>("count");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("count") != std::string::npos);
+        REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
 }
 
 TEST_CASE("object get() round-trips with set()", "[object][get][set]") {
@@ -298,22 +329,22 @@ TEST_CASE("object full integration", "[object][integration]") {
     REQUIRE(party.get<std::string>("title") == "");
 
     // Set values
-    REQUIRE(party.set("title", std::string("Dog Party")));
-    REQUIRE(party.set("attendees", 50));
-    REQUIRE(party.set("verbose", true));
+    party.set("title", std::string("Dog Party"));
+    party.set("attendees", 50);
+    party.set("verbose", true);
 
     // Get values back
     REQUIRE(party.get<std::string>("title") == "Dog Party");
     REQUIRE(party.get<int>("attendees") == 50);
     REQUIRE(party.get<bool>("verbose") == true);
 
-    // Type mismatch
-    REQUIRE(!party.set("title", 42));
-    REQUIRE(!party.get<int>("title").has_value());
+    // Type mismatch — throws
+    REQUIRE_THROWS_AS(party.set("title", 42), std::logic_error);
+    REQUIRE_THROWS_AS(party.get<int>("title"), std::logic_error);
 
-    // Unknown field
-    REQUIRE(!party.set("nope", 1));
-    REQUIRE(!party.get<int>("nope").has_value());
+    // Unknown field — throws
+    REQUIRE_THROWS_AS(party.set("nope", 1), std::logic_error);
+    REQUIRE_THROWS_AS(party.get<int>("nope"), std::logic_error);
     REQUIRE(!party.has("nope"));
 
     // Type access

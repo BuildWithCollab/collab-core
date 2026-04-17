@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -540,34 +541,51 @@ TEST_CASE("type_def get() finds field by name", "[type_def][get]") {
     args.age = 25;
 
     int found_value = 0;
-    bool found = type_def<SimpleArgs>{}.get(args, "age", [&](std::string_view, auto& value) {
+    type_def<SimpleArgs>{}.get(args, "age", [&](std::string_view, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
             found_value = value;
         }
     });
 
-    REQUIRE(found);
     REQUIRE(found_value == 25);
 }
 
-TEST_CASE("type_def get() returns false for unknown name", "[type_def][get]") {
+TEST_CASE("type_def get() throws for unknown field name", "[type_def][get][throw]") {
     SimpleArgs args;
 
-    bool found = type_def<SimpleArgs>{}.get(args, "nonexistent", [](std::string_view, auto&) {});
-    REQUIRE(!found);
+    try {
+        type_def<SimpleArgs>{}.get(args, "nonexistent", [](std::string_view, auto&) {});
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nonexistent") != std::string::npos);
+        REQUIRE(msg.find("SimpleArgs") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
-TEST_CASE("type_def get() returns false for meta member names", "[type_def][get]") {
+TEST_CASE("type_def get() throws for meta member names", "[type_def][get][throw]") {
     Dog rex;
 
-    bool found = type_def<Dog>{}.get(rex, "endpoint", [](std::string_view, auto&) {});
-    REQUIRE(!found);
+    try {
+        type_def<Dog>{}.get(rex, "endpoint", [](std::string_view, auto&) {});
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("endpoint") != std::string::npos);
+        REQUIRE(msg.find("Dog") != std::string::npos);
+    }
 
-    found = type_def<Dog>{}.get(rex, "help", [](std::string_view, auto&) {});
-    REQUIRE(!found);
+    try {
+        type_def<Dog>{}.get(rex, "help", [](std::string_view, auto&) {});
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("help") != std::string::npos);
+    }
 }
 
-TEST_CASE("type_def get() allows mutation", "[type_def][get]") {
+TEST_CASE("type_def get() callback allows mutation", "[type_def][get]") {
     SimpleArgs args;
     args.name = "Original";
 
@@ -586,13 +604,12 @@ TEST_CASE("type_def get() on const instance", "[type_def][get]") {
     const SimpleArgs& cargs = args;
 
     int found_value = 0;
-    bool found = type_def<SimpleArgs>{}.get(cargs, "age", [&](std::string_view, const auto& value) {
+    type_def<SimpleArgs>{}.get(cargs, "age", [&](std::string_view, const auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
             found_value = value;
         }
     });
 
-    REQUIRE(found);
     REQUIRE(found_value == 42);
 }
 
@@ -746,12 +763,11 @@ TEST_CASE("type_def CliArgs integration — fields, metas, and extensions", "[ty
     REQUIRE(query_val == "hello world");
 
     // Get by name
-    bool found = t.get(args, "verbose", [](std::string_view, auto& value) {
+    t.get(args, "verbose", [](std::string_view, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, bool>) {
             REQUIRE(value == true);
         }
     });
-    REQUIRE(found);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -761,63 +777,81 @@ TEST_CASE("type_def CliArgs integration — fields, metas, and extensions", "[ty
 TEST_CASE("type_def set() assigns a string field", "[type_def][set]") {
     SimpleArgs args;
 
-    bool ok = type_def<SimpleArgs>{}.set(args, "name", std::string("Alice"));
-    REQUIRE(ok);
+    type_def<SimpleArgs>{}.set(args, "name", std::string("Alice"));
     REQUIRE(args.name.value == "Alice");
 }
 
 TEST_CASE("type_def set() assigns an int field", "[type_def][set]") {
     SimpleArgs args;
 
-    bool ok = type_def<SimpleArgs>{}.set(args, "age", 30);
-    REQUIRE(ok);
+    type_def<SimpleArgs>{}.set(args, "age", 30);
     REQUIRE(args.age.value == 30);
 }
 
 TEST_CASE("type_def set() assigns a bool field", "[type_def][set]") {
     SimpleArgs args;
 
-    bool ok = type_def<SimpleArgs>{}.set(args, "active", true);
-    REQUIRE(ok);
+    type_def<SimpleArgs>{}.set(args, "active", true);
     REQUIRE(args.active.value == true);
 }
 
-TEST_CASE("type_def set() returns false for unknown field name", "[type_def][set]") {
+TEST_CASE("type_def set() throws for unknown field name", "[type_def][set][throw]") {
     SimpleArgs args;
 
-    bool ok = type_def<SimpleArgs>{}.set(args, "nonexistent", 42);
-    REQUIRE(!ok);
+    try {
+        type_def<SimpleArgs>{}.set(args, "nonexistent", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nonexistent") != std::string::npos);
+        REQUIRE(msg.find("SimpleArgs") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
-TEST_CASE("type_def set() returns false for type mismatch", "[type_def][set]") {
+TEST_CASE("type_def set() throws for type mismatch", "[type_def][set][throw]") {
     SimpleArgs args;
 
-    // "name" is field<std::string>, passing an int
-    bool ok = type_def<SimpleArgs>{}.set(args, "name", 42);
-    REQUIRE(!ok);
+    try {
+        // "name" is field<std::string>, passing an int
+        type_def<SimpleArgs>{}.set(args, "name", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("name") != std::string::npos);
+        REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
 }
 
-TEST_CASE("type_def set() does not modify field on type mismatch", "[type_def][set]") {
+TEST_CASE("type_def set() does not modify field on type mismatch", "[type_def][set][throw]") {
     SimpleArgs args;
     args.name = "Original";
 
-    type_def<SimpleArgs>{}.set(args, "name", 42);
+    try {
+        type_def<SimpleArgs>{}.set(args, "name", 42);
+    } catch (const std::logic_error&) {}
     REQUIRE(args.name.value == "Original");
 }
 
-TEST_CASE("type_def set() ignores meta member names", "[type_def][set]") {
+TEST_CASE("type_def set() throws for meta member names", "[type_def][set][throw]") {
     Dog rex;
 
-    bool ok = type_def<Dog>{}.set(rex, "endpoint", 42);
-    REQUIRE(!ok);
+    try {
+        type_def<Dog>{}.set(rex, "endpoint", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("endpoint") != std::string::npos);
+        REQUIRE(msg.find("Dog") != std::string::npos);
+    }
 }
 
 TEST_CASE("type_def set() works on struct with metas", "[type_def][set]") {
     Dog rex;
 
-    REQUIRE(type_def<Dog>{}.set(rex, "name", std::string("Rex")));
-    REQUIRE(type_def<Dog>{}.set(rex, "age", 3));
-    REQUIRE(type_def<Dog>{}.set(rex, "breed", std::string("Husky")));
+    type_def<Dog>{}.set(rex, "name", std::string("Rex"));
+    type_def<Dog>{}.set(rex, "age", 3);
+    type_def<Dog>{}.set(rex, "breed", std::string("Husky"));
 
     REQUIRE(rex.name.value == "Rex");
     REQUIRE(rex.age.value == 3);
@@ -835,8 +869,7 @@ TEST_CASE("type_def set() overwrites existing values", "[type_def][set]") {
 TEST_CASE("type_def set() with const char* to string field", "[type_def][set]") {
     SimpleArgs args;
 
-    bool ok = type_def<SimpleArgs>{}.set(args, "name", "hello");
-    REQUIRE(ok);
+    type_def<SimpleArgs>{}.set(args, "name", "hello");
     REQUIRE(args.name.value == "hello");
 }
 
@@ -924,10 +957,18 @@ TEST_CASE("type_def field() works for each field", "[type_def][field_query]") {
     REQUIRE(t.field("breed").name() == "breed");
 }
 
-TEST_CASE("type_def field() for unknown name returns view with that name", "[type_def][field_query]") {
+TEST_CASE("type_def field() throws for unknown name", "[type_def][field_query][throw]") {
     type_def<Dog> t;
-    auto fv = t.field("nonexistent");
-    REQUIRE(fv.name() == "nonexistent");
+
+    try {
+        t.field("nonexistent");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nonexistent") != std::string::npos);
+        REQUIRE(msg.find("Dog") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -944,17 +985,34 @@ TEST_CASE("type_def get<V>() returns value for matching type", "[type_def][get_t
     REQUIRE(t.get<int>(args, "age") == 30);
 }
 
-TEST_CASE("type_def get<V>() returns nullopt for unknown field", "[type_def][get_typed]") {
+TEST_CASE("type_def get<V>() throws for unknown field", "[type_def][get_typed][throw]") {
     SimpleArgs args;
     type_def<SimpleArgs> t;
-    REQUIRE(!t.get<int>(args, "nope").has_value());
+
+    try {
+        t.get<int>(args, "nope");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nope") != std::string::npos);
+        REQUIRE(msg.find("SimpleArgs") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
-TEST_CASE("type_def get<V>() returns nullopt for type mismatch", "[type_def][get_typed]") {
+TEST_CASE("type_def get<V>() throws for type mismatch", "[type_def][get_typed][throw]") {
     SimpleArgs args;
     args.age = 42;
     type_def<SimpleArgs> t;
-    REQUIRE(!t.get<std::string>(args, "age").has_value());
+
+    try {
+        t.get<std::string>(args, "age");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("age") != std::string::npos);
+        REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
 }
 
 TEST_CASE("type_def get<V>() round-trips with set()", "[type_def][get_typed]") {
@@ -976,7 +1034,8 @@ TEST_CASE("type_def get<V>() on const instance", "[type_def][get_typed]") {
     const SimpleArgs& cargs = args;
 
     type_def<SimpleArgs> t;
-    REQUIRE(t.get<bool>(cargs, "active") == true);
+    bool val = t.get<bool>(cargs, "active");
+    REQUIRE(val == true);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

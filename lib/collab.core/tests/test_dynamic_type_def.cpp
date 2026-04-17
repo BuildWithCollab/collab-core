@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -134,6 +135,81 @@ TEST_CASE("dynamic type_def field().default_value<T>()", "[type_def][dynamic][fi
         .field<std::string>("title", std::string("Untitled"));
     REQUIRE(t.field("count").default_value<int>() == 100);
     REQUIRE(t.field("title").default_value<std::string>() == "Untitled");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Tests: Throw behavior
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic type_def field() throws for unknown name", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+
+    try {
+        t.field("nonexistent");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nonexistent") != std::string::npos);
+        REQUIRE(msg.find("Event") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("dynamic type_def field() throws on empty type_def", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Empty");
+
+    try {
+        t.field("anything");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("anything") != std::string::npos);
+        REQUIRE(msg.find("Empty") != std::string::npos);
+    }
+}
+
+TEST_CASE("dynamic type_def meta() throws for absent meta", "[type_def][dynamic][meta][throw]") {
+    auto t = type_def("Event")
+        .field<int>("x");
+
+    try {
+        t.meta<endpoint_info_d>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("Event") != std::string::npos);
+        REQUIRE(msg.find("no meta") != std::string::npos);
+    }
+}
+
+TEST_CASE("dynamic type_def field_view default_value throws for wrong type", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count", 100);
+
+    try {
+        t.field("count").default_value<std::string>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("count") != std::string::npos);
+        REQUIRE(msg.find("default_value") != std::string::npos);
+        REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
+}
+
+TEST_CASE("dynamic type_def field_view meta() throws for absent meta", "[type_def][dynamic][field_meta][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+
+    try {
+        t.field("title").meta<cli_meta_d>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("title") != std::string::npos);
+        REQUIRE(msg.find("no meta") != std::string::npos);
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════

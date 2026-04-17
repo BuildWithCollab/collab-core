@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -142,28 +143,43 @@ TEST_CASE("hybrid type_def set() with matching type", "[type_def][hybrid][set]")
         .field(&PlainDog::age, "age");
     PlainDog rex;
 
-    REQUIRE(t.set(rex, "name", std::string("Rex")));
+    t.set(rex, "name", std::string("Rex"));
     REQUIRE(rex.name == "Rex");
 
-    REQUIRE(t.set(rex, "age", 3));
+    t.set(rex, "age", 3);
     REQUIRE(rex.age == 3);
 }
 
-TEST_CASE("hybrid type_def set() returns false for unknown field", "[type_def][hybrid][set]") {
+TEST_CASE("hybrid type_def set() throws for unknown field", "[type_def][hybrid][set][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
     PlainDog rex;
 
-    REQUIRE(!t.set(rex, "nope", 42));
+    try {
+        t.set(rex, "nope", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nope") != std::string::npos);
+        REQUIRE(msg.find("PlainDog") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
-TEST_CASE("hybrid type_def set() returns false for type mismatch", "[type_def][hybrid][set]") {
+TEST_CASE("hybrid type_def set() throws for type mismatch", "[type_def][hybrid][set][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
     PlainDog rex;
     rex.name = "Original";
 
-    REQUIRE(!t.set(rex, "name", 42));
+    try {
+        t.set(rex, "name", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("name") != std::string::npos);
+        REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
     REQUIRE(rex.name == "Original");
 }
 
@@ -172,7 +188,7 @@ TEST_CASE("hybrid type_def set() with const char* to string field", "[type_def][
         .field(&PlainDog::name, "name");
     PlainDog rex;
 
-    REQUIRE(t.set(rex, "name", "Rex"));
+    t.set(rex, "name", "Rex");
     REQUIRE(rex.name == "Rex");
 }
 
@@ -192,21 +208,77 @@ TEST_CASE("hybrid type_def get<T>() returns value", "[type_def][hybrid][get]") {
     REQUIRE(t.get<int>(rex, "age") == 3);
 }
 
-TEST_CASE("hybrid type_def get<T>() returns nullopt for unknown field", "[type_def][hybrid][get]") {
+TEST_CASE("hybrid type_def get<T>() throws for unknown field", "[type_def][hybrid][get][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
     PlainDog rex;
 
-    REQUIRE(!t.get<std::string>(rex, "nope").has_value());
+    try {
+        t.get<std::string>(rex, "nope");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nope") != std::string::npos);
+        REQUIRE(msg.find("PlainDog") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
-TEST_CASE("hybrid type_def get<T>() returns nullopt for type mismatch", "[type_def][hybrid][get]") {
+TEST_CASE("hybrid type_def get<T>() throws for type mismatch", "[type_def][hybrid][get][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::age, "age");
     PlainDog rex;
     rex.age = 5;
 
-    REQUIRE(!t.get<std::string>(rex, "age").has_value());
+    try {
+        t.get<std::string>(rex, "age");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("age") != std::string::npos);
+        REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid type_def set() does not modify field on type mismatch", "[type_def][hybrid][set][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    rex.name = "Untouched";
+
+    try { t.set(rex, "name", 42); } catch (const std::logic_error&) {}
+    REQUIRE(rex.name == "Untouched");
+}
+
+TEST_CASE("hybrid type_def get() callback throws for unknown field", "[type_def][hybrid][get][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    try {
+        t.get(rex, "nope", [](std::string_view, auto&) {});
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nope") != std::string::npos);
+        REQUIRE(msg.find("PlainDog") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid type_def field() throws for unknown name", "[type_def][hybrid][field_query][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+
+    try {
+        t.field("nonexistent");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nonexistent") != std::string::npos);
+        REQUIRE(msg.find("PlainDog") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
 }
 
 TEST_CASE("hybrid type_def get<T>() round-trips with set()", "[type_def][hybrid][get][set]") {
@@ -247,10 +319,21 @@ struct FieldDog {
     field<int>          age;
 };
 
+struct MetaDog {
+    meta<help_info_h>  help{{.summary = "A dog"}};
+    field<std::string> name;
+    field<int>         age;
+};
+
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
 constexpr auto collab::model::reflect_on<FieldDog>() {
     return collab::model::field_info<FieldDog>("name", "age");
+}
+
+template <>
+constexpr auto collab::model::reflect_on<MetaDog>() {
+    return collab::model::field_info<MetaDog>("help", "name", "age");
 }
 #endif
 
@@ -453,6 +536,38 @@ TEST_CASE("hybrid type_def for_each_meta() on struct with metas", "[type_def][hy
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// Tests: Throw behavior with meta<> members
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid type_def set() throws for meta member names", "[type_def][hybrid][set][throw]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+
+    try {
+        t.set(rex, "help", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("help") != std::string::npos);
+        REQUIRE(msg.find("MetaDog") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid type_def get() callback throws for meta member names", "[type_def][hybrid][get][throw]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+
+    try {
+        t.get(rex, "help", [](std::string_view, auto&) {});
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("help") != std::string::npos);
+        REQUIRE(msg.find("MetaDog") != std::string::npos);
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // Tests: Full integration
 // ═════════════════════════════════════════════════════════════════════════
 
@@ -487,15 +602,15 @@ TEST_CASE("hybrid type_def full integration", "[type_def][hybrid][integration]")
 
     // Create + set + get
     PlainDog rex = dog_t.create();
-    REQUIRE(dog_t.set(rex, "name", std::string("Rex")));
-    REQUIRE(dog_t.set(rex, "age", 3));
-    REQUIRE(dog_t.set(rex, "breed", std::string("Husky")));
+    dog_t.set(rex, "name", std::string("Rex"));
+    dog_t.set(rex, "age", 3);
+    dog_t.set(rex, "breed", std::string("Husky"));
 
     REQUIRE(dog_t.get<std::string>(rex, "name") == "Rex");
     REQUIRE(dog_t.get<int>(rex, "age") == 3);
     REQUIRE(dog_t.get<std::string>(rex, "breed") == "Husky");
 
-    // Type mismatch
-    REQUIRE(!dog_t.set(rex, "name", 42));
-    REQUIRE(!dog_t.get<int>(rex, "name").has_value());
+    // Type mismatch — throws
+    REQUIRE_THROWS_AS(dog_t.set(rex, "name", 42), std::logic_error);
+    REQUIRE_THROWS_AS(dog_t.get<int>(rex, "name"), std::logic_error);
 }
