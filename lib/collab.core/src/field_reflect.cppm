@@ -348,13 +348,13 @@ namespace detail {
 //
 // One ifdef picks the fallback. Everything else is clean C++.
 
+namespace detail {
+
 #ifdef COLLAB_FIELD_HAS_PFR
 inline constexpr bool has_pfr_backend = true;
 #else
 inline constexpr bool has_pfr_backend = false;
 #endif
-
-namespace detail {
 
     // ── Fallback backend ─────────────────────────────────────────────
     //
