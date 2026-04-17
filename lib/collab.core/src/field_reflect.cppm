@@ -111,7 +111,7 @@ namespace collab::model::registry {
 
 template <std::size_t I, typename T>
 constexpr decltype(auto) get_member(T& obj) {
-    constexpr auto N = reflect_on<std::remove_cvref_t<T>>().names.size();
+    constexpr auto N = struct_info<std::remove_cvref_t<T>>().names.size();
     if constexpr (N == 1) {
         auto& [m0] = obj;
         if constexpr (I == 0) return (m0);
@@ -295,7 +295,7 @@ constexpr void for_each_member_impl(T& obj, F&& fn, std::index_sequence<Is...>) 
 
 template <typename T, typename F>
 constexpr void for_each_member(T& obj, F&& fn) {
-    constexpr auto N = reflect_on<std::remove_cvref_t<T>>().names.size();
+    constexpr auto N = struct_info<std::remove_cvref_t<T>>().names.size();
     for_each_member_impl(obj, std::forward<F>(fn), std::make_index_sequence<N>{});
 }
 
@@ -368,23 +368,23 @@ namespace detail {
     struct fallback<false> {
         template <typename T>
         static consteval std::size_t field_count() {
-            static_assert(has_reflect_on<T>,
-                "Type has no reflect_on<T>() specialization and PFR is not enabled.");
+            static_assert(has_struct_info<T>,
+                "Type has no struct_info<T>() specialization and PFR is not enabled.");
             return 0;
         }
 
         template <std::size_t I, typename T>
         static consteval std::string_view field_name() {
-            static_assert(has_reflect_on<T>,
-                "Type has no reflect_on<T>() specialization and PFR is not enabled.");
+            static_assert(has_struct_info<T>,
+                "Type has no struct_info<T>() specialization and PFR is not enabled.");
             return "";
         }
 
 #if !defined(_MSC_VER) || defined(__clang__)
         template <std::size_t I, typename T>
         static std::string_view field_name_rt() {
-            static_assert(has_reflect_on<T>,
-                "Type has no reflect_on<T>() specialization and PFR is not enabled.");
+            static_assert(has_struct_info<T>,
+                "Type has no struct_info<T>() specialization and PFR is not enabled.");
             return "";
         }
 #endif
@@ -394,14 +394,14 @@ namespace detail {
 
         template <std::size_t I, typename T>
         static constexpr decltype(auto) get_member(T&) {
-            static_assert(has_reflect_on<std::remove_cvref_t<T>>,
-                "Type has no reflect_on<T>() specialization and PFR is not enabled.");
+            static_assert(has_struct_info<std::remove_cvref_t<T>>,
+                "Type has no struct_info<T>() specialization and PFR is not enabled.");
         }
 
         template <typename T, typename F>
         static constexpr void for_each_member(T&, F&&) {
-            static_assert(has_reflect_on<std::remove_cvref_t<T>>,
-                "Type has no reflect_on<T>() specialization and PFR is not enabled.");
+            static_assert(has_struct_info<std::remove_cvref_t<T>>,
+                "Type has no struct_info<T>() specialization and PFR is not enabled.");
         }
     };
 
@@ -446,13 +446,13 @@ namespace detail {
 
     template <typename T>
     consteval std::size_t dispatch_field_count() {
-        if constexpr (has_reflect_on<T>) return reflect_on<T>().names.size();
+        if constexpr (has_struct_info<T>) return struct_info<T>().names.size();
         else return pfr_fallback::template field_count<T>();
     }
 
     template <std::size_t I, typename T>
     consteval std::string_view dispatch_field_name() {
-        if constexpr (has_reflect_on<T>) return reflect_on<T>().names[I];
+        if constexpr (has_struct_info<T>) return struct_info<T>().names[I];
         else return pfr_fallback::template field_name<I, T>();
     }
 
@@ -462,7 +462,7 @@ namespace detail {
     // GCC and MSVC don't have this bug, so they use the consteval path.
     template <std::size_t I, typename T>
     std::string_view dispatch_field_name_rt() {
-        if constexpr (has_reflect_on<T>) return reflect_on<T>().names[I];
+        if constexpr (has_struct_info<T>) return struct_info<T>().names[I];
 #if !defined(_MSC_VER) || defined(__clang__)
         else return pfr_fallback::template field_name_rt<I, T>();
 #else
@@ -471,7 +471,7 @@ namespace detail {
     }
 
     // Lazy member_type — only instantiates the chosen backend
-    template <std::size_t I, typename T, bool Registered = has_reflect_on<T>>
+    template <std::size_t I, typename T, bool Registered = has_struct_info<T>>
     struct dispatch_member_type_impl;
 
     template <std::size_t I, typename T>
@@ -489,13 +489,13 @@ namespace detail {
 
     template <std::size_t I, typename T>
     constexpr decltype(auto) dispatch_get_member(T& obj) {
-        if constexpr (has_reflect_on<std::remove_cvref_t<T>>) return registry::get_member<I>(obj);
+        if constexpr (has_struct_info<std::remove_cvref_t<T>>) return registry::get_member<I>(obj);
         else return pfr_fallback::template get_member<I>(obj);
     }
 
     template <typename T, typename F>
     constexpr void dispatch_for_each_member(T& obj, F&& fn) {
-        if constexpr (has_reflect_on<std::remove_cvref_t<T>>) registry::for_each_member(obj, std::forward<F>(fn));
+        if constexpr (has_struct_info<std::remove_cvref_t<T>>) registry::for_each_member(obj, std::forward<F>(fn));
         else pfr_fallback::for_each_member(obj, std::forward<F>(fn));
     }
 

@@ -26,7 +26,7 @@ struct render_options {
 struct posix_meta  { posix_options posix{}; };
 struct render_meta { render_options render{}; };
 
-// ── reflect_on fallbacks (non-PFR builds) ──────────────────────────────
+// ── struct_info fallbacks (non-PFR builds) ──────────────────────────────
 
 struct WeatherArgs;
 struct OnlyFields;
@@ -35,22 +35,22 @@ struct LoginResponse;
 
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
-constexpr auto collab::model::reflect_on<WeatherArgs>() {
+constexpr auto collab::model::struct_info<WeatherArgs>() {
     return collab::model::field_info<WeatherArgs>("city", "days", "verbose", "tags");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<OnlyFields>() {
+constexpr auto collab::model::struct_info<OnlyFields>() {
     return collab::model::field_info<OnlyFields>("a", "b");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MixedStruct>() {
+constexpr auto collab::model::struct_info<MixedStruct>() {
     return collab::model::field_info<MixedStruct>("a", "plain", "b", "helper");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<LoginResponse>() {
+constexpr auto collab::model::struct_info<LoginResponse>() {
     return collab::model::field_info<LoginResponse>("session_id", "user_name");
 }
 #endif

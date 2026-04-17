@@ -57,7 +57,7 @@ namespace detail {
 template <typename T>
 concept is_field = detail::is_field_v<std::remove_cvref_t<T>>;
 
-// ── reflect_on<T>() — user registration point ───────────────────────────
+// ── struct_info<T>() — user registration point ───────────────────────────
 //
 // Specialize this for your type to register it for reflection.
 // The primary template is deleted — unspecialized types fall through
@@ -65,12 +65,12 @@ concept is_field = detail::is_field_v<std::remove_cvref_t<T>>;
 //
 // Example:
 //   template <>
-//   constexpr auto collab::model::reflect_on<MyArgs>() {
+//   constexpr auto collab::model::struct_info<MyArgs>() {
 //       return collab::model::field_info<MyArgs>("name", "age", "active");
 //   }
 
 template <typename T>
-constexpr auto reflect_on() = delete;
+constexpr auto struct_info() = delete;
 
 // ── field_info — registration helper ────────────────────────────────────
 
@@ -84,12 +84,12 @@ consteval auto field_info(Strs... names) -> field_names_t<sizeof...(Strs)> {
     return {.names = {std::string_view(names)...}};
 }
 
-// ── has_reflect_on detection ──────────────────────────────────────────────
+// ── has_struct_info detection ──────────────────────────────────────────────
 
 namespace detail {
 
     template <typename T>
-    concept has_reflect_on = requires { reflect_on<T>(); };
+    concept has_struct_info = requires { struct_info<T>(); };
 
 }  // namespace detail
 

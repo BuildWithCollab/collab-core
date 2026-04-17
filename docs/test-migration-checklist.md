@@ -24,7 +24,7 @@
 
 | New file | Capabilities covered |
 |---|---|
-| test_model_types.hpp | Shared test structs, metadata types, reflect_on specializations |
+| test_model_types.hpp | Shared test structs, metadata types, struct_info specializations |
 | test_schema_queries.cpp | name(), field_count(), field_names(), stateless |
 | test_has_field.cpp | has_field() |
 | test_field_query.cpp | field(name), field_def, has_default(), default_value() |

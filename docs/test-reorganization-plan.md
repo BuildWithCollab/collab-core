@@ -37,14 +37,14 @@ If you're adding a typed test, the hybrid and dynamic versions are three lines b
 
 ### Shared header
 
-**`test_model_types.hpp`** — all test structs, metadata types, and `reflect_on` specializations in one place. Currently these are duplicated with `_d`, `_h`, `_o` suffixes across the 4 old files. The shared header eliminates all duplication.
+**`test_model_types.hpp`** — all test structs, metadata types, and `struct_info` specializations in one place. Currently these are duplicated with `_d`, `_h`, `_o` suffixes across the 4 old files. The shared header eliminates all duplication.
 
 Contents:
 - Metadata types: `endpoint_info`, `help_info`, `tag_info`, `cli_meta`, `render_meta`
 - Typed structs (with `field<>` / `meta<>`): `SimpleArgs`, `Dog`, `MixedStruct`, `MultiTagged`, `MetaOnly`, `SingleField`, `CliArgs`
 - Hybrid structs (plain C++): `PlainDog`, `PlainPoint`
 - Hybrid structs (with `meta<>`): `MetaDog`
-- `reflect_on<T>()` specializations for all of the above (inside `#ifndef COLLAB_FIELD_HAS_PFR`)
+- `struct_info<T>()` specializations for all of the above (inside `#ifndef COLLAB_FIELD_HAS_PFR`)
 
 ### Capability files (9 total)
 

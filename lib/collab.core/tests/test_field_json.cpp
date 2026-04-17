@@ -19,7 +19,7 @@ import collab.core;
 using namespace collab::model;
 using json = nlohmann::json;
 
-// ── Forward declarations for reflect_on fallbacks ──────────────────────
+// ── Forward declarations for struct_info fallbacks ──────────────────────
 
 struct SimpleArgs;
 struct WithDefaults;
@@ -47,117 +47,117 @@ struct Outer;
 
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
-constexpr auto collab::model::reflect_on<SimpleArgs>() {
+constexpr auto collab::model::struct_info<SimpleArgs>() {
     return collab::model::field_info<SimpleArgs>("name", "age", "active");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<WithDefaults>() {
+constexpr auto collab::model::struct_info<WithDefaults>() {
     return collab::model::field_info<WithDefaults>("city", "days");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Address>() {
+constexpr auto collab::model::struct_info<Address>() {
     return collab::model::field_info<Address>("street", "zip");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Person>() {
+constexpr auto collab::model::struct_info<Person>() {
     return collab::model::field_info<Person>("name", "address");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<TaggedItem>() {
+constexpr auto collab::model::struct_info<TaggedItem>() {
     return collab::model::field_info<TaggedItem>("title", "tags");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MaybeNickname>() {
+constexpr auto collab::model::struct_info<MaybeNickname>() {
     return collab::model::field_info<MaybeNickname>("name", "nickname");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<CliArgs>() {
+constexpr auto collab::model::struct_info<CliArgs>() {
     return collab::model::field_info<CliArgs>("query", "verbose");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MixedStruct>() {
+constexpr auto collab::model::struct_info<MixedStruct>() {
     return collab::model::field_info<MixedStruct>("visible", "internal_counter", "score");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Team>() {
+constexpr auto collab::model::struct_info<Team>() {
     return collab::model::field_info<Team>("team_name", "members");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Config>() {
+constexpr auto collab::model::struct_info<Config>() {
     return collab::model::field_info<Config>("name", "settings");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Labels>() {
+constexpr auto collab::model::struct_info<Labels>() {
     return collab::model::field_info<Labels>("tags");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Endpoint>() {
+constexpr auto collab::model::struct_info<Endpoint>() {
     return collab::model::field_info<Endpoint>("url", "port");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<ServiceMap>() {
+constexpr auto collab::model::struct_info<ServiceMap>() {
     return collab::model::field_info<ServiceMap>("services");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<EmptyConfig>() {
+constexpr auto collab::model::struct_info<EmptyConfig>() {
     return collab::model::field_info<EmptyConfig>("settings");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<TagSet>() {
+constexpr auto collab::model::struct_info<TagSet>() {
     return collab::model::field_info<TagSet>("tags");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<IdSet>() {
+constexpr auto collab::model::struct_info<IdSet>() {
     return collab::model::field_info<IdSet>("ids");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<DenseMapStruct>() {
+constexpr auto collab::model::struct_info<DenseMapStruct>() {
     return collab::model::field_info<DenseMapStruct>("scores");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<DenseSetStruct>() {
+constexpr auto collab::model::struct_info<DenseSetStruct>() {
     return collab::model::field_info<DenseSetStruct>("names");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Measurement>() {
+constexpr auto collab::model::struct_info<Measurement>() {
     return collab::model::field_info<Measurement>("unit", "value");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<FloatStruct>() {
+constexpr auto collab::model::struct_info<FloatStruct>() {
     return collab::model::field_info<FloatStruct>("weight");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<BigNumbers>() {
+constexpr auto collab::model::struct_info<BigNumbers>() {
     return collab::model::field_info<BigNumbers>("signed_big", "unsigned_big");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Inner>() {
+constexpr auto collab::model::struct_info<Inner>() {
     return collab::model::field_info<Inner>("x");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Outer>() {
+constexpr auto collab::model::struct_info<Outer>() {
     return collab::model::field_info<Outer>("name", "extra");
 }
 #endif

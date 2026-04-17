@@ -132,62 +132,62 @@ struct MultiTagDog {
 };
 
 // ═════════════════════════════════════════════════════════════════════════
-// reflect_on fallbacks (non-PFR builds)
+// struct_info fallbacks (non-PFR builds)
 // ═════════════════════════════════════════════════════════════════════════
 
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
-constexpr auto collab::model::reflect_on<SimpleArgs>() {
+constexpr auto collab::model::struct_info<SimpleArgs>() {
     return collab::model::field_info<SimpleArgs>("name", "age", "active");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<Dog>() {
+constexpr auto collab::model::struct_info<Dog>() {
     return collab::model::field_info<Dog>("endpoint", "help", "name", "age", "breed");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MixedStruct>() {
+constexpr auto collab::model::struct_info<MixedStruct>() {
     return collab::model::field_info<MixedStruct>("help", "label", "counter", "score");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MultiTagged>() {
+constexpr auto collab::model::struct_info<MultiTagged>() {
     return collab::model::field_info<MultiTagged>("tag1", "tag2", "tag3", "name");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MetaOnly>() {
+constexpr auto collab::model::struct_info<MetaOnly>() {
     return collab::model::field_info<MetaOnly>("endpoint", "help");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<SingleField>() {
+constexpr auto collab::model::struct_info<SingleField>() {
     return collab::model::field_info<SingleField>("value");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<CliArgs>() {
+constexpr auto collab::model::struct_info<CliArgs>() {
     return collab::model::field_info<CliArgs>("help", "query", "verbose", "limit");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<PlainDog>() {
+constexpr auto collab::model::struct_info<PlainDog>() {
     return collab::model::field_info<PlainDog>("name", "age", "breed");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<PlainPoint>() {
+constexpr auto collab::model::struct_info<PlainPoint>() {
     return collab::model::field_info<PlainPoint>("x", "y");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MetaDog>() {
+constexpr auto collab::model::struct_info<MetaDog>() {
     return collab::model::field_info<MetaDog>("help", "name", "age");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<MultiTagDog>() {
+constexpr auto collab::model::struct_info<MultiTagDog>() {
     return collab::model::field_info<MultiTagDog>("tag1", "tag2", "help", "name", "age");
 }
 #endif

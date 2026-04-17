@@ -59,7 +59,7 @@ concept type_definition = requires(const T& t, std::string_view sv) {
 // ── type_def<T> — typed runtime schema with auto-discovery ───────────────
 //
 // Automatically discovers field<> and meta<> members of T via PFR or
-// the reflect_on<T>() registry. Provides runtime access to field values,
+// the struct_info<T>() registry. Provides runtime access to field values,
 // type-level metadata, and schema information.
 //
 // Usage:

@@ -23,12 +23,12 @@ struct PlainCat {
 
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
-constexpr auto collab::model::reflect_on<SchemaTestDog>() {
+constexpr auto collab::model::struct_info<SchemaTestDog>() {
     return collab::model::field_info<SchemaTestDog>("name", "age");
 }
 
 template <>
-constexpr auto collab::model::reflect_on<PlainCat>() {
+constexpr auto collab::model::struct_info<PlainCat>() {
     return collab::model::field_info<PlainCat>("name", "age");
 }
 #endif
