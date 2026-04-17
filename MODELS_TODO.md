@@ -16,10 +16,6 @@ If a function is callable by a user of this library, **you do not get to decide 
 
   Near the top of `test_for_each.cpp`, two local meta types are defined: `help_info_fe` and `cli_meta_fe`. These are duplicates of `help_info` and `cli_meta` that already exist in the shared `test_model_types.hpp` header. They were created because the hybrid/dynamic `for_each_field` tests needed meta types for field-level metas, and the author didn't realize shared ones existed. Replace all uses of `help_info_fe`/`cli_meta_fe` with the shared types from `test_model_types.hpp`, then delete the local definitions.
 
-- [ ] **Add `CLAUDE.md` test coverage rule**
-
-  The codebase tests every capability (create, set/get, field queries, meta queries, for_each_field, for_each_meta, field-level metas, throws) across four paths: typed, hybrid, dynamic, and type_instance. This invariant isn't documented anywhere — agents have repeatedly shipped tests for one path and forgotten others. Add a rule to `CLAUDE.md` (or create one if it doesn't exist) stating: "Every capability must be tested across all applicable paths. No capability tested on one path may be left untested on another."
-
 ---
 
 ## 📋 Still planned
