@@ -57,7 +57,10 @@ The four paths have wildly uneven test coverage. This needs to be reorganized so
 - Edge cases only tested on typed path — single-field struct, meta-only struct, etc. not tested elsewhere
 - Test files are organized by path (test_type_def, test_hybrid_type_def, test_dynamic_type_def, test_object) which makes it invisible when one path is missing coverage that another has
 
-**Proposed fix:** Reorganize tests so coverage is consistent. Options include parameterized tests, a shared test matrix, or splitting by capability instead of by path. Needs design discussion with Purr.
+**Plan:** Reorganize tests into capability-oriented files (e.g. `test_has_field.cpp`, `test_meta_queries.cpp`, `test_set_get.cpp`, `test_for_each.cpp`) where typed/hybrid/dynamic are adjacent in the same file. This makes gaps structurally visible — if you're looking at `test_has_field.cpp` and hybrid has 1 test while typed has 6, you'd have to be actively trying not to notice.
+
+- [ ] Reorganize test files by capability instead of by path
+- [ ] Once done: add a `CLAUDE.md` rule that agents must maintain coverage for all features across each of typed/hybrid/dynamic/object — no capability tested on one path may be left untested on another applicable path
 
 ---
 
