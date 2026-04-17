@@ -240,37 +240,22 @@ namespace detail {
             {typeid(Exts), std::any(static_cast<const Exts&>(w))}), ...);
     }
 
-    // ── Hybrid field registration (for type_def<T>) ──────────────────
+    // ── Typed hybrid field registration (for type_def<T, Regs...>) ───
+    //
+    // Preserves the real member type MemT in the template parameter so
+    // for_each can give the callback real typed references.
 
-    template <typename T>
-    struct hybrid_field_reg {
-        std::string              name;
-        std::type_index          type{typeid(void)};
-        std::vector<meta_entry>  metas;
-
-        std::function<std::any(const T&)>  get_as_any;
-        std::function<bool(T&, std::any&&)> set_from_any;
+    template <typename T, typename MemT>
+    struct typed_field_reg {
+        MemT T::*               member;
+        std::string             name;
+        std::vector<meta_entry> metas;
     };
 
     template <typename T, typename MemT, typename... Withs>
-    hybrid_field_reg<T> make_hybrid_reg(
+    typed_field_reg<T, MemT> make_typed_reg(
             MemT T::* member, std::string_view fname, Withs... withs) {
-        hybrid_field_reg<T> reg;
-        reg.name = std::string(fname);
-        reg.type = typeid(MemT);
-
-        reg.get_as_any = [member](const T& obj) -> std::any {
-            return std::any(obj.*member);
-        };
-
-        reg.set_from_any = [member](T& obj, std::any&& incoming) -> bool {
-            if (auto* p = std::any_cast<MemT>(&incoming)) {
-                obj.*member = std::move(*p);
-                return true;
-            }
-            return false;
-        };
-
+        typed_field_reg<T, MemT> reg{member, std::string(fname), {}};
         (extract_with_metas(reg.metas, withs), ...);
         return reg;
     }
@@ -350,21 +335,25 @@ public:
     }
 };
 
-template <typename T = dynamic_tag>
+template <typename T = dynamic_tag, typename... Regs>
 class type_def {
     static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
     using indices_ = std::make_index_sequence<total_members_>;
 
-    // Hybrid field registrations (empty if pure auto-discovery)
-    std::vector<detail::hybrid_field_reg<T>> hybrid_fields_;
+    // Typed hybrid registrations — each Reg is a typed_field_reg<T, MemT>
+    // preserving the real member type for real typed references in for_each.
+    std::tuple<Regs...> typed_regs_;
 
-    int find_hybrid_index(std::string_view fname) const {
-        for (int i = 0; i < static_cast<int>(hybrid_fields_.size()); ++i)
-            if (hybrid_fields_[i].name == fname) return i;
-        return -1;
-    }
+    // Allow other type_def instantiations to access private constructor
+    template <typename U, typename... Rs>
+    friend class type_def;
+
+    // Private constructor for builder chain
+    explicit type_def(std::tuple<Regs...> regs) : typed_regs_(std::move(regs)) {}
 
 public:
+    type_def() = default;
+
     // ── Type name ────────────────────────────────────────────────────
 
     constexpr std::string_view name() const {
@@ -374,56 +363,67 @@ public:
     // ── Field queries ────────────────────────────────────────────────
 
     std::size_t field_count() const {
-        return collab::model::field_count<T>() + hybrid_fields_.size();
+        return collab::model::field_count<T>() + sizeof...(Regs);
     }
 
     std::vector<std::string> field_names() const {
         auto discovered = collab::model::field_names<T>();
         std::vector<std::string> result(discovered.begin(), discovered.end());
-        for (auto& reg : hybrid_fields_)
-            result.push_back(reg.name);
+        std::apply([&](const auto&... regs) {
+            (result.push_back(regs.name), ...);
+        }, typed_regs_);
         return result;
     }
 
     // ── Field builder (hybrid registration) ──────────────────────────
+    //
+    // Returns a NEW type_def with the member type preserved in the
+    // template parameters. Each .field() call produces a new type.
 
     template <typename MemT, typename... Withs>
-    type_def& field(MemT T::* member, std::string_view fname, Withs... withs) {
-        hybrid_fields_.push_back(
-            detail::make_hybrid_reg<T>(member, fname, withs...));
-        return *this;
+    auto field(MemT T::* member, std::string_view fname, Withs... withs) {
+        auto new_reg = detail::make_typed_reg<T>(member, fname, withs...);
+        auto new_tuple = std::tuple_cat(
+            std::move(typed_regs_),
+            std::make_tuple(std::move(new_reg)));
+        return type_def<T, Regs..., detail::typed_field_reg<T, MemT>>(
+            std::move(new_tuple));
     }
 
     // ── Field queries by name ────────────────────────────────────────
 
     bool has_field(std::string_view fname) const {
-        // Check auto-discovered fields
         auto discovered = collab::model::field_names<T>();
         for (auto& n : discovered)
             if (n == fname) return true;
-        // Check hybrid registered fields
-        return find_hybrid_index(fname) >= 0;
+        bool found = false;
+        std::apply([&](const auto&... regs) {
+            ((regs.name == fname && (found = true, true)), ...);
+        }, typed_regs_);
+        return found;
     }
 
     field_view field(std::string_view fname) const {
-        // Check hybrid registered fields first
-        int idx = find_hybrid_index(fname);
-        if (idx >= 0) {
-            thread_local detail::dynamic_field_def temp;
-            auto& reg = hybrid_fields_[idx];
-            temp.name = reg.name;
-            temp.type = reg.type;
-            temp.has_default = false;
-            temp.metas = reg.metas;
-            return field_view(&temp);
-        }
+        // Check hybrid registered fields
+        thread_local detail::dynamic_field_def temp;
+        bool found = false;
+        std::apply([&](const auto&... regs) {
+            ((regs.name == fname && !found && (
+                temp.name = regs.name,
+                temp.type = typeid(std::remove_reference_t<
+                    decltype(std::declval<T>().*(regs.member))>),
+                temp.has_default = false,
+                temp.metas = regs.metas,
+                found = true, true)), ...);
+        }, typed_regs_);
+        if (found) return field_view(&temp);
         // Check auto-discovered field<> members
         thread_local detail::dynamic_field_def discovered;
-        bool found = false;
+        found = false;
         detail::build_discovered_field_def<T>(
             discovered, fname, found, indices_{});
         if (found) return field_view(&discovered);
-        // Not found — return view with the requested name but no data
+        // Not found
         thread_local detail::dynamic_field_def not_found;
         not_found = {};
         not_found.name = std::string(fname);
@@ -454,20 +454,26 @@ public:
         return detail::extract_all_metas<const T, M>(instance, indices_{});
     }
 
-    // ── Instance iteration (field<> members only) ────────────────────
+    // ── Instance iteration ──────────────────────────────────────────
     //
     // Callback signature: fn(std::string_view name, auto& value)
-    // where value is the unwrapped field value (not the field<T> wrapper).
-    // Note: iterates auto-discovered field<> members only.
+    // Auto-discovered field<> members give typed references.
+    // Hybrid-registered fields also give real typed references.
 
     template <typename F>
-    constexpr void for_each(T& obj, F&& fn) const {
+    void for_each(T& obj, F&& fn) const {
         detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
+        std::apply([&](const auto&... regs) {
+            (fn(std::string_view(regs.name), obj.*(regs.member)), ...);
+        }, typed_regs_);
     }
 
     template <typename F>
-    constexpr void for_each(const T& obj, F&& fn) const {
+    void for_each(const T& obj, F&& fn) const {
         detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
+        std::apply([&](const auto&... regs) {
+            (fn(std::string_view(regs.name), obj.*(regs.member)), ...);
+        }, typed_regs_);
     }
 
     // ── Schema-only field iteration ──────────────────────────────────
@@ -479,17 +485,19 @@ public:
     template <typename F>
     void for_each_field(F&& fn) const {
         detail::for_each_field_descriptor<T>(std::forward<F>(fn), indices_{});
-        for (auto& reg : hybrid_fields_) {
-            detail::dynamic_field_def temp{
-                reg.name, reg.type, {}, false, reg.metas, {}, {}};
-            fn(field_view(&temp));
-        }
+        std::apply([&](const auto&... regs) {
+            ((void)[&] {
+                detail::dynamic_field_def temp{
+                    regs.name,
+                    typeid(std::remove_reference_t<
+                        decltype(std::declval<T>().*(regs.member))>),
+                    {}, false, regs.metas, {}, {}};
+                fn(field_view(&temp));
+            }(), ...);
+        }, typed_regs_);
     }
 
     // ── Meta iteration ───────────────────────────────────────────────
-    //
-    // Callback receives the unwrapped meta value (not the meta<T> wrapper).
-    // Schema-only version constructs a default T to read meta values.
 
     template <typename F>
     void for_each_meta(F&& fn) const {
@@ -502,74 +510,77 @@ public:
         detail::for_each_meta_value(obj, std::forward<F>(fn), indices_{});
     }
 
-    // ── Get field by runtime name (callback) ─────────────────────────
-    //
-    // Callback signature: fn(std::string_view name, auto& value)
-    // Returns true if the field was found.
-    // Works for auto-discovered field<> members.
+    // ── Get field by runtime name (callback) ────────────────────────
 
     template <typename F>
-    constexpr bool get(T& obj, std::string_view name, F&& fn) const {
-        return detail::get_field_by_name(obj, name, std::forward<F>(fn), indices_{});
+    bool get(T& obj, std::string_view fname, F&& fn) const {
+        if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), indices_{}))
+            return true;
+        bool found = false;
+        std::apply([&](const auto&... regs) {
+            ((regs.name == fname && !found &&
+                (fn(std::string_view(regs.name), obj.*(regs.member)),
+                 found = true, true)), ...);
+        }, typed_regs_);
+        return found;
     }
 
     template <typename F>
-    constexpr bool get(const T& obj, std::string_view name, F&& fn) const {
-        return detail::get_field_by_name(obj, name, std::forward<F>(fn), indices_{});
+    bool get(const T& obj, std::string_view fname, F&& fn) const {
+        if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), indices_{}))
+            return true;
+        bool found = false;
+        std::apply([&](const auto&... regs) {
+            ((regs.name == fname && !found &&
+                (fn(std::string_view(regs.name), obj.*(regs.member)),
+                 found = true, true)), ...);
+        }, typed_regs_);
+        return found;
     }
 
     // ── Get field by runtime name (typed) ────────────────────────────
-    //
-    // Returns optional<V>. Works for both auto-discovered and hybrid fields.
 
     template <typename V>
-    std::optional<V> get(const T& obj, std::string_view name) const {
-        // Try auto-discovered fields first
+    std::optional<V> get(const T& obj, std::string_view fname) const {
         std::optional<V> result;
-        detail::get_field_by_name(obj, name,
+        detail::get_field_by_name(obj, fname,
             [&](std::string_view, const auto& value) {
                 if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, V>)
                     result = value;
             }, indices_{});
         if (result) return result;
-
-        // Try hybrid registered fields
-        int idx = find_hybrid_index(name);
-        if (idx >= 0) {
-            std::any val = hybrid_fields_[idx].get_as_any(obj);
-            if (auto* p = std::any_cast<V>(&val))
-                return *p;
-        }
-        return std::nullopt;
+        std::apply([&](const auto&... regs) {
+            ((regs.name == fname && !result.has_value() && [&] {
+                using MemT = std::remove_reference_t<
+                    decltype(std::declval<T>().*(regs.member))>;
+                if constexpr (std::is_same_v<MemT, V>)
+                    result = obj.*(regs.member);
+                return true;
+            }()), ...);
+        }, typed_regs_);
+        return result;
     }
 
     // ── Set field by runtime name ────────────────────────────────────
-    //
-    // Returns true if the field was found and the value was assignable.
-    // Works for both auto-discovered and hybrid fields.
 
     template <typename V>
-    bool set(T& obj, std::string_view name, V&& val) const {
-        // Try auto-discovered fields first
+    bool set(T& obj, std::string_view fname, V&& val) const {
         if (detail::set_field_by_name(
-                obj, name, std::forward<V>(val), indices_{}))
+                obj, fname, std::forward<V>(val), indices_{}))
             return true;
-
-        // Try hybrid registered fields
-        int idx = find_hybrid_index(name);
-        if (idx >= 0) {
-            std::any wrapped(std::forward<V>(val));
-            if (hybrid_fields_[idx].set_from_any(obj, std::move(wrapped)))
+        bool found = false;
+        std::apply([&](const auto&... regs) {
+            ((regs.name == fname && !found && [&] {
+                using MemT = std::remove_reference_t<
+                    decltype(std::declval<T>().*(regs.member))>;
+                if constexpr (std::is_constructible_v<MemT, V>) {
+                    obj.*(regs.member) = MemT(std::forward<V>(val));
+                    found = true;
+                }
                 return true;
-            // Fallback: try string conversion
-            if constexpr (std::is_constructible_v<std::string, V> &&
-                          !std::is_same_v<std::remove_cvref_t<V>, std::string>) {
-                std::any str(std::string(std::forward<V>(val)));
-                if (hybrid_fields_[idx].set_from_any(obj, std::move(str)))
-                    return true;
-            }
-        }
-        return false;
+            }()), ...);
+        }, typed_regs_);
+        return found;
     }
 
     // ── Create instance ──────────────────────────────────────────────

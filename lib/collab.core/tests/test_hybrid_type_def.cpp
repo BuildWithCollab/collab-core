@@ -272,6 +272,95 @@ TEST_CASE("type_def<T> without hybrid still works", "[type_def][hybrid][compat]"
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// Tests: for_each(instance, fn) on hybrid — real typed references
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid type_def for_each() iterates registered fields with typed refs", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    std::vector<std::string> names;
+    t.for_each(rex, [&](std::string_view name, auto& value) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    REQUIRE(names[2] == "breed");
+}
+
+TEST_CASE("hybrid type_def for_each() provides real typed values", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    std::string found_name;
+    int found_age = 0;
+    t.for_each(rex, [&](std::string_view name, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            if (name == "name") found_name = value;
+        } else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
+            if (name == "age") found_age = value;
+        }
+    });
+
+    REQUIRE(found_name == "Rex");
+    REQUIRE(found_age == 3);
+}
+
+TEST_CASE("hybrid type_def for_each() provides mutable access", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    t.for_each(rex, [](std::string_view name, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            value = "Buddy";
+        }
+    });
+
+    REQUIRE(rex.name == "Buddy");
+}
+
+TEST_CASE("hybrid type_def for_each() with const instance", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+
+    const PlainDog rex{"Rex", 3, "Husky"};
+
+    std::string found_name;
+    t.for_each(rex, [&](std::string_view name, const auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            if (name == "name") found_name = value;
+        }
+    });
+
+    REQUIRE(found_name == "Rex");
+}
+
+TEST_CASE("hybrid type_def for_each() count matches field_count()", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    int visited = 0;
+    t.for_each(rex, [&](std::string_view, auto&) { ++visited; });
+    REQUIRE(visited == static_cast<int>(t.field_count()));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // Tests: for_each_field() on hybrid — iterates registered fields
 // ═════════════════════════════════════════════════════════════════════════
 
