@@ -346,15 +346,22 @@ TEST_CASE("hybrid: field() throws for meta member names", "[type_def][hybrid][fi
 // set/get throws for plain member names
 // ═══════════════════════════════════════════════════════════════════════════
 
-// 💀 BUG: set()/get()/get<V>() on plain member names (e.g. "counter" on MixedStruct)
-// SIGSEGV instead of throwing. The is_field<member_t> guard in try_set_field/try_get_field
-// should skip plain members, but MSVC release codegen appears to miscompile the
-// if constexpr path — the crash is inside the pruned branch. Needs investigation.
-// field("counter") correctly throws via a separate code path.
-//
-// TEST_CASE("typed: set() throws for plain member names")
-// TEST_CASE("typed: get<V>() throws for plain member names")
-// TEST_CASE("typed: get() callback throws for plain member names")
+TEST_CASE("typed: set() throws for plain member names", "[type_def][typed][set][throw]") {
+    MixedStruct ms;
+    REQUIRE_THROWS_AS(type_def<MixedStruct>{}.set(ms, "counter", 42), std::logic_error);
+}
+
+TEST_CASE("typed: get<V>() throws for plain member names", "[type_def][typed][get_typed][throw]") {
+    MixedStruct ms;
+    REQUIRE_THROWS_AS(type_def<MixedStruct>{}.get<int>(ms, "counter"), std::logic_error);
+}
+
+TEST_CASE("typed: get() callback throws for plain member names", "[type_def][typed][get][throw]") {
+    MixedStruct ms;
+    REQUIRE_THROWS_AS(
+        type_def<MixedStruct>{}.get(ms, "counter", [](std::string_view, auto&) {}),
+        std::logic_error);
+}
 
 TEST_CASE("typed: field() throws for plain member names", "[type_def][typed][field_query][throw]") {
     type_def<MixedStruct> t;

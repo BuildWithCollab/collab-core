@@ -192,6 +192,10 @@ namespace detail {
                 fn(collab::model::detail::dispatch_field_name_rt<I, T>(), member.value);
                 found = true;
             }
+        } else if constexpr (collab::model::is_meta<member_t>) {
+            // skip meta members — not a field
+        } else {
+            // plain member — skip, not a field<>
         }
     }
 
@@ -221,6 +225,10 @@ namespace detail {
                     set_ok = true;
                 }
             }
+        } else if constexpr (collab::model::is_meta<member_t>) {
+            // skip meta members — not a field
+        } else {
+            // plain member — skip, not a field<>
         }
     }
 
@@ -416,10 +424,36 @@ public:
     const V* try_as() const { return std::any_cast<V>(value_); }
 };
 
+// ── Compile-time index filter: keep only indices where Pred<I, T> is true ──
+template <typename T, template<std::size_t, typename> class Pred, std::size_t... Is>
+consteval auto filter_indices(std::index_sequence<Is...>) {
+    constexpr auto N = (... + (Pred<Is, T>::value ? 1 : 0));
+    std::array<std::size_t, N> arr{};
+    std::size_t pos = 0;
+    ((Pred<Is, T>::value ? (arr[pos++] = Is, 0) : 0), ...);
+    return arr;
+}
+
+template <typename T, std::size_t... Is>
+consteval auto array_to_index_seq(std::array<std::size_t, sizeof...(Is)>, std::index_sequence<Is...>);
+
+template <typename T, template<std::size_t, typename> class Pred, std::size_t... AllIs>
+auto make_filtered_sequence(std::index_sequence<AllIs...>) {
+    constexpr auto arr = filter_indices<T, Pred>(std::index_sequence<AllIs...>{});
+    return [&]<std::size_t... Js>(std::index_sequence<Js...>) {
+        return std::index_sequence<arr[Js]...>{};
+    }(std::make_index_sequence<arr.size()>{});
+}
+
+template <std::size_t I, typename T>
+struct is_field_at : std::bool_constant<collab::model::is_field<
+    collab::model::detail::member_type<I, T>>> {};
+
 template <typename T = dynamic_tag, typename... Regs>
 class type_def {
     static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
     using indices_ = std::make_index_sequence<total_members_>;
+    using field_indices_ = decltype(make_filtered_sequence<T, is_field_at>(indices_{}));
 
     // Typed hybrid registrations — each Reg is a typed_field_reg<T, MemT>
     // preserving the real member type for real typed references in for_each.
@@ -593,7 +627,7 @@ public:
 
     template <typename F>
     void get(T& obj, std::string_view fname, F&& fn) const {
-        if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), indices_{}))
+        if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), field_indices_{}))
             return;
         bool found = false;
         std::apply([&](const auto&... regs) {
@@ -609,7 +643,17 @@ public:
 
     template <typename F>
     void get(const T& obj, std::string_view fname, F&& fn) const {
-        if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), indices_{}))
+        if (!has_field(fname)) {
+            bool is_hybrid = false;
+            std::apply([&](const auto&... regs) {
+                ((regs.name == fname && (is_hybrid = true, true)), ...);
+            }, typed_regs_);
+            if (!is_hybrid)
+                throw std::logic_error(
+                    "type_def '" + std::string(name()) + "': no field named '" +
+                    std::string(fname) + "'");
+        }
+        if (detail::get_field_by_name(obj, fname, std::forward<F>(fn), field_indices_{}))
             return;
         bool found = false;
         std::apply([&](const auto&... regs) {
@@ -632,7 +676,7 @@ public:
             [&](std::string_view, const auto& value) {
                 if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, V>)
                     result = value;
-            }, indices_{});
+            }, field_indices_{});
         if (result) return *result;
         bool name_found = field_found;
         std::apply([&](const auto&... regs) {
@@ -662,7 +706,7 @@ public:
         bool name_matched = false;
         bool set_ok = false;
         detail::set_field_by_name(
-            obj, fname, std::forward<V>(val), indices_{},
+            obj, fname, std::forward<V>(val), field_indices_{},
             name_matched, set_ok);
         if (set_ok) return;
         std::apply([&](const auto&... regs) {
