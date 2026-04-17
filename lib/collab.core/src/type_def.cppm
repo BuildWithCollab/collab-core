@@ -375,6 +375,36 @@ public:
     }
 };
 
+// ── metadata — typed access to a type-erased meta ────────────────────
+//
+// Wraps std::any internally but never exposes it. Users access the
+// underlying meta struct through .as<M>(), .try_as<M>(), or .is<M>().
+// Metas are always read-only — they belong to the schema, not the instance.
+
+class metadata {
+    const std::any* value_;
+    std::type_index type_;
+
+public:
+    // Constructor is public but useless without raw pointers to internals.
+    // Only type_def<dynamic_tag> has those.
+    explicit metadata(const std::any* v, const std::type_index& t)
+        : value_(v), type_(t) {}
+
+    template <typename M>
+    const M& as() const {
+        auto* p = std::any_cast<M>(value_);
+        if (!p) throw std::logic_error("metadata: type mismatch in as<>()");
+        return *p;
+    }
+
+    template <typename M>
+    const M* try_as() const { return std::any_cast<M>(value_); }
+
+    template <typename M>
+    bool is() const { return type_ == typeid(M); }
+};
+
 // ── field_value — typed access to a type-erased value ─────────────────
 //
 // Wraps std::any internally but never exposes it. Users access values
@@ -870,6 +900,14 @@ public:
             if (e.type == typeid(M))
                 result.push_back(*std::any_cast<M>(&e.value));
         return result;
+    }
+
+    // ── Meta iteration ─────────────────────────────────────────────
+
+    template <typename F>
+    void for_each_meta(F&& fn) const {
+        for (auto& e : type_metas_)
+            fn(metadata(&e.value, e.type));
     }
 
     // ── Create instance ─────────────────────────────────────────────

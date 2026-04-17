@@ -756,6 +756,122 @@ TEST_CASE("hybrid: for_each_meta iterates meta values", "[type_def][hybrid][for_
     REQUIRE(found_help);
 }
 
+TEST_CASE("dynamic: for_each_meta iterates meta values", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events", .method = "POST"})
+        .meta<help_info>({.summary = "An event"})
+        .field<int>("x");
+
+    int count = 0;
+    bool found_endpoint = false;
+    bool found_help = false;
+
+    t.for_each_meta([&](metadata m) {
+        ++count;
+        if (m.is<endpoint_info>()) {
+            REQUIRE(std::string_view{m.as<endpoint_info>().path} == "/events");
+            REQUIRE(std::string_view{m.as<endpoint_info>().method} == "POST");
+            found_endpoint = true;
+        }
+        if (m.is<help_info>()) {
+            REQUIRE(std::string_view{m.as<help_info>().summary} == "An event");
+            found_help = true;
+        }
+    });
+
+    REQUIRE(count == 2);
+    REQUIRE(found_endpoint);
+    REQUIRE(found_help);
+}
+
+TEST_CASE("dynamic: for_each_meta on no-meta type_def", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Simple")
+        .field<int>("x");
+    int count = 0;
+    t.for_each_meta([&](metadata) { ++count; });
+    REQUIRE(count == 0);
+}
+
+TEST_CASE("dynamic: for_each_meta with multiple metas of same type", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Tagged")
+        .meta<tag_info>({.value = "a"})
+        .meta<tag_info>({.value = "b"})
+        .meta<tag_info>({.value = "c"});
+
+    std::vector<std::string> values;
+    t.for_each_meta([&](metadata m) {
+        if (m.is<tag_info>())
+            values.emplace_back(m.as<tag_info>().value);
+    });
+
+    REQUIRE(values.size() == 3);
+    REQUIRE(values[0] == "a");
+    REQUIRE(values[1] == "b");
+    REQUIRE(values[2] == "c");
+}
+
+TEST_CASE("dynamic: for_each_meta metadata.is() returns false for wrong type", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/e"});
+
+    t.for_each_meta([&](metadata m) {
+        REQUIRE(m.is<endpoint_info>());
+        REQUIRE(!m.is<help_info>());
+        REQUIRE(!m.is<tag_info>());
+    });
+}
+
+TEST_CASE("dynamic: for_each_meta metadata.as() throws for wrong type", "[type_def][dynamic][for_each_meta][throw]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/e"});
+
+    t.for_each_meta([&](metadata m) {
+        REQUIRE_THROWS_AS(m.as<help_info>(), std::logic_error);
+    });
+}
+
+TEST_CASE("dynamic: for_each_meta metadata.try_as() returns nullptr for wrong type", "[type_def][dynamic][for_each_meta]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/e"});
+
+    t.for_each_meta([&](metadata m) {
+        REQUIRE(m.try_as<endpoint_info>() != nullptr);
+        REQUIRE(m.try_as<help_info>() == nullptr);
+    });
+}
+
+TEST_CASE("type_instance: for_each_meta via type()", "[type_instance][for_each_meta]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
+        .meta<help_info>({.summary = "An event"})
+        .field<int>("x");
+    auto obj = t.create();
+
+    int count = 0;
+    bool found_endpoint = false;
+
+    obj.type().for_each_meta([&](metadata m) {
+        ++count;
+        if (m.is<endpoint_info>()) {
+            REQUIRE(std::string_view{m.as<endpoint_info>().path} == "/events");
+            found_endpoint = true;
+        }
+    });
+
+    REQUIRE(count == 2);
+    REQUIRE(found_endpoint);
+}
+
+TEST_CASE("type_instance: for_each_meta on no-meta type", "[type_instance][for_each_meta]") {
+    auto t = type_def("Simple")
+        .field<int>("x");
+    auto obj = t.create();
+
+    int count = 0;
+    obj.type().for_each_meta([&](metadata) { ++count; });
+    REQUIRE(count == 0);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // dynamic full integration
 // ═══════════════════════════════════════════════════════════════════════════
