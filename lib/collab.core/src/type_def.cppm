@@ -335,6 +335,43 @@ public:
     }
 };
 
+// ── field_value — typed access to a type-erased value ─────────────────
+//
+// Wraps std::any internally but never exposes it. Users access values
+// through .as<T>() or .try_as<T>().
+
+class field_value {
+    std::any* value_;
+    friend class object;
+    explicit field_value(std::any* v) : value_(v) {}
+
+public:
+    template <typename V>
+    V& as() { return *std::any_cast<V>(value_); }
+
+    template <typename V>
+    const V& as() const { return *std::any_cast<V>(value_); }
+
+    template <typename V>
+    V* try_as() { return std::any_cast<V>(value_); }
+
+    template <typename V>
+    const V* try_as() const { return std::any_cast<V>(value_); }
+};
+
+class const_field_value {
+    const std::any* value_;
+    friend class object;
+    explicit const_field_value(const std::any* v) : value_(v) {}
+
+public:
+    template <typename V>
+    const V& as() const { return *std::any_cast<V>(value_); }
+
+    template <typename V>
+    const V* try_as() const { return std::any_cast<V>(value_); }
+};
+
 template <typename T = dynamic_tag, typename... Regs>
 class type_def {
     static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
@@ -689,14 +726,6 @@ public:
             fn(field_view(&f));
     }
 
-    // ── Meta iteration (type-level) ───────────────────────────────────
-
-    template <typename F>
-    void for_each_meta(F&& fn) const {
-        for (auto& e : type_metas_)
-            fn(e.value);
-    }
-
     // ── Type-level meta queries ──────────────────────────────────────
 
     template <typename M>
@@ -807,19 +836,25 @@ public:
     const type_def<dynamic_tag>& type() const { return *type_; }
 
     // ── Iteration ────────────────────────────────────────────────────
+    //
+    // Callback receives (std::string_view name, const_field_value value)
+    // or (std::string_view name, field_value value).
+    // Access typed values via value.as<T>() or value.try_as<T>().
 
     template <typename F>
     void for_each(F&& fn) const {
         auto& fields = type_->fields_;
         for (std::size_t i = 0; i < fields.size(); ++i)
-            fn(std::string_view(fields[i].name), values_[i]);
+            fn(std::string_view(fields[i].name),
+               const_field_value(&values_[i]));
     }
 
     template <typename F>
     void for_each(F&& fn) {
         auto& fields = type_->fields_;
         for (std::size_t i = 0; i < fields.size(); ++i)
-            fn(std::string_view(fields[i].name), values_[i]);
+            fn(std::string_view(fields[i].name),
+               field_value(&values_[i]));
     }
 };
 

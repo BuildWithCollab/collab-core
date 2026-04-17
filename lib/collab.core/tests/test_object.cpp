@@ -1,6 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <any>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -217,7 +216,7 @@ TEST_CASE("object for_each() iterates all fields", "[object][for_each]") {
     obj.set("title", std::string("Party"));
 
     std::vector<std::string> names;
-    obj.for_each([&](std::string_view name, const std::any& value) {
+    obj.for_each([&](std::string_view name, field_value) {
         names.emplace_back(name);
     });
 
@@ -226,7 +225,7 @@ TEST_CASE("object for_each() iterates all fields", "[object][for_each]") {
     REQUIRE(names[1] == "count");
 }
 
-TEST_CASE("object for_each() provides access to values via any_cast", "[object][for_each]") {
+TEST_CASE("object for_each() provides typed access via field_value", "[object][for_each]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count");
@@ -236,11 +235,11 @@ TEST_CASE("object for_each() provides access to values via any_cast", "[object][
 
     std::string found_title;
     int found_count = 0;
-    obj.for_each([&](std::string_view name, const std::any& value) {
+    obj.for_each([&](std::string_view name, field_value value) {
         if (name == "title")
-            found_title = std::any_cast<std::string>(value);
+            found_title = value.as<std::string>();
         if (name == "count")
-            found_count = std::any_cast<int>(value);
+            found_count = value.as<int>();
     });
 
     REQUIRE(found_title == "Party");
@@ -252,7 +251,7 @@ TEST_CASE("object for_each() on empty type_def", "[object][for_each]") {
     auto obj = t.create();
 
     int count = 0;
-    obj.for_each([&](std::string_view, const std::any&) { ++count; });
+    obj.for_each([&](std::string_view, field_value) { ++count; });
     REQUIRE(count == 0);
 }
 
