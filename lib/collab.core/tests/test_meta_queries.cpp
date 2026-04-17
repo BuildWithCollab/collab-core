@@ -53,6 +53,12 @@ TEST_CASE("typed: has_meta() returns false when struct has no metas", "[type_def
     REQUIRE(!t.has_meta<help_info>());
 }
 
+TEST_CASE("hybrid: has_meta() returns false when struct has no metas", "[type_def][hybrid][has_meta]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    REQUIRE(!t.has_meta<help_info>());
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // has_meta() — multi-tagged struct
 // ═══════════════════════════════════════════════════════════════════════════
@@ -165,6 +171,12 @@ TEST_CASE("hybrid: meta_count()", "[type_def][hybrid][meta_count]") {
     REQUIRE(t.meta_count<endpoint_info>() == 0);
 }
 
+TEST_CASE("hybrid: meta_count() is zero for no-meta struct", "[type_def][hybrid][meta_count]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    REQUIRE(t.meta_count<help_info>() == 0);
+}
+
 TEST_CASE("dynamic: meta_count()", "[type_def][dynamic][meta_count]") {
     auto t = type_def("Tagged")
         .meta<tag_info>({.value = "a"})
@@ -223,6 +235,29 @@ TEST_CASE("dynamic: metas() returns single-element vector", "[type_def][dynamic]
     auto eps = t.metas<endpoint_info>();
     REQUIRE(eps.size() == 1);
     REQUIRE(std::string_view{eps[0].path} == "/single");
+}
+
+TEST_CASE("typed: metas() returns empty vector for absent type", "[type_def][typed][metas]") {
+    type_def<Dog> t;
+    auto tags = t.metas<tag_info>();
+    REQUIRE(tags.size() == 0);
+}
+
+TEST_CASE("dynamic: metas() returns empty vector for absent type", "[type_def][dynamic][metas]") {
+    auto t = type_def("Event")
+        .field<int>("x");
+    auto tags = t.metas<tag_info>();
+    REQUIRE(tags.size() == 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// has_meta() — false for absent metas on meta-bearing type
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic: has_meta() returns false for absent metas on meta-bearing type", "[type_def][dynamic][has_meta]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/e"});
+    REQUIRE(!t.has_meta<help_info>());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

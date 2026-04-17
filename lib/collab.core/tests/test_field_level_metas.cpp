@@ -85,6 +85,27 @@ TEST_CASE("dynamic: for_each_field detects field-level metas", "[type_def][dynam
     REQUIRE(limit_has_render);
 }
 
+TEST_CASE("typed: field() with single meta via field_view", "[type_def][typed][field_meta]") {
+    auto fv = type_def<CliArgs>{}.field("verbose");
+    REQUIRE(fv.has_meta<cli_meta>());
+    REQUIRE(fv.meta<cli_meta>().cli.short_flag == 'v');
+}
+
+TEST_CASE("typed: field() with multiple metas via field_view", "[type_def][typed][field_meta]") {
+    auto fv = type_def<CliArgs>{}.field("limit");
+    REQUIRE(fv.has_meta<cli_meta>());
+    REQUIRE(fv.has_meta<render_meta>());
+    REQUIRE(fv.meta<cli_meta>().cli.short_flag == 'l');
+    REQUIRE(std::string_view{fv.meta<render_meta>().render.style} == "bold");
+    REQUIRE(fv.meta<render_meta>().render.width == 10);
+}
+
+TEST_CASE("typed: field() without meta via field_view", "[type_def][typed][field_meta]") {
+    auto fv = type_def<CliArgs>{}.field("query");
+    REQUIRE(!fv.has_meta<cli_meta>());
+    REQUIRE(!fv.has_meta<render_meta>());
+}
+
 TEST_CASE("hybrid: field with meta", "[type_def][hybrid][field_meta]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name",
@@ -167,7 +188,7 @@ TEST_CASE("dynamic: field without meta returns false", "[type_def][dynamic][fiel
 // meta_count and metas on fields
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("typed: field meta_count and metas", "[type_def][typed][field_meta]") {
+TEST_CASE("typed: field has_meta and meta via for_each_field", "[type_def][typed][field_meta]") {
     bool found_limit = false;
     bool limit_has_cli = false;
     bool limit_has_render = false;
@@ -190,6 +211,19 @@ TEST_CASE("typed: field meta_count and metas", "[type_def][typed][field_meta]") 
     REQUIRE(limit_has_cli);
     REQUIRE(limit_has_render);
     REQUIRE(limit_short_flag == 'l');
+}
+
+TEST_CASE("typed: field meta_count via field_view", "[type_def][typed][field_meta]") {
+    auto limit_fv = type_def<CliArgs>{}.field("limit");
+    REQUIRE(limit_fv.meta_count<cli_meta>() == 1);
+    REQUIRE(limit_fv.meta_count<render_meta>() == 1);
+
+    auto query_fv = type_def<CliArgs>{}.field("query");
+    REQUIRE(query_fv.meta_count<cli_meta>() == 0);
+
+    auto verbose_fv = type_def<CliArgs>{}.field("verbose");
+    REQUIRE(verbose_fv.meta_count<cli_meta>() == 1);
+    REQUIRE(verbose_fv.meta_count<render_meta>() == 0);
 }
 
 TEST_CASE("hybrid: field meta_count and metas", "[type_def][hybrid][field_meta]") {

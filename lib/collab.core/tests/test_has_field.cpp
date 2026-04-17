@@ -9,6 +9,7 @@ TEST_CASE("typed: has_field() finds field<> members by name", "[type_def][typed]
     REQUIRE(t.has_field("name"));
     REQUIRE(t.has_field("age"));
     REQUIRE(t.has_field("breed"));
+    REQUIRE(!t.has_field("nope"));
 }
 
 TEST_CASE("hybrid: has_field()", "[type_def][hybrid][has_field]") {
@@ -47,6 +48,7 @@ TEST_CASE("hybrid: has_field() returns false for unknown names", "[type_def][hyb
         .field(&PlainDog::name, "name");
     REQUIRE(!t.has_field("nope"));
     REQUIRE(!t.has_field(""));
+    REQUIRE(!t.has_field("Name"));
 }
 
 TEST_CASE("dynamic: has_field() returns false for unknown names", "[type_def][dynamic][has_field]") {
@@ -54,6 +56,7 @@ TEST_CASE("dynamic: has_field() returns false for unknown names", "[type_def][dy
         .field<int>("x");
     REQUIRE(!t.has_field("nope"));
     REQUIRE(!t.has_field(""));
+    REQUIRE(!t.has_field("Title"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -82,6 +85,15 @@ TEST_CASE("typed: has_field() returns false for plain member names", "[type_def]
     REQUIRE(t.has_field("label"));
     REQUIRE(t.has_field("score"));
     REQUIRE(!t.has_field("counter"));
+}
+
+TEST_CASE("hybrid: has_field() rejects unregistered members", "[type_def][hybrid][has_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+    REQUIRE(t.has_field("name"));
+    REQUIRE(t.has_field("age"));
+    REQUIRE(!t.has_field("breed"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -141,4 +153,21 @@ TEST_CASE("object: has() for missing field", "[object][has]") {
     auto obj = t.create();
 
     REQUIRE(!obj.has("nope"));
+}
+
+TEST_CASE("object: has() returns false for empty string", "[object][has]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+
+    REQUIRE(!obj.has(""));
+}
+
+TEST_CASE("object: has() is case-sensitive", "[object][has]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+
+    REQUIRE(obj.has("count"));
+    REQUIRE(!obj.has("Count"));
 }

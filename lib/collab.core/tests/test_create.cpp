@@ -27,6 +27,8 @@ TEST_CASE("object: constructed via create()", "[object][create]") {
         .field<int>("count", 100);
     auto obj = t.create();
     REQUIRE(obj.type().name() == "Event");
+    REQUIRE(obj.get<std::string>("title") == "");
+    REQUIRE(obj.get<int>("count") == 100);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -101,6 +103,7 @@ TEST_CASE("object: construction from type_def", "[object][create]") {
         .field<int>("count", 100);
     object obj(t);
     REQUIRE(obj.type().name() == "Event");
+    REQUIRE(obj.get<int>("count") == 100);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -132,10 +135,14 @@ TEST_CASE("hybrid: multiple instances are independent", "[type_def][hybrid][crea
     PlainDog b = t.create();
 
     t.set(a, "name", std::string("Rex"));
+    t.set(a, "age", 5);
     t.set(b, "name", std::string("Fido"));
+    t.set(b, "age", 3);
 
     REQUIRE(t.get<std::string>(a, "name") == "Rex");
+    REQUIRE(t.get<int>(a, "age") == 5);
     REQUIRE(t.get<std::string>(b, "name") == "Fido");
+    REQUIRE(t.get<int>(b, "age") == 3);
 }
 
 TEST_CASE("object: multiple objects from same type_def are independent", "[object][create][independence]") {

@@ -125,7 +125,7 @@ TEST_CASE("typed: set() works on struct with metas", "[type_def][typed][set]") {
     REQUIRE(rex.breed.value == "Husky");
 }
 
-TEST_CASE("hybrid: set() works on struct with metas", "[type_def][hybrid][set]") {
+TEST_CASE("typed: set() works on struct with metas (MetaDog)", "[type_def][typed][set]") {
     MetaDog rex;
     type_def<MetaDog> t;
 
@@ -134,6 +134,20 @@ TEST_CASE("hybrid: set() works on struct with metas", "[type_def][hybrid][set]")
 
     REQUIRE(rex.name.value == "Rex");
     REQUIRE(rex.age.value == 3);
+}
+
+TEST_CASE("object: set() works on type_def with metas", "[object][set]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
+        .field<std::string>("title")
+        .field<int>("count");
+    auto obj = t.create();
+
+    obj.set("title", std::string("Launch"));
+    obj.set("count", 100);
+
+    REQUIRE(obj.get<std::string>("title") == "Launch");
+    REQUIRE(obj.get<int>("count") == 100);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -266,9 +280,11 @@ TEST_CASE("hybrid: get<T>() returns value", "[type_def][hybrid][get_typed]") {
 
 TEST_CASE("object: get() returns value", "[object][get]") {
     auto t = type_def("Event")
+        .field<std::string>("title", std::string("Dog Party"))
         .field<int>("count", 42);
     auto obj = t.create();
 
+    REQUIRE(obj.get<std::string>("title") == "Dog Party");
     REQUIRE(obj.get<int>("count") == 42);
 }
 
@@ -459,4 +475,30 @@ TEST_CASE("hybrid: full integration", "[type_def][hybrid][integration]") {
     // Throws on mismatch
     REQUIRE_THROWS_AS(dog_t.set(rex, "name", 42), std::logic_error);
     REQUIRE_THROWS_AS(dog_t.get<int>(rex, "name"), std::logic_error);
+}
+
+TEST_CASE("object: full set/get integration", "[object][set][get][integration]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count")
+        .field<bool>("active");
+    auto obj = t.create();
+
+    // Set all fields
+    obj.set("title", std::string("Dog Party"));
+    obj.set("count", 50);
+    obj.set("active", true);
+
+    // Get all back
+    REQUIRE(obj.get<std::string>("title") == "Dog Party");
+    REQUIRE(obj.get<int>("count") == 50);
+    REQUIRE(obj.get<bool>("active") == true);
+
+    // Type mismatch throws
+    REQUIRE_THROWS_AS(obj.set("title", 42), std::logic_error);
+    REQUIRE_THROWS_AS(obj.get<int>("title"), std::logic_error);
+
+    // Unknown field throws
+    REQUIRE_THROWS_AS(obj.set("nope", 1), std::logic_error);
+    REQUIRE_THROWS_AS(obj.get<int>("nope"), std::logic_error);
 }

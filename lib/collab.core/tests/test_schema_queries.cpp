@@ -20,6 +20,17 @@ TEST_CASE("hybrid: name()", "[type_def][hybrid][name]") {
     REQUIRE(t.name() == "PlainDog");
 }
 
+TEST_CASE("hybrid: name() works for various types", "[type_def][hybrid][name]") {
+    auto dog = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    REQUIRE(dog.name() == "PlainDog");
+
+    auto point = type_def<PlainPoint>()
+        .field(&PlainPoint::x, "x")
+        .field(&PlainPoint::y, "y");
+    REQUIRE(point.name() == "PlainPoint");
+}
+
 TEST_CASE("dynamic: name()", "[type_def][dynamic][name]") {
     REQUIRE(type_def("Event").name() == "Event");
 }
@@ -65,6 +76,18 @@ TEST_CASE("hybrid: field_count() includes registered fields", "[type_def][hybrid
         .field(&PlainDog::age, "age")
         .field(&PlainDog::breed, "breed");
     REQUIRE(t.field_count() == 3);
+}
+
+TEST_CASE("hybrid: field_count() with zero registered fields", "[type_def][hybrid][field_count]") {
+    auto t = type_def<PlainDog>();
+    REQUIRE(t.field_count() == 0);
+}
+
+TEST_CASE("hybrid: field_count() excludes unregistered members", "[type_def][hybrid][field_count]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+    REQUIRE(t.field_count() == 2);
 }
 
 TEST_CASE("dynamic: field_count() with no fields", "[type_def][dynamic][field_count]") {
@@ -120,6 +143,23 @@ TEST_CASE("hybrid: field_names() includes registered fields", "[type_def][hybrid
     REQUIRE(names.size() == 2);
     REQUIRE(names[0] == "name");
     REQUIRE(names[1] == "age");
+}
+
+TEST_CASE("hybrid: field_names() empty when no fields registered", "[type_def][hybrid][field_names]") {
+    auto t = type_def<PlainDog>();
+    REQUIRE(t.field_names().empty());
+}
+
+TEST_CASE("hybrid: field_names() preserves registration order", "[type_def][hybrid][field_names]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::breed, "breed")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::name, "name");
+    auto names = t.field_names();
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "breed");
+    REQUIRE(names[1] == "age");
+    REQUIRE(names[2] == "name");
 }
 
 TEST_CASE("dynamic: field_names()", "[type_def][dynamic][field_names]") {
@@ -189,6 +229,7 @@ TEST_CASE("hybrid: two type_def instances behave identically", "[type_def][hybri
 
     REQUIRE(t1.name() == t2.name());
     REQUIRE(t1.field_count() == t2.field_count());
+    REQUIRE(t1.field_names() == t2.field_names());
 }
 
 TEST_CASE("dynamic: two type_def instances behave identically", "[type_def][dynamic][stateless]") {
@@ -201,6 +242,7 @@ TEST_CASE("dynamic: two type_def instances behave identically", "[type_def][dyna
 
     REQUIRE(t1.name() == t2.name());
     REQUIRE(t1.field_count() == t2.field_count());
+    REQUIRE(t1.field_names() == t2.field_names());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

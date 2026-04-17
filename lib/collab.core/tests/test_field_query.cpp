@@ -88,17 +88,6 @@ TEST_CASE("dynamic: field().default_value<T>()", "[type_def][dynamic][field_quer
 TEST_CASE("typed: single field struct field access", "[type_def][typed][field_query]") {
     type_def<SingleField> t;
     REQUIRE(t.field("value").name() == "value");
-
-    SingleField s;
-    s.value = 42;
-
-    int got = 0;
-    t.for_each(s, [&](std::string_view name, auto& value) {
-        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
-            got = value;
-        }
-    });
-    REQUIRE(got == 42);
 }
 
 TEST_CASE("hybrid: single field struct field access", "[type_def][hybrid][field_query]") {
@@ -113,15 +102,7 @@ TEST_CASE("dynamic: single field struct field access", "[type_def][dynamic][fiel
     REQUIRE(t.field("value").name() == "value");
 }
 
-TEST_CASE("typed: default field values are accessible", "[type_def][typed][field_query]") {
-    Dog rex;
-
-    std::string breed_value;
-    type_def<Dog>{}.for_each(rex, [&](std::string_view name, auto& value) {
-        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
-            if (name == "breed") breed_value = value;
-        }
-    });
-
-    REQUIRE(breed_value.empty());
+TEST_CASE("typed: field() returns valid view for each Dog field", "[type_def][typed][field_query]") {
+    type_def<Dog> t;
+    REQUIRE(t.field("breed").name() == "breed");
 }

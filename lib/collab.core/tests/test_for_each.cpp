@@ -166,6 +166,25 @@ TEST_CASE("hybrid: for_each() provides mutable access", "[type_def][hybrid][for_
     REQUIRE(rex.name == "Buddy");
 }
 
+TEST_CASE("object: for_each() provides mutable access via field_value", "[object][for_each]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 0);
+    auto obj = t.create();
+    obj.set("title", std::string("Before"));
+    obj.set("count", 10);
+
+    obj.for_each([&](std::string_view name, field_value value) {
+        if (name == "title")
+            value.as<std::string>() = "After";
+        if (name == "count")
+            value.as<int>() = 99;
+    });
+
+    REQUIRE(obj.get<std::string>("title") == "After");
+    REQUIRE(obj.get<int>("count") == 99);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each skips meta/plain members
 // ═══════════════════════════════════════════════════════════════════════════
@@ -218,6 +237,16 @@ TEST_CASE("typed: for_each on meta-only struct calls nothing", "[type_def][typed
     REQUIRE(count == 0);
 }
 
+TEST_CASE("hybrid: for_each on empty hybrid calls nothing", "[type_def][hybrid][for_each]") {
+    auto t = type_def<PlainDog>();
+
+    PlainDog rex{"Rex", 3, "Husky"};
+
+    int count = 0;
+    t.for_each(rex, [&](std::string_view, auto&) { ++count; });
+    REQUIRE(count == 0);
+}
+
 TEST_CASE("object: for_each() on empty type_def", "[object][for_each]") {
     auto t = type_def("Empty");
     auto obj = t.create();
@@ -263,6 +292,22 @@ TEST_CASE("hybrid: for_each() with const instance", "[type_def][hybrid][for_each
     REQUIRE(found_name == "Rex");
 }
 
+TEST_CASE("object: for_each() with const object", "[object][for_each]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 42);
+    const auto obj = t.create();
+
+    std::vector<std::string> names;
+    obj.for_each([&](std::string_view name, const_field_value) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "title");
+    REQUIRE(names[1] == "count");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each count matches field_count
 // ═══════════════════════════════════════════════════════════════════════════
@@ -300,7 +345,8 @@ TEST_CASE("dynamic: for_each count matches field_count()", "[type_def][dynamic][
 
     int visited = 0;
     obj.for_each([&](std::string_view, field_value) { ++visited; });
-    REQUIRE(visited == 3);
+    REQUIRE(obj.type().field_count() == 3);
+    REQUIRE(visited == static_cast<int>(obj.type().field_count()));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -515,6 +561,22 @@ TEST_CASE("hybrid: for_each_field() count matches field_count()", "[type_def][hy
 
     int visited = 0;
     t.for_each_field([&](auto) { ++visited; });
+    REQUIRE(visited == static_cast<int>(t.field_count()));
+}
+
+TEST_CASE("typed: for_each_field count matches field_count()", "[type_def][typed][for_each_field]") {
+    int visited = 0;
+    type_def<SimpleArgs>{}.for_each_field([&](auto) { ++visited; });
+    REQUIRE(visited == static_cast<int>(type_def<SimpleArgs>{}.field_count()));
+}
+
+TEST_CASE("dynamic: for_each_field count matches field_count()", "[type_def][dynamic][for_each_field]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 0);
+
+    int visited = 0;
+    t.for_each_field([&](field_view) { ++visited; });
     REQUIRE(visited == static_cast<int>(t.field_count()));
 }
 

@@ -292,6 +292,9 @@ namespace detail {
                 out.type = typeid(typename member_t::value_type);
                 out.has_default = false;
                 out.metas.clear();
+                TT instance{};
+                extract_with_metas(out.metas,
+                    collab::model::detail::dispatch_get_member<I>(instance).with);
                 found = true;
             }
         }

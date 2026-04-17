@@ -63,6 +63,7 @@ TEST_CASE("typed: set() throws for type mismatch", "[type_def][typed][set][throw
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("name") != std::string::npos);
+        REQUIRE(msg.find("SimpleArgs") != std::string::npos);
         REQUIRE(msg.find("type mismatch") != std::string::npos);
     }
 }
@@ -78,6 +79,7 @@ TEST_CASE("hybrid: set() throws for type mismatch", "[type_def][hybrid][set][thr
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("name") != std::string::npos);
+        REQUIRE(msg.find("PlainDog") != std::string::npos);
         REQUIRE(msg.find("type mismatch") != std::string::npos);
     }
 }
@@ -93,6 +95,7 @@ TEST_CASE("object: set() throws for type mismatch", "[object][set][throw]") {
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("title") != std::string::npos);
+        REQUIRE(msg.find("Event") != std::string::npos);
         REQUIRE(msg.find("type mismatch") != std::string::npos);
     }
 }
@@ -141,6 +144,15 @@ TEST_CASE("typed: set() throws for meta member names", "[type_def][typed][set][t
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("endpoint") != std::string::npos);
+        REQUIRE(msg.find("Dog") != std::string::npos);
+    }
+
+    try {
+        type_def<Dog>{}.set(rex, "help", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("help") != std::string::npos);
         REQUIRE(msg.find("Dog") != std::string::npos);
     }
 }
@@ -215,6 +227,7 @@ TEST_CASE("typed: get() throws for meta member names", "[type_def][typed][get][t
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("help") != std::string::npos);
+        REQUIRE(msg.find("Dog") != std::string::npos);
     }
 }
 
@@ -251,7 +264,7 @@ TEST_CASE("typed: get<V>() throws for unknown field", "[type_def][typed][get_typ
     }
 }
 
-TEST_CASE("hybrid: get<T>() throws for unknown field", "[type_def][hybrid][get_typed][throw]") {
+TEST_CASE("hybrid: get<V>() throws for unknown field", "[type_def][hybrid][get_typed][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
     PlainDog rex;
@@ -267,7 +280,7 @@ TEST_CASE("hybrid: get<T>() throws for unknown field", "[type_def][hybrid][get_t
     }
 }
 
-TEST_CASE("object: get() throws for unknown field", "[object][get][throw]") {
+TEST_CASE("object: get<V>() throws for unknown field", "[object][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -298,11 +311,12 @@ TEST_CASE("typed: get<V>() throws for type mismatch", "[type_def][typed][get_typ
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("age") != std::string::npos);
+        REQUIRE(msg.find("SimpleArgs") != std::string::npos);
         REQUIRE(msg.find("type mismatch") != std::string::npos);
     }
 }
 
-TEST_CASE("hybrid: get<T>() throws for type mismatch", "[type_def][hybrid][get_typed][throw]") {
+TEST_CASE("hybrid: get<V>() throws for type mismatch", "[type_def][hybrid][get_typed][throw]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::age, "age");
     PlainDog rex;
@@ -314,11 +328,12 @@ TEST_CASE("hybrid: get<T>() throws for type mismatch", "[type_def][hybrid][get_t
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("age") != std::string::npos);
+        REQUIRE(msg.find("PlainDog") != std::string::npos);
         REQUIRE(msg.find("type mismatch") != std::string::npos);
     }
 }
 
-TEST_CASE("object: get() throws for type mismatch", "[object][get][throw]") {
+TEST_CASE("object: get<V>() throws for type mismatch", "[object][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count", 42);
     auto obj = t.create();
@@ -329,6 +344,7 @@ TEST_CASE("object: get() throws for type mismatch", "[object][get][throw]") {
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
         REQUIRE(msg.find("count") != std::string::npos);
+        REQUIRE(msg.find("Event") != std::string::npos);
         REQUIRE(msg.find("type mismatch") != std::string::npos);
     }
 }
@@ -401,6 +417,9 @@ TEST_CASE("dynamic: field() throws on empty type_def", "[type_def][dynamic][fiel
 // ═══════════════════════════════════════════════════════════════════════════
 // meta() throws for absent meta
 // ═══════════════════════════════════════════════════════════════════════════
+
+// typed/hybrid meta<M>() for absent types is compile-time — returns default-constructed M,
+// does not throw. Only the dynamic path throws at runtime.
 
 TEST_CASE("dynamic: meta() throws for absent meta", "[type_def][dynamic][meta][throw]") {
     auto t = type_def("Event")
