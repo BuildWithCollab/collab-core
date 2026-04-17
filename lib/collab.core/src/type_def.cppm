@@ -193,16 +193,11 @@ namespace detail {
         if (found) return;
         using T = std::remove_cvref_t<Obj>;
         using member_t = collab::model::detail::member_type<I, T>;
-        if constexpr (collab::model::is_field<member_t>) {
-            if (collab::model::detail::dispatch_field_name_rt<I, T>() == name) {
-                auto& member = collab::model::detail::dispatch_get_member<I>(obj);
-                fn(collab::model::detail::dispatch_field_name_rt<I, T>(), member.value);
-                found = true;
-            }
-        } else if constexpr (collab::model::is_meta<member_t>) {
-            // skip meta members — not a field
-        } else {
-            // plain member — skip, not a field<>
+        // field_indices_ guarantees only field<> member indices arrive here
+        auto& member = collab::model::detail::dispatch_get_member<I>(obj);
+        if (collab::model::detail::dispatch_field_name_rt<I, T>() == name) {
+            fn(collab::model::detail::dispatch_field_name_rt<I, T>(), member.value);
+            found = true;
         }
     }
 
@@ -222,20 +217,15 @@ namespace detail {
         if (set_ok) return;
         using T = std::remove_cvref_t<Obj>;
         using member_t = collab::model::detail::member_type<I, T>;
-        if constexpr (collab::model::is_field<member_t>) {
-            if (collab::model::detail::dispatch_field_name_rt<I, T>() == name) {
-                name_matched = true;
-                using value_t = typename member_t::value_type;
-                if constexpr (std::is_constructible_v<value_t, V>) {
-                    collab::model::detail::dispatch_get_member<I>(obj).value =
-                        std::forward<V>(val);
-                    set_ok = true;
-                }
+        // field_indices_ guarantees only field<> member indices arrive here
+        if (collab::model::detail::dispatch_field_name_rt<I, T>() == name) {
+            name_matched = true;
+            using value_t = typename member_t::value_type;
+            if constexpr (std::is_constructible_v<value_t, V>) {
+                collab::model::detail::dispatch_get_member<I>(obj).value =
+                    std::forward<V>(val);
+                set_ok = true;
             }
-        } else if constexpr (collab::model::is_meta<member_t>) {
-            // skip meta members — not a field
-        } else {
-            // plain member — skip, not a field<>
         }
     }
 
