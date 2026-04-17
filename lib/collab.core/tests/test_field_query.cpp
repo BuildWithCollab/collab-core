@@ -136,3 +136,96 @@ TEST_CASE("object: field_view has_default() false", "[object][field_query]") {
 
     REQUIRE(obj.type().field("title").has_default() == false);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// field() throws for unknown name
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: field() throws for unknown name", "[type_def][typed][field_query][throw]") {
+    REQUIRE_THROWS_AS(type_def<Dog>{}.field("nonexistent"), std::logic_error);
+}
+
+TEST_CASE("hybrid: field() throws for unknown name", "[type_def][hybrid][field_query][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    REQUIRE_THROWS_AS(t.field("nonexistent"), std::logic_error);
+}
+
+TEST_CASE("dynamic: field() throws for unknown name", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+    REQUIRE_THROWS_AS(t.field("nonexistent"), std::logic_error);
+}
+
+TEST_CASE("object: field() throws for unknown name", "[object][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.type().field("nonexistent"), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// field() throws on empty / meta-only
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: field() throws on meta-only struct", "[type_def][typed][field_query][throw]") {
+    REQUIRE_THROWS_AS(type_def<MetaOnly>{}.field("anything"), std::logic_error);
+}
+
+TEST_CASE("hybrid: field() throws on empty hybrid", "[type_def][hybrid][field_query][throw]") {
+    auto t = type_def<PlainDog>();
+    REQUIRE_THROWS_AS(t.field("anything"), std::logic_error);
+}
+
+TEST_CASE("dynamic: field() throws on empty type_def", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Empty");
+    REQUIRE_THROWS_AS(t.field("anything"), std::logic_error);
+}
+
+TEST_CASE("object: field() throws on empty type_def", "[object][field_query][throw]") {
+    auto t = type_def("Empty");
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.type().field("anything"), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// field() throws for meta / plain member names
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: field() throws for meta member names", "[type_def][typed][field_query][throw]") {
+    REQUIRE_THROWS_AS(type_def<Dog>{}.field("endpoint"), std::logic_error);
+}
+
+TEST_CASE("hybrid: field() throws for meta member names", "[type_def][hybrid][field_query][throw]") {
+    REQUIRE_THROWS_AS(type_def<MetaDog>{}.field("help"), std::logic_error);
+}
+
+TEST_CASE("typed: field() throws for plain member names", "[type_def][typed][field_query][throw]") {
+    REQUIRE_THROWS_AS(type_def<MixedStruct>{}.field("counter"), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// field_view default_value throws
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic: field_view default_value throws for wrong type", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count", 100);
+    REQUIRE_THROWS_AS(t.field("count").default_value<std::string>(), std::logic_error);
+}
+
+TEST_CASE("dynamic: field_view default_value throws when no default set", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    REQUIRE_THROWS_AS(t.field("count").default_value<int>(), std::logic_error);
+}
+
+TEST_CASE("typed: field_view default_value throws", "[type_def][typed][field_query][throw]") {
+    REQUIRE_THROWS_AS(type_def<SimpleArgs>{}.field("name").default_value<std::string>(), std::logic_error);
+}
+
+TEST_CASE("hybrid: field_view default_value throws", "[type_def][hybrid][field_query][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    REQUIRE_THROWS_AS(t.field("name").default_value<std::string>(), std::logic_error);
+}

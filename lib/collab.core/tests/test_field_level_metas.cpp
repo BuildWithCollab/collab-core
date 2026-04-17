@@ -354,3 +354,33 @@ TEST_CASE("dynamic: for_each_field reads meta values", "[type_def][dynamic][fiel
 
     REQUIRE(short_flag == 'v');
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// field_view meta() throws for absent meta
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic: field_view meta() throws for absent meta", "[type_def][dynamic][field_meta][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+
+    REQUIRE_THROWS_AS(t.field("title").meta<cli_meta>(), std::logic_error);
+}
+
+TEST_CASE("typed: field_view meta() throws for absent meta", "[type_def][typed][field_meta][throw]") {
+    REQUIRE_THROWS_AS(type_def<CliArgs>{}.field("query").meta<cli_meta>(), std::logic_error);
+}
+
+TEST_CASE("hybrid: field_view meta() throws for absent meta", "[type_def][hybrid][field_meta][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+
+    REQUIRE_THROWS_AS(t.field("name").meta<cli_meta>(), std::logic_error);
+}
+
+TEST_CASE("object: field_view meta() throws for absent meta", "[object][field_meta][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+    auto obj = t.create();
+
+    REQUIRE_THROWS_AS(obj.type().field("title").meta<cli_meta>(), std::logic_error);
+}

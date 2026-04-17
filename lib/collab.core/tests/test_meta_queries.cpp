@@ -356,3 +356,17 @@ TEST_CASE("dynamic: meta-only type_def has zero fields but metas work", "[type_d
     auto ep = t.meta<endpoint_info>();
     REQUIRE(std::string_view{ep.path} == "/health");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// meta() throws for absent meta
+// ═══════════════════════════════════════════════════════════════════════════
+
+// typed/hybrid meta<M>() for absent types is compile-time — returns default-constructed M,
+// does not throw. Only the dynamic path throws at runtime.
+
+TEST_CASE("dynamic: meta() throws for absent meta", "[type_def][dynamic][meta][throw]") {
+    auto t = type_def("Event")
+        .field<int>("x");
+
+    REQUIRE_THROWS_AS(t.meta<endpoint_info>(), std::logic_error);
+}

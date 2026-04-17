@@ -515,3 +515,286 @@ TEST_CASE("object: full set/get integration", "[object][set][get][integration]")
     REQUIRE_THROWS_AS(obj.set("nope", 1), std::logic_error);
     REQUIRE_THROWS_AS(obj.get<int>("nope"), std::logic_error);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// set() throws for unknown field
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: set() throws for unknown field name", "[type_def][typed][set][throw]") {
+    SimpleArgs args;
+    REQUIRE_THROWS_AS(type_def<SimpleArgs>{}.set(args, "nonexistent", 42), std::logic_error);
+}
+
+TEST_CASE("hybrid: set() throws for unknown field", "[type_def][hybrid][set][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    REQUIRE_THROWS_AS(t.set(rex, "nope", 42), std::logic_error);
+}
+
+TEST_CASE("object: set() throws for unknown field", "[object][set][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.set("nope", 42), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// set() throws for empty string field name
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("object: set() throws for empty string field name", "[object][set][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.set("", 42), std::logic_error);
+}
+
+TEST_CASE("typed: set() throws for empty string field name", "[type_def][typed][set][throw]") {
+    SimpleArgs args;
+    REQUIRE_THROWS_AS(type_def<SimpleArgs>{}.set(args, "", 42), std::logic_error);
+}
+
+TEST_CASE("hybrid: set() throws for empty string field name", "[type_def][hybrid][set][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    REQUIRE_THROWS_AS(t.set(rex, "", 42), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// get<V>() throws for empty string field name
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("object: get<V>() throws for empty string field name", "[object][get][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.get<int>(""), std::logic_error);
+}
+
+TEST_CASE("typed: get<V>() throws for empty string field name", "[type_def][typed][get_typed][throw]") {
+    SimpleArgs args;
+    REQUIRE_THROWS_AS(type_def<SimpleArgs>{}.get<int>(args, ""), std::logic_error);
+}
+
+TEST_CASE("hybrid: get<V>() throws for empty string field name", "[type_def][hybrid][get_typed][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    REQUIRE_THROWS_AS(t.get<int>(rex, ""), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// get() callback throws for empty string field name
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: get() callback throws for empty string field name", "[type_def][typed][get][throw]") {
+    SimpleArgs args;
+    REQUIRE_THROWS_AS(
+        type_def<SimpleArgs>{}.get(args, "", [](auto, auto&) {}),
+        std::logic_error);
+}
+
+TEST_CASE("hybrid: get() callback throws for empty string field name", "[type_def][hybrid][get][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    REQUIRE_THROWS_AS(
+        t.get(rex, "", [](auto, auto&) {}),
+        std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// set() throws for type mismatch
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: set() throws for type mismatch", "[type_def][typed][set][throw]") {
+    SimpleArgs args;
+    REQUIRE_THROWS_AS(type_def<SimpleArgs>{}.set(args, "name", 42), std::logic_error);
+}
+
+TEST_CASE("hybrid: set() throws for type mismatch", "[type_def][hybrid][set][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    REQUIRE_THROWS_AS(t.set(rex, "name", 42), std::logic_error);
+}
+
+TEST_CASE("object: set() throws for type mismatch", "[object][set][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.set("title", 42), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// set() does not modify field on type mismatch
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: set() does not modify field on type mismatch", "[type_def][typed][set][throw]") {
+    SimpleArgs args;
+    args.name = "Original";
+
+    try { type_def<SimpleArgs>{}.set(args, "name", 42); } catch (const std::logic_error&) {}
+    REQUIRE(args.name.value == "Original");
+}
+
+TEST_CASE("hybrid: set() does not modify field on type mismatch", "[type_def][hybrid][set][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    rex.name = "Untouched";
+
+    try { t.set(rex, "name", 42); } catch (const std::logic_error&) {}
+    REQUIRE(rex.name == "Untouched");
+}
+
+TEST_CASE("object: set() does not modify field on type mismatch", "[object][set][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Original"));
+    auto obj = t.create();
+
+    try { obj.set("title", 42); } catch (const std::logic_error&) {}
+    REQUIRE(obj.get<std::string>("title") == "Original");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// set() throws for meta/plain member names
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: set() throws for meta member names", "[type_def][typed][set][throw]") {
+    Dog rex;
+    REQUIRE_THROWS_AS(type_def<Dog>{}.set(rex, "endpoint", 42), std::logic_error);
+    REQUIRE_THROWS_AS(type_def<Dog>{}.set(rex, "help", 42), std::logic_error);
+}
+
+TEST_CASE("hybrid: set() throws for meta member names", "[type_def][hybrid][set][throw]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+    REQUIRE_THROWS_AS(t.set(rex, "help", 42), std::logic_error);
+}
+
+TEST_CASE("typed: set() throws for plain member names", "[type_def][typed][set][throw]") {
+    MixedStruct ms;
+    REQUIRE_THROWS_AS(type_def<MixedStruct>{}.set(ms, "counter", 42), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// get<V>() throws for unknown field
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: get<V>() throws for unknown field", "[type_def][typed][get_typed][throw]") {
+    SimpleArgs args;
+    type_def<SimpleArgs> t;
+    REQUIRE_THROWS_AS(t.get<int>(args, "nope"), std::logic_error);
+}
+
+TEST_CASE("hybrid: get<V>() throws for unknown field", "[type_def][hybrid][get_typed][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    REQUIRE_THROWS_AS(t.get<std::string>(rex, "nope"), std::logic_error);
+}
+
+TEST_CASE("object: get<V>() throws for unknown field", "[object][get][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.get<int>("nope"), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// get<V>() throws for type mismatch
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: get<V>() throws for type mismatch", "[type_def][typed][get_typed][throw]") {
+    SimpleArgs args;
+    args.age = 42;
+    type_def<SimpleArgs> t;
+    REQUIRE_THROWS_AS(t.get<std::string>(args, "age"), std::logic_error);
+}
+
+TEST_CASE("hybrid: get<V>() throws for type mismatch", "[type_def][hybrid][get_typed][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::age, "age");
+    PlainDog rex;
+    rex.age = 5;
+    REQUIRE_THROWS_AS(t.get<std::string>(rex, "age"), std::logic_error);
+}
+
+TEST_CASE("object: get<V>() throws for type mismatch", "[object][get][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count", 42);
+    auto obj = t.create();
+    REQUIRE_THROWS_AS(obj.get<std::string>("count"), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// get<V>() throws for meta/plain member names
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: get<V>() throws for meta member names", "[type_def][typed][get_typed][throw]") {
+    Dog rex;
+    REQUIRE_THROWS_AS(type_def<Dog>{}.get<int>(rex, "endpoint"), std::logic_error);
+}
+
+TEST_CASE("hybrid: get<V>() throws for meta member names", "[type_def][hybrid][get_typed][throw]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+    REQUIRE_THROWS_AS(t.get<int>(rex, "help"), std::logic_error);
+}
+
+TEST_CASE("typed: get<V>() throws for plain member names", "[type_def][typed][get_typed][throw]") {
+    MixedStruct ms;
+    REQUIRE_THROWS_AS(type_def<MixedStruct>{}.get<int>(ms, "counter"), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// get() callback throws for unknown field
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: get() throws for unknown field name", "[type_def][typed][get][throw]") {
+    SimpleArgs args;
+    REQUIRE_THROWS_AS(
+        type_def<SimpleArgs>{}.get(args, "nonexistent", [](std::string_view, auto&) {}),
+        std::logic_error);
+}
+
+TEST_CASE("hybrid: get() callback throws for unknown field", "[type_def][hybrid][get][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex{"Rex", 3, "Husky"};
+    REQUIRE_THROWS_AS(
+        t.get(rex, "nope", [](std::string_view, auto&) {}),
+        std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// get() callback throws for meta/plain member names
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: get() throws for meta member names", "[type_def][typed][get][throw]") {
+    Dog rex;
+    REQUIRE_THROWS_AS(
+        type_def<Dog>{}.get(rex, "endpoint", [](std::string_view, auto&) {}),
+        std::logic_error);
+    REQUIRE_THROWS_AS(
+        type_def<Dog>{}.get(rex, "help", [](std::string_view, auto&) {}),
+        std::logic_error);
+}
+
+TEST_CASE("hybrid: get() callback throws for meta member names", "[type_def][hybrid][get][throw]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+    REQUIRE_THROWS_AS(
+        t.get(rex, "help", [](std::string_view, auto&) {}),
+        std::logic_error);
+}
+
+TEST_CASE("typed: get() callback throws for plain member names", "[type_def][typed][get][throw]") {
+    MixedStruct ms;
+    REQUIRE_THROWS_AS(
+        type_def<MixedStruct>{}.get(ms, "counter", [](std::string_view, auto&) {}),
+        std::logic_error);
+}
