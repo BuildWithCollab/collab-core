@@ -20,9 +20,11 @@ import :meta;
 
 export namespace collab::model {
 
-// ── dynamic_tag — sentinel for the non-templated type_def ────────────────
-
-struct dynamic_tag {};
+namespace detail {
+    // Sentinel type for the non-templated type_def. Users never see this —
+    // CTAD deduces type_def("Event") → type_def<detail::dynamic_tag>.
+    struct dynamic_tag {};
+}  // namespace detail
 
 class field_def;  // forward declaration for concept
 
@@ -392,7 +394,7 @@ class metadata {
 
 public:
     // Constructor is public but useless without raw pointers to internals.
-    // Only type_def<dynamic_tag> has those.
+    // Only type_def<detail::dynamic_tag> has those.
     explicit metadata(const std::any* v, const std::type_index& t)
         : value_(v), type_(t) {}
 
@@ -488,7 +490,7 @@ struct is_field_at : std::bool_constant<collab::model::is_field<
 
 }  // namespace detail
 
-template <typename T = dynamic_tag, typename... Regs>
+template <typename T = detail::dynamic_tag, typename... Regs>
 class type_def {
     static constexpr auto total_members_ = collab::model::detail::dispatch_field_count<T>();
     using indices_ = std::make_index_sequence<total_members_>;
@@ -511,17 +513,17 @@ public:
     // ── Type name ────────────────────────────────────────────────────
 
     constexpr std::string_view name() const {
-        return collab::model::type_name<T>();
+        return collab::model::detail::type_name<T>();
     }
 
     // ── Field queries ────────────────────────────────────────────────
 
     std::size_t field_count() const {
-        return collab::model::field_count<T>() + sizeof...(Regs);
+        return collab::model::detail::field_count<T>() + sizeof...(Regs);
     }
 
     std::vector<std::string> field_names() const {
-        auto discovered = collab::model::field_names<T>();
+        auto discovered = collab::model::detail::field_names<T>();
         std::vector<std::string> result(discovered.begin(), discovered.end());
         std::apply([&](const auto&... regs) {
             (result.push_back(regs.name), ...);
@@ -547,7 +549,7 @@ public:
     // ── Field queries by name ────────────────────────────────────────
 
     bool has_field(std::string_view fname) const {
-        auto discovered = collab::model::field_names<T>();
+        auto discovered = collab::model::detail::field_names<T>();
         for (auto& n : discovered)
             if (n == fname) return true;
         bool found = false;
@@ -782,10 +784,10 @@ public:
 // Forward declaration for type_instance (defined below)
 class type_instance;
 
-// ── type_def<dynamic_tag> — the non-templated dynamic type_def ───────────
+// ── type_def<detail::dynamic_tag> — the non-templated dynamic type_def ───────────
 
 template <>
-class type_def<dynamic_tag> {
+class type_def<detail::dynamic_tag> {
     friend class type_instance;
 
     std::string                           name_;
@@ -924,17 +926,17 @@ public:
     type_instance create() const;
 };
 
-// ── CTAD: type_def("Event") deduces to type_def<dynamic_tag> ─────────────
+// ── CTAD: type_def("Event") deduces to type_def<detail::dynamic_tag> ─────────────
 
-type_def(const char*) -> type_def<dynamic_tag>;
-type_def(std::string_view) -> type_def<dynamic_tag>;
+type_def(const char*) -> type_def<detail::dynamic_tag>;
+type_def(std::string_view) -> type_def<detail::dynamic_tag>;
 
 // ═══════════════════════════════════════════════════════════════════════
 // type_instance — instance of a dynamic type_def
 // ═══════════════════════════════════════════════════════════════════════
 
 class type_instance {
-    const type_def<dynamic_tag>* type_;
+    const type_def<detail::dynamic_tag>* type_;
     std::vector<std::any>        values_;
 
     int find_field_index(std::string_view name) const {
@@ -945,7 +947,7 @@ class type_instance {
     }
 
 public:
-    explicit type_instance(const type_def<dynamic_tag>& t) : type_(&t) {
+    explicit type_instance(const type_def<detail::dynamic_tag>& t) : type_(&t) {
         values_.reserve(t.fields_.size());
         for (auto& fd : t.fields_) {
             if (fd.has_default)
@@ -1002,7 +1004,7 @@ public:
 
     // ── Type access ──────────────────────────────────────────────────
 
-    const type_def<dynamic_tag>& type() const { return *type_; }
+    const type_def<detail::dynamic_tag>& type() const { return *type_; }
 
     // ── Field iteration ─────────────────────────────────────────────
     //
@@ -1027,9 +1029,9 @@ public:
     }
 };
 
-// ── type_def<dynamic_tag>::create() ──────────────────────────────────────
+// ── type_def<detail::dynamic_tag>::create() ──────────────────────────────────────
 
-inline type_instance type_def<dynamic_tag>::create() const {
+inline type_instance type_def<detail::dynamic_tag>::create() const {
     return type_instance(*this);
 }
 

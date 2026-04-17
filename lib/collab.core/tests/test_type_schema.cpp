@@ -40,7 +40,7 @@ constexpr auto collab::model::struct_info<PlainCat>() {
 static_assert(type_definition<type_def<SchemaTestDog>>,
     "typed type_def<T> must satisfy type_definition");
 
-static_assert(type_definition<type_def<dynamic_tag>>,
+static_assert(type_definition<type_def<detail::dynamic_tag>>,
     "dynamic type_def must satisfy type_definition");
 
 // ═════════════════════════════════════════════════════════════════════════

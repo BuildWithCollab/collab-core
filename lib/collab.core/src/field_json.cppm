@@ -86,7 +86,7 @@ namespace detail {
                 obj[k] = value_to_json(val);
             }
             return obj;
-        } else if constexpr (reflected_struct<T>) {
+        } else if constexpr (detail::reflected_struct<T>) {
             nlohmann::json j = nlohmann::json::object();
             collab::model::type_def<T>{}.for_each_field(v, [&](std::string_view name, const auto& value) {
                 j[std::string(name)] = value_to_json(value);
@@ -100,13 +100,13 @@ namespace detail {
 }  // namespace detail
 
 // Returns a nlohmann::json object for programmatic use.
-template <reflected_struct T>
+template <detail::reflected_struct T>
 nlohmann::json to_json(const T& obj) {
     return detail::value_to_json(obj);
 }
 
 // Returns a JSON string. indent < 0 → compact, indent >= 0 → pretty.
-template <reflected_struct T>
+template <detail::reflected_struct T>
 std::string to_json_string(const T& obj, int indent = -1) {
     auto j = detail::value_to_json(obj);
     return indent < 0 ? j.dump() : j.dump(indent);

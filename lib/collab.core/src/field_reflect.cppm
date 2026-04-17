@@ -337,12 +337,12 @@ namespace detail {
 #endif
     }
 
-}  // namespace detail
+    template <typename T>
+    consteval std::string_view type_name() {
+        return extract_type_name<T>();
+    }
 
-template <typename T>
-consteval std::string_view type_name() {
-    return detail::extract_type_name<T>();
-}
+}  // namespace detail
 
 // ── Backend dispatch ────────────────────────────────────────────────────
 //
@@ -530,26 +530,24 @@ namespace detail {
         return (0 + ... + (is_field<member_type<Is, T>> ? 1 : 0));
     }
 
+    template <typename T>
+    concept reflected_struct =
+        std::is_aggregate_v<T>
+        && has_any_field_member<T>();
+
+    template <typename T>
+    consteval std::size_t field_count() {
+        return count_field_members<T>(
+            std::make_index_sequence<dispatch_field_count<T>()>{}
+        );
+    }
+
+    template <std::size_t I, typename T>
+    consteval std::string_view field_name() {
+        return dispatch_field_name<I, T>();
+    }
+
 }  // namespace detail
-
-template <typename T>
-concept reflected_struct =
-    std::is_aggregate_v<T>
-    && detail::has_any_field_member<T>();
-
-// ── Free functions ──────────────────────────────────────────────────────
-
-template <typename T>
-consteval std::size_t field_count() {
-    return detail::count_field_members<T>(
-        std::make_index_sequence<detail::dispatch_field_count<T>()>{}
-    );
-}
-
-template <std::size_t I, typename T>
-consteval std::string_view field_name() {
-    return detail::dispatch_field_name<I, T>();
-}
 
 namespace detail {
 
@@ -567,13 +565,13 @@ namespace detail {
         return result;
     }
 
-}  // namespace detail
+    template <typename T>
+    constexpr auto field_names() {
+        constexpr auto N = dispatch_field_count<T>();
+        return collect_field_names<T>(std::make_index_sequence<N>{});
+    }
 
-template <typename T>
-constexpr auto field_names() {
-    constexpr auto N = detail::dispatch_field_count<T>();
-    return detail::collect_field_names<T>(std::make_index_sequence<N>{});
-}
+}  // namespace detail
 
 // ── field_descriptor<T, I> — schema-only field info ─────────────────────
 

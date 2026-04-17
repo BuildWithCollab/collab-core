@@ -156,10 +156,10 @@ TEST_CASE("Field in outer struct", "[field][aggregate]") {
 // ── Field names via reflect API ──────────────────────────────────────────
 
 TEST_CASE("field_name extracts field names", "[field][reflect]") {
-    constexpr auto n0 = field_name<0, WeatherArgs>();
-    constexpr auto n1 = field_name<1, WeatherArgs>();
-    constexpr auto n2 = field_name<2, WeatherArgs>();
-    constexpr auto n3 = field_name<3, WeatherArgs>();
+    constexpr auto n0 = detail::field_name<0, WeatherArgs>();
+    constexpr auto n1 = detail::field_name<1, WeatherArgs>();
+    constexpr auto n2 = detail::field_name<2, WeatherArgs>();
+    constexpr auto n3 = detail::field_name<3, WeatherArgs>();
 
     REQUIRE(n0 == "city");
     REQUIRE(n1 == "days");
@@ -251,24 +251,24 @@ struct NonAggregate {
 };
 
 TEST_CASE("reflected_struct accepts aggregates with Field members", "[field][concept]") {
-    STATIC_REQUIRE(reflected_struct<OnlyFields>);
-    STATIC_REQUIRE(reflected_struct<MixedStruct>);
-    STATIC_REQUIRE(reflected_struct<WeatherArgs>);
-    STATIC_REQUIRE(reflected_struct<LoginResponse>);
+    STATIC_REQUIRE(detail::reflected_struct<OnlyFields>);
+    STATIC_REQUIRE(detail::reflected_struct<MixedStruct>);
+    STATIC_REQUIRE(detail::reflected_struct<WeatherArgs>);
+    STATIC_REQUIRE(detail::reflected_struct<LoginResponse>);
 }
 
 TEST_CASE("reflected_struct rejects non-qualifying types", "[field][concept]") {
     // int and NonAggregate fail is_aggregate_v, so they short-circuit
     // without ever hitting the PFR/registry fallback.
-    STATIC_REQUIRE(!reflected_struct<int>);
-    STATIC_REQUIRE(!reflected_struct<NonAggregate>);
+    STATIC_REQUIRE(!detail::reflected_struct<int>);
+    STATIC_REQUIRE(!detail::reflected_struct<NonAggregate>);
 
 #ifdef COLLAB_FIELD_HAS_PFR
     // EmptyStruct and NoFieldsOnlyPlain are aggregates with no field<>
     // members. Without PFR, evaluating dispatch_field_count on an
     // unregistered type hits a static_assert — these checks are only
     // possible when PFR can introspect arbitrary structs.
-    STATIC_REQUIRE(!reflected_struct<EmptyStruct>);
-    STATIC_REQUIRE(!reflected_struct<NoFieldsOnlyPlain>);
+    STATIC_REQUIRE(!detail::reflected_struct<EmptyStruct>);
+    STATIC_REQUIRE(!detail::reflected_struct<NoFieldsOnlyPlain>);
 #endif
 }

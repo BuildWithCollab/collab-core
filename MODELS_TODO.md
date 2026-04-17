@@ -10,13 +10,6 @@ If a function is callable by a user of this library, **you do not get to decide 
 
 ---
 
-## 🔥 API gaps
-
-- [ ] **Namespace cleanup** — move internal symbols into `collab::model::detail`. Public surface: `type_def`, `type_definition`, `field`, `with`, `meta`, `type_instance`, `to_json`, `to_json_string`, `struct_info`, `field_info`, `metadata`, `field_def`, `field_value`, `const_field_value`. Everything else is `detail`.
-- [ ] **`dynamic_tag`** leaks into public API (`type_def<dynamic_tag>` in static_assert). Users never see it (CTAD handles `type_def("Event")`), but it's technically exported.
-
----
-
 ## 🧹 Cleanup
 
 - [ ] **MSVC `if constexpr` codegen workaround** — `field_indices_` (filtered index sequence) makes the `else if constexpr` branches in `try_set_field`/`try_get_field` dead code. Consider removing them.
