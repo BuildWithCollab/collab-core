@@ -51,7 +51,8 @@ Purr's position: this is a schema, not a container. Programmer errors must surfa
 
 ## 🔥 API gaps
 
-- [ ] **Dynamic `for_each_meta(fn)` missing** — removed because it leaked `std::any`. Needs reimpl with a wrapper type (like `field_value` wraps field data). Typed path has it, dynamic doesn't.
+- [ ] **Dynamic `for_each_meta(fn)` missing** — removed because it leaked `std::any`. Needs reimpl with a wrapper type (like `field_value` wraps field data). Typed path has it, dynamic doesn't. Note: typed path also has an *instance* overload (`type_def<Dog>{}.for_each_meta(rex, callback)`) — dynamic equivalent presumably needed too.
+- [ ] **Hybrid mode has very thin test coverage** — only `schema_summary()`, `has_field()`, and `field().name()` tested in `test_type_schema.cpp`. No tests for `get()`, `set()`, `for_each()`, `create()`, or meta operations on hybrid type_defs.
 - [ ] **Namespace cleanup** — move internal symbols into `collab::model::detail`. Public surface: `type_def`, `type_definition`, `field`, `with`, `meta`, `type_instance`, `to_json`, `to_json_string`. Everything else is `detail`.
 - [ ] **Non-PFR registration** — `reflect_on<T>()` and `field_info<T>(...)` need a home (`detail` or sub-namespace).
 - [ ] **`dynamic_tag`** leaks into public API (`type_def<dynamic_tag>` in static_assert).
