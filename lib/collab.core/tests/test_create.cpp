@@ -107,6 +107,26 @@ TEST_CASE("object: construction from type_def", "[object][create]") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// create() on meta-only type_def (no fields)
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: create() on meta-only struct", "[type_def][typed][create][meta]") {
+    type_def<MetaOnly> t;
+    MetaOnly m = t.create();
+    REQUIRE(t.has_meta<endpoint_info>());
+    REQUIRE(std::string_view{t.meta<endpoint_info>().path} == "/health");
+    REQUIRE(t.field_count() == 0);
+}
+
+TEST_CASE("object: create() on meta-only type_def", "[object][create][meta]") {
+    auto t = type_def("Health")
+        .meta<endpoint_info>({.path = "/health"});
+    auto obj = t.create();
+    REQUIRE(obj.type().has_meta<endpoint_info>());
+    REQUIRE(obj.type().field_count() == 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Multiple instances are independent
 // ═══════════════════════════════════════════════════════════════════════════
 

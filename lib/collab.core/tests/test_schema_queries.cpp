@@ -41,6 +41,13 @@ TEST_CASE("dynamic: name() with different names", "[type_def][dynamic][name]") {
     REQUIRE(type_def("").name() == "");
 }
 
+TEST_CASE("object: name()", "[object][name]") {
+    auto t = type_def("Event")
+        .field<int>("x");
+    auto obj = t.create();
+    REQUIRE(obj.type().name() == "Event");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // field_count()
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,6 +113,14 @@ TEST_CASE("dynamic: field_count() ignores type-level metas", "[type_def][dynamic
         .meta<endpoint_info>({.path = "/events"})
         .field<std::string>("title");
     REQUIRE(t.field_count() == 1);
+}
+
+TEST_CASE("object: field_count()", "[object][field_count]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count");
+    auto obj = t.create();
+    REQUIRE(obj.type().field_count() == 2);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -176,6 +191,17 @@ TEST_CASE("dynamic: field_names()", "[type_def][dynamic][field_names]") {
 
 TEST_CASE("dynamic: field_names() empty", "[type_def][dynamic][field_names]") {
     REQUIRE(type_def("Empty").field_names().empty());
+}
+
+TEST_CASE("object: field_names()", "[object][field_names]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count");
+    auto obj = t.create();
+    auto names = obj.type().field_names();
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "title");
+    REQUIRE(names[1] == "count");
 }
 
 TEST_CASE("dynamic: field_names() preserves registration order", "[type_def][dynamic][field_names]") {

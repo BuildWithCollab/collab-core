@@ -266,6 +266,35 @@ TEST_CASE("dynamic: field meta_count and metas", "[type_def][dynamic][field_meta
     REQUIRE(std::string_view{tags[1].value} == "b");
 }
 
+TEST_CASE("hybrid: field meta_count for absent meta", "[type_def][hybrid][field_meta]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name",
+            with<help_info>({.summary = "x"}));
+
+    REQUIRE(t.field("name").meta_count<cli_meta>() == 0);
+}
+
+TEST_CASE("dynamic: field meta_count for absent meta", "[type_def][dynamic][field_meta]") {
+    auto t = type_def("CLI")
+        .field<bool>("verbose", false,
+            with<cli_meta>({.cli = {.short_flag = 'v'}}));
+
+    REQUIRE(t.field("verbose").meta_count<render_meta>() == 0);
+}
+
+TEST_CASE("object: field-level meta via type().field()", "[object][field_meta]") {
+    auto t = type_def("CLI")
+        .field<bool>("verbose", false,
+            with<cli_meta>({.cli = {.short_flag = 'v'}}))
+        .field<std::string>("query");
+
+    auto obj = t.create();
+
+    REQUIRE(obj.type().field("verbose").has_meta<cli_meta>() == true);
+    REQUIRE(obj.type().field("verbose").meta<cli_meta>().cli.short_flag == 'v');
+    REQUIRE(obj.type().field("query").has_meta<cli_meta>() == false);
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // for_each_field reads meta values
 // ═════════════════════════════════════════════════════════════════════════

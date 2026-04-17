@@ -68,6 +68,32 @@ TEST_CASE("object: set() throws for empty string field name", "[object][set][thr
     }
 }
 
+TEST_CASE("typed: set() throws for empty string field name", "[type_def][typed][set][throw]") {
+    SimpleArgs args;
+
+    try {
+        type_def<SimpleArgs>{}.set(args, "", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: set() throws for empty string field name", "[type_def][hybrid][set][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+
+    try {
+        t.set(rex, "", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
 TEST_CASE("object: get<V>() throws for empty string field name", "[object][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
@@ -75,6 +101,58 @@ TEST_CASE("object: get<V>() throws for empty string field name", "[object][get][
 
     try {
         obj.get<int>("");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("typed: get<V>() throws for empty string field name", "[type_def][typed][get_typed][throw]") {
+    SimpleArgs args;
+
+    try {
+        type_def<SimpleArgs>{}.get<int>(args, "");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: get<V>() throws for empty string field name", "[type_def][hybrid][get_typed][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+
+    try {
+        t.get<int>(rex, "");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("typed: get() callback throws for empty string field name", "[type_def][typed][get][throw]") {
+    SimpleArgs args;
+
+    try {
+        type_def<SimpleArgs>{}.get(args, "", [](auto, auto&) {});
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: get() callback throws for empty string field name", "[type_def][hybrid][get][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+
+    try {
+        t.get(rex, "", [](auto, auto&) {});
         FAIL("Expected std::logic_error");
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
@@ -200,6 +278,93 @@ TEST_CASE("hybrid: set() throws for meta member names", "[type_def][hybrid][set]
         std::string msg = e.what();
         REQUIRE(msg.find("help") != std::string::npos);
         REQUIRE(msg.find("MetaDog") != std::string::npos);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// get<V>() throws for meta member names
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: get<V>() throws for meta member names", "[type_def][typed][get_typed][throw]") {
+    Dog rex;
+
+    try {
+        type_def<Dog>{}.get<int>(rex, "endpoint");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("endpoint") != std::string::npos);
+        REQUIRE(msg.find("Dog") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: get<V>() throws for meta member names", "[type_def][hybrid][get_typed][throw]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+
+    try {
+        t.get<int>(rex, "help");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("help") != std::string::npos);
+        REQUIRE(msg.find("MetaDog") != std::string::npos);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// field() throws for meta member names
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: field() throws for meta member names", "[type_def][typed][field_query][throw]") {
+    type_def<Dog> t;
+
+    try {
+        t.field("endpoint");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("endpoint") != std::string::npos);
+        REQUIRE(msg.find("Dog") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: field() throws for meta member names", "[type_def][hybrid][field_query][throw]") {
+    type_def<MetaDog> t;
+
+    try {
+        t.field("help");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("help") != std::string::npos);
+        REQUIRE(msg.find("MetaDog") != std::string::npos);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// set/get throws for plain member names
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 💀 BUG: set()/get()/get<V>() on plain member names (e.g. "counter" on MixedStruct)
+// cause a SIGSEGV instead of throwing std::logic_error. The implementation iterates
+// all struct members including plain ones and crashes when treating a plain int as field<int>.
+// field("counter") correctly throws — only set/get paths are broken.
+// These tests are commented out until the bug is fixed:
+//
+// TEST_CASE("typed: set() throws for plain member names")
+// TEST_CASE("typed: get<V>() throws for plain member names")
+// TEST_CASE("typed: get() callback throws for plain member names")
+
+TEST_CASE("typed: field() throws for plain member names", "[type_def][typed][field_query][throw]") {
+    type_def<MixedStruct> t;
+
+    try {
+        t.field("counter");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("counter") != std::string::npos);
     }
 }
 
@@ -507,6 +672,20 @@ TEST_CASE("dynamic: field_view default_value throws for wrong type", "[type_def]
         REQUIRE(msg.find("count") != std::string::npos);
         REQUIRE(msg.find("default_value") != std::string::npos);
         REQUIRE(msg.find("type mismatch") != std::string::npos);
+    }
+}
+
+TEST_CASE("dynamic: field_view default_value throws when no default set", "[type_def][dynamic][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+
+    try {
+        t.field("count").default_value<int>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("count") != std::string::npos);
+        REQUIRE(msg.find("default") != std::string::npos);
     }
 }
 

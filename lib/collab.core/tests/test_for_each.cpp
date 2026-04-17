@@ -501,6 +501,22 @@ TEST_CASE("dynamic: for_each_field() empty", "[type_def][dynamic][for_each_field
     REQUIRE(count == 0);
 }
 
+TEST_CASE("object: for_each_field() via type()", "[object][for_each_field]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 0);
+    auto obj = t.create();
+
+    std::vector<std::string> names;
+    obj.type().for_each_field([&](field_view fd) {
+        names.emplace_back(fd.name());
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "title");
+    REQUIRE(names[1] == "count");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each_field can query field metas
 // ═══════════════════════════════════════════════════════════════════════════

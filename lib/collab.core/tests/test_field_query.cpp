@@ -106,3 +106,25 @@ TEST_CASE("typed: field() returns valid view for each Dog field", "[type_def][ty
     type_def<Dog> t;
     REQUIRE(t.field("breed").name() == "breed");
 }
+
+TEST_CASE("object: field() returns field_view via type()", "[object][field_query]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 100);
+    auto obj = t.create();
+
+    REQUIRE(obj.type().field("title").name() == "title");
+    REQUIRE(obj.type().field("count").has_default() == true);
+    REQUIRE(obj.type().field("count").default_value<int>() == 100);
+}
+
+TEST_CASE("typed: field().has_default() returns false", "[type_def][typed][field_query]") {
+    type_def<SimpleArgs> t;
+    REQUIRE(t.field("name").has_default() == false);
+}
+
+TEST_CASE("hybrid: field().has_default() returns false", "[type_def][hybrid][field_query]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    REQUIRE(t.field("name").has_default() == false);
+}

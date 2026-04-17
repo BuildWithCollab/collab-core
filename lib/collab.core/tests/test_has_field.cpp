@@ -178,3 +178,25 @@ TEST_CASE("object: has() is case-sensitive", "[object][has]") {
     REQUIRE(obj.has("count"));
     REQUIRE(!obj.has("Count"));
 }
+
+TEST_CASE("object: has() finds all fields in multi-field type", "[object][has]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count")
+        .field<bool>("active");
+    auto obj = t.create();
+
+    REQUIRE(obj.has("title") == true);
+    REQUIRE(obj.has("count") == true);
+    REQUIRE(obj.has("active") == true);
+}
+
+TEST_CASE("object: has() rejects meta-name strings", "[object][has]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/e"})
+        .field<int>("count");
+    auto obj = t.create();
+
+    REQUIRE(obj.has("count") == true);
+    REQUIRE(obj.has("endpoint") == false);
+}
