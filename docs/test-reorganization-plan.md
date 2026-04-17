@@ -1,6 +1,6 @@
 # Test Reorganization Plan — collab::model
 
-> This isn't just a migration. The old test structure was organized per-path (typed, hybrid, dynamic, object), which made coverage gaps invisible. The new structure organizes tests by **capability**, with typed/hybrid/dynamic interleaved so gaps are structurally impossible to ignore.
+> This isn't just a migration. The old test structure was organized per-path (typed, hybrid, dynamic, type_instance), which made coverage gaps invisible. The new structure organizes tests by **capability**, with typed/hybrid/dynamic interleaved so gaps are structurally impossible to ignore.
 
 ## Problem
 
@@ -11,7 +11,7 @@ Four test files, each covering one type_def path:
 | test_type_def.cpp | 76 | typed |
 | test_hybrid_type_def.cpp | 36 | hybrid |
 | test_dynamic_type_def.cpp | 31 | dynamic |
-| test_object.cpp | 22 | dynamic (instances) |
+| test_type_instance.cpp | 22 | dynamic (instances) |
 
 This structure hides coverage gaps. An agent adding a test to `test_type_def.cpp` never sees `test_hybrid_type_def.cpp`, so they never think "does hybrid need this too?" Result: hybrid has zero type-level meta tests, `has_field()` coverage is 6/1/1 across paths, edge cases only tested on typed.
 
@@ -62,7 +62,7 @@ Sections:
 - field_count() counts fields correctly — typed (5 cases: basic, excludes meta, excludes plain, meta-only, multi-tagged), hybrid, dynamic (3 cases: empty, basic, ignores metas)
 - field_names() returns correct names — typed (3 cases), hybrid, dynamic (2 cases)
 - Stateless — two type_def instances behave identically (typed; add hybrid, dynamic)
-- type() access — object returns its backing type_def (dynamic)
+- type() access — type_instance returns its backing type_def (dynamic)
 
 ---
 
@@ -75,7 +75,7 @@ Sections:
 - Rejects plain member names — typed
 - Single-field struct — typed (add hybrid, dynamic)
 - Meta-only struct — typed (add dynamic with no fields)
-- object has() — dynamic
+- type_instance has() — dynamic
 
 ---
 
@@ -122,12 +122,12 @@ Sections:
 **`test_for_each.cpp`** — for_each(instance), for_each_field(), for_each_meta()
 
 Sections:
-- for_each iterates fields with name and value — typed, hybrid, dynamic (object)
-- for_each provides typed value access — typed, hybrid, dynamic (object via field_value)
+- for_each iterates fields with name and value — typed, hybrid, dynamic (type_instance)
+- for_each provides typed value access — typed, hybrid, dynamic (type_instance via field_value)
 - for_each provides mutable access — typed, hybrid
 - for_each skips meta members — typed
 - for_each skips plain members — typed
-- for_each on empty/meta-only — typed, dynamic (object)
+- for_each on empty/meta-only — typed, dynamic (type_instance)
 - for_each with const instance — typed, hybrid
 - for_each count matches field_count — hybrid (add typed, dynamic)
 - for_each_field iterates field descriptors — typed, hybrid, dynamic
@@ -145,44 +145,44 @@ Sections:
 **`test_set_get.cpp`** — set(), get() callback, get<V>()
 
 Sections:
-- set() assigns fields by type — typed (string, int, bool), hybrid, dynamic (object)
-- set() with const char* to string field — typed, hybrid, dynamic (object)
-- set() overwrites existing values — typed, dynamic (object) (add hybrid)
+- set() assigns fields by type — typed (string, int, bool), hybrid, dynamic (type_instance)
+- set() with const char* to string field — typed, hybrid, dynamic (type_instance)
+- set() overwrites existing values — typed, dynamic (type_instance) (add hybrid)
 - set() works on struct with metas — typed (add hybrid)
 - get() callback finds field by name — typed (add hybrid)
 - get() callback allows mutation — typed (add hybrid)
 - get() callback on const instance — typed (add hybrid)
-- get<V>() returns value — typed, hybrid, dynamic (object)
-- get<V>() round-trips with set() — typed, hybrid, dynamic (object)
+- get<V>() returns value — typed, hybrid, dynamic (type_instance)
+- get<V>() round-trips with set() — typed, hybrid, dynamic (type_instance)
 - get<V>() on const instance — typed (add hybrid, dynamic)
-- Integration tests — typed (CliArgs), hybrid, dynamic (object)
+- Integration tests — typed (CliArgs), hybrid, dynamic (type_instance)
 
 ---
 
 **`test_create.cpp`** — create(), defaults, independence
 
 Sections:
-- create() returns default-constructed instance — typed, hybrid, dynamic (object)
-- create() preserves field defaults — typed, dynamic (object)
+- create() returns default-constructed instance — typed, hybrid, dynamic (type_instance)
+- create() preserves field defaults — typed, dynamic (type_instance)
 - create() result is mutable and works with set — typed (add hybrid, dynamic)
-- Default values from type_def — dynamic (object)
-- Fields without defaults get default-constructed values — dynamic (object)
-- Construction from type_def — dynamic (object)
-- Multiple instances from same type_def are independent — dynamic (object) (add typed, hybrid)
+- Default values from type_def — dynamic (type_instance)
+- Fields without defaults get default-constructed values — dynamic (type_instance)
+- Construction from type_def — dynamic (type_instance)
+- Multiple instances from same type_def are independent — dynamic (type_instance) (add typed, hybrid)
 
 ---
 
 **`test_throws.cpp`** — all error path throws
 
 Sections:
-- set() throws for unknown field — typed, hybrid, dynamic (object)
-- set() throws for type mismatch — typed, hybrid, dynamic (object)
-- set() does not modify field on type mismatch — typed, hybrid, dynamic (object)
+- set() throws for unknown field — typed, hybrid, dynamic (type_instance)
+- set() throws for type mismatch — typed, hybrid, dynamic (type_instance)
+- set() does not modify field on type mismatch — typed, hybrid, dynamic (type_instance)
 - set() throws for meta member names — typed, hybrid
 - get() callback throws for unknown field — typed, hybrid
 - get() callback throws for meta member names — typed, hybrid
-- get<V>() throws for unknown field — typed, hybrid, dynamic (object)
-- get<V>() throws for type mismatch — typed, hybrid, dynamic (object)
+- get<V>() throws for unknown field — typed, hybrid, dynamic (type_instance)
+- get<V>() throws for type mismatch — typed, hybrid, dynamic (type_instance)
 - field() throws for unknown name — typed, hybrid, dynamic
 - field() throws on empty type_def — dynamic
 - meta() throws for absent meta — dynamic

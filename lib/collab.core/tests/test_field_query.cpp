@@ -107,7 +107,7 @@ TEST_CASE("typed: field() returns valid view for each Dog field", "[type_def][ty
     REQUIRE(t.field("breed").name() == "breed");
 }
 
-TEST_CASE("object: field() returns field_view via type()", "[object][field_query]") {
+TEST_CASE("type_instance: field() returns field_view via type()", "[type_instance][field_query]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 100);
@@ -129,7 +129,7 @@ TEST_CASE("hybrid: field().has_default() returns false", "[type_def][hybrid][fie
     REQUIRE(t.field("name").has_default() == false);
 }
 
-TEST_CASE("object: field_view has_default() false", "[object][field_query]") {
+TEST_CASE("type_instance: field_view has_default() false", "[type_instance][field_query]") {
     auto t = type_def("Event")
         .field<std::string>("title");
     auto obj = t.create();
@@ -157,7 +157,7 @@ TEST_CASE("dynamic: field() throws for unknown name", "[type_def][dynamic][field
     REQUIRE_THROWS_AS(t.field("nonexistent"), std::logic_error);
 }
 
-TEST_CASE("object: field() throws for unknown name", "[object][field_query][throw]") {
+TEST_CASE("type_instance: field() throws for unknown name", "[type_instance][field_query][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -182,7 +182,7 @@ TEST_CASE("dynamic: field() throws on empty type_def", "[type_def][dynamic][fiel
     REQUIRE_THROWS_AS(t.field("anything"), std::logic_error);
 }
 
-TEST_CASE("object: field() throws on empty type_def", "[object][field_query][throw]") {
+TEST_CASE("type_instance: field() throws on empty type_def", "[type_instance][field_query][throw]") {
     auto t = type_def("Empty");
     auto obj = t.create();
     REQUIRE_THROWS_AS(obj.type().field("anything"), std::logic_error);

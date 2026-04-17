@@ -17,7 +17,7 @@
 | test_type_def.cpp | 76 | ✅ migrated |
 | test_hybrid_type_def.cpp | 36 | ✅ migrated |
 | test_dynamic_type_def.cpp | 31 | ✅ migrated |
-| test_object.cpp | 22 | ✅ migrated |
+| test_type_instance.cpp | 22 | ✅ migrated |
 | **Total** | **165** | |
 
 ## Destination files
@@ -242,38 +242,38 @@
 
 ---
 
-## test_object.cpp (22 tests) — ✅ ALL MIGRATED
+## test_type_instance.cpp (22 tests) — ✅ ALL MIGRATED
 
 ### → test_schema_queries.cpp
-- [x] `object type() returns the backing type_def`
+- [x] `type_instancetype() returns the backing type_def`
 
 ### → test_has_field.cpp
-- [x] `object has() for existing field`
-- [x] `object has() for missing field`
+- [x] `type_instancehas() for existing field`
+- [x] `type_instancehas() for missing field`
 
 ### → test_for_each.cpp
-- [x] `object for_each() iterates all fields`
-- [x] `object for_each() provides typed access via field_value`
-- [x] `object for_each() on empty type_def`
+- [x] `type_instancefor_each() iterates all fields`
+- [x] `type_instancefor_each() provides typed access via field_value`
+- [x] `type_instancefor_each() on empty type_def`
 
 ### → test_set_get.cpp
-- [x] `object set() with matching type`
-- [x] `object set() with const char* to string field`
-- [x] `object set() overwrites existing values`
-- [x] `object get() returns value`
-- [x] `object get() round-trips with set()`
+- [x] `type_instanceset() with matching type`
+- [x] `type_instanceset() with const char* to string field`
+- [x] `type_instanceset() overwrites existing values`
+- [x] `type_instanceget() returns value`
+- [x] `type_instanceget() round-trips with set()`
 
 ### → test_create.cpp
-- [x] `object construction from type_def`
-- [x] `object constructed via create()`
-- [x] `object has default values from type_def`
-- [x] `object fields without defaults get default-constructed values`
-- [x] `multiple objects from same type_def are independent`
-- [x] `object full integration`
+- [x] `type_instanceconstruction from type_def`
+- [x] `type_instanceconstructed via create()`
+- [x] `type_instancehas default values from type_def`
+- [x] `type_instancefields without defaults get default-constructed values`
+- [x] `multiple type_instances from same type_def are independent`
+- [x] `type_instancefull integration`
 
 ### → test_throws.cpp
-- [x] `object set() throws for unknown field`
-- [x] `object set() throws for type mismatch`
-- [x] `object set() does not modify field on type mismatch`
-- [x] `object get() throws for unknown field`
-- [x] `object get() throws for type mismatch`
+- [x] `type_instanceset() throws for unknown field`
+- [x] `type_instanceset() throws for type mismatch`
+- [x] `type_instanceset() does not modify field on type mismatch`
+- [x] `type_instanceget() throws for unknown field`
+- [x] `type_instanceget() throws for type mismatch`

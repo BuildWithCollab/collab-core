@@ -32,7 +32,7 @@ TEST_CASE("dynamic: has_field()", "[type_def][dynamic][has_field]") {
     REQUIRE(!t.has_field(""));
 }
 
-TEST_CASE("object: has_field() via type()", "[object][has_field]") {
+TEST_CASE("type_instance: has_field() via type()", "[type_instance][has_field]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count");
@@ -153,10 +153,10 @@ TEST_CASE("dynamic: has_field() on empty type_def", "[type_def][dynamic][has_fie
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// object has()
+// type_instance has()
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("object: has() for existing field", "[object][has]") {
+TEST_CASE("type_instance: has() for existing field", "[type_instance][has]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -164,7 +164,7 @@ TEST_CASE("object: has() for existing field", "[object][has]") {
     REQUIRE(obj.has("count"));
 }
 
-TEST_CASE("object: has() for missing field", "[object][has]") {
+TEST_CASE("type_instance: has() for missing field", "[type_instance][has]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -172,7 +172,7 @@ TEST_CASE("object: has() for missing field", "[object][has]") {
     REQUIRE(!obj.has("nope"));
 }
 
-TEST_CASE("object: has() returns false for empty string", "[object][has]") {
+TEST_CASE("type_instance: has() returns false for empty string", "[type_instance][has]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -180,7 +180,7 @@ TEST_CASE("object: has() returns false for empty string", "[object][has]") {
     REQUIRE(!obj.has(""));
 }
 
-TEST_CASE("object: has() is case-sensitive", "[object][has]") {
+TEST_CASE("type_instance: has() is case-sensitive", "[type_instance][has]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -189,7 +189,7 @@ TEST_CASE("object: has() is case-sensitive", "[object][has]") {
     REQUIRE(!obj.has("Count"));
 }
 
-TEST_CASE("object: has() finds all fields in multi-field type", "[object][has]") {
+TEST_CASE("type_instance: has() finds all fields in multi-field type", "[type_instance][has]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count")
@@ -201,7 +201,7 @@ TEST_CASE("object: has() finds all fields in multi-field type", "[object][has]")
     REQUIRE(obj.has("active") == true);
 }
 
-TEST_CASE("object: has() rejects meta-name strings", "[object][has]") {
+TEST_CASE("type_instance: has() rejects meta-name strings", "[type_instance][has]") {
     auto t = type_def("Event")
         .meta<endpoint_info>({.path = "/e"})
         .field<int>("count");

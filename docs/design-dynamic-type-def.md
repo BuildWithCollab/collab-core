@@ -1,4 +1,4 @@
-# Design: Dynamic type_def + object
+# Design: Dynamic type_def + type_instance
 
 > **Status:** approved in chat (2026-04-16)
 > **Depends on:** existing `type_def<T>` (fully static, already implemented)
@@ -167,15 +167,15 @@ event_t.for_each_field(fn);                        // fn(auto& field_def)
 ### Create
 
 ```cpp
-event_t.create();                                  // object with defaults applied
+event_t.create();                                  // type_instance with defaults applied
 ```
 
 ---
 
-## object — instance of a dynamic type_def
+## type_instance — instance of a dynamic type_def
 
 ```cpp
-object party(event_t);
+type_instance party(event_t);
 
 // Set (no template needed — type_def knows the field's type)
 party.set("title", std::string("Dog Party"));     // bool — true
@@ -216,7 +216,7 @@ party.for_each([](std::string_view name, auto& value) {
 4. **Type-level metas go before fields** — mirrors the typed struct convention.
 5. **`set()` needs no template** — the type_def already knows the field's type, checks `is_constructible`.
 6. **`get<T>()` needs a template** — C++ needs to know the return type.
-7. **`.create()` returns T or object** — typed/hybrid returns the struct, dynamic returns an object.
+7. **`.create()` returns T or type_instance** — typed/hybrid returns the struct, dynamic returns a type_instance.
 8. **`with<>` reused from the typed path** — same concept, same name, consistent DSL.
 
 ---
@@ -238,17 +238,17 @@ Build the dynamic `type_def` with construction and schema queries. No instance o
 - Type-erased field storage internally (std::any for defaults and meta values)
 - Tests for all of the above
 
-### Step 2: object — dynamic instances
+### Step 2: type_instance — dynamic instances
 
-Build `object` backed by a dynamic `type_def`.
+Build `type_instance` backed by a dynamic `type_def`.
 
-- `object(const type_def&)` constructor — copies defaults
+- `type_instance(const type_def&)` constructor — copies defaults
 - `.set(name, value)` — type-checked, returns bool
 - `.get<T>(name)` — returns `optional<T>`
 - `.has(name)`
 - `.type()` — const ref to backing type_def
 - `.for_each(fn)`
-- `.create()` on dynamic type_def — returns object with defaults
+- `.create()` on dynamic type_def — returns type_instance with defaults
 - Tests for all of the above
 
 ### Step 3: Hybrid type_def<T> — register + decorate

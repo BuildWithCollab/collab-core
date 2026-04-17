@@ -22,7 +22,7 @@ TEST_CASE("dynamic: has_meta()", "[type_def][dynamic][has_meta]") {
     REQUIRE(!t.has_meta<help_info>());
 }
 
-TEST_CASE("object: has_meta()", "[object][has_meta]") {
+TEST_CASE("type_instance: has_meta()", "[type_instance][has_meta]") {
     auto t = type_def("Event")
         .meta<endpoint_info>({.path = "/e"})
         .field<int>("x");
@@ -120,7 +120,7 @@ TEST_CASE("dynamic: meta()", "[type_def][dynamic][meta]") {
     REQUIRE(std::string_view{ep.method} == "POST");
 }
 
-TEST_CASE("object: meta()", "[object][meta]") {
+TEST_CASE("type_instance: meta()", "[type_instance][meta]") {
     auto t = type_def("Event")
         .meta<endpoint_info>({.path = "/e"})
         .field<int>("x");
@@ -225,7 +225,7 @@ TEST_CASE("dynamic: meta_count()", "[type_def][dynamic][meta_count]") {
     REQUIRE(t.meta_count<endpoint_info>() == 0);
 }
 
-TEST_CASE("object: meta_count()", "[object][meta_count]") {
+TEST_CASE("type_instance: meta_count()", "[type_instance][meta_count]") {
     auto t = type_def("Event")
         .meta<tag_info>({.value = "a"})
         .meta<tag_info>({.value = "b"})
@@ -278,7 +278,7 @@ TEST_CASE("dynamic: metas()", "[type_def][dynamic][metas]") {
     REQUIRE(std::string_view{tags[1].value} == "b");
 }
 
-TEST_CASE("object: metas()", "[object][metas]") {
+TEST_CASE("type_instance: metas()", "[type_instance][metas]") {
     auto t = type_def("Event")
         .meta<tag_info>({.value = "a"})
         .meta<tag_info>({.value = "b"})

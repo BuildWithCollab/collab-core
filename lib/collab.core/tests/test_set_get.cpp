@@ -35,7 +35,7 @@ TEST_CASE("hybrid: set() with matching type", "[type_def][hybrid][set]") {
     REQUIRE(rex.age == 3);
 }
 
-TEST_CASE("object: set() with matching type", "[object][set]") {
+TEST_CASE("type_instance: set() with matching type", "[type_instance][set]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count");
@@ -67,7 +67,7 @@ TEST_CASE("hybrid: set() with const char* to string field", "[type_def][hybrid][
     REQUIRE(rex.name == "Rex");
 }
 
-TEST_CASE("object: set() with const char* to string field", "[object][set]") {
+TEST_CASE("type_instance: set() with const char* to string field", "[type_instance][set]") {
     auto t = type_def("Event")
         .field<std::string>("title");
     auto obj = t.create();
@@ -99,7 +99,7 @@ TEST_CASE("hybrid: set() overwrites existing values", "[type_def][hybrid][set]")
     REQUIRE(rex.name == "Buddy");
 }
 
-TEST_CASE("object: set() overwrites existing values", "[object][set]") {
+TEST_CASE("type_instance: set() overwrites existing values", "[type_instance][set]") {
     auto t = type_def("Event")
         .field<std::string>("title", std::string("First"));
     auto obj = t.create();
@@ -149,7 +149,7 @@ TEST_CASE("hybrid: set() on struct with meta members (MultiTagDog)", "[type_def]
     REQUIRE(std::string_view{dog.tag1->value} == "pet");
 }
 
-TEST_CASE("object: set() works on type_def with metas", "[object][set]") {
+TEST_CASE("type_instance: set() works on type_def with metas", "[type_instance][set]") {
     auto t = type_def("Event")
         .meta<endpoint_info>({.path = "/events"})
         .field<std::string>("title")
@@ -291,7 +291,7 @@ TEST_CASE("hybrid: get<T>() returns value", "[type_def][hybrid][get_typed]") {
     REQUIRE(t.get<int>(rex, "age") == 3);
 }
 
-TEST_CASE("object: get() returns value", "[object][get]") {
+TEST_CASE("type_instance: get() returns value", "[type_instance][get]") {
     auto t = type_def("Event")
         .field<std::string>("title", std::string("Dog Party"))
         .field<int>("count", 42);
@@ -358,7 +358,7 @@ TEST_CASE("hybrid: get<T>() round-trips with set()", "[type_def][hybrid][get_typ
     REQUIRE(t.get<std::string>(rex, "breed") == "Husky");
 }
 
-TEST_CASE("object: get() round-trips with set()", "[object][get][set]") {
+TEST_CASE("type_instance: get() round-trips with set()", "[type_instance][get][set]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count")
@@ -388,7 +388,7 @@ TEST_CASE("hybrid: get<V>() on const instance", "[type_def][hybrid][get_typed]")
     REQUIRE(t.get<std::string>(cref, "name") == "Rex");
 }
 
-TEST_CASE("object: get<V>() on const instance", "[object][get_typed]") {
+TEST_CASE("type_instance: get<V>() on const instance", "[type_instance][get_typed]") {
     auto t = type_def("Event")
         .field<int>("count", 42);
     auto obj = t.create();
@@ -490,7 +490,7 @@ TEST_CASE("hybrid: full integration", "[type_def][hybrid][integration]") {
     REQUIRE_THROWS_AS(dog_t.get<int>(rex, "name"), std::logic_error);
 }
 
-TEST_CASE("object: full set/get integration", "[object][set][get][integration]") {
+TEST_CASE("type_instance: full set/get integration", "[type_instance][set][get][integration]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count")
@@ -532,7 +532,7 @@ TEST_CASE("hybrid: set() throws for unknown field", "[type_def][hybrid][set][thr
     REQUIRE_THROWS_AS(t.set(rex, "nope", 42), std::logic_error);
 }
 
-TEST_CASE("object: set() throws for unknown field", "[object][set][throw]") {
+TEST_CASE("type_instance: set() throws for unknown field", "[type_instance][set][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -543,7 +543,7 @@ TEST_CASE("object: set() throws for unknown field", "[object][set][throw]") {
 // set() throws for empty string field name
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("object: set() throws for empty string field name", "[object][set][throw]") {
+TEST_CASE("type_instance: set() throws for empty string field name", "[type_instance][set][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -566,7 +566,7 @@ TEST_CASE("hybrid: set() throws for empty string field name", "[type_def][hybrid
 // get<V>() throws for empty string field name
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("object: get<V>() throws for empty string field name", "[object][get][throw]") {
+TEST_CASE("type_instance: get<V>() throws for empty string field name", "[type_instance][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -621,7 +621,7 @@ TEST_CASE("hybrid: set() throws for type mismatch", "[type_def][hybrid][set][thr
     REQUIRE_THROWS_AS(t.set(rex, "name", 42), std::logic_error);
 }
 
-TEST_CASE("object: set() throws for type mismatch", "[object][set][throw]") {
+TEST_CASE("type_instance: set() throws for type mismatch", "[type_instance][set][throw]") {
     auto t = type_def("Event")
         .field<std::string>("title");
     auto obj = t.create();
@@ -650,7 +650,7 @@ TEST_CASE("hybrid: set() does not modify field on type mismatch", "[type_def][hy
     REQUIRE(rex.name == "Untouched");
 }
 
-TEST_CASE("object: set() does not modify field on type mismatch", "[object][set][throw]") {
+TEST_CASE("type_instance: set() does not modify field on type mismatch", "[type_instance][set][throw]") {
     auto t = type_def("Event")
         .field<std::string>("title", std::string("Original"));
     auto obj = t.create();
@@ -697,7 +697,7 @@ TEST_CASE("hybrid: get<V>() throws for unknown field", "[type_def][hybrid][get_t
     REQUIRE_THROWS_AS(t.get<std::string>(rex, "nope"), std::logic_error);
 }
 
-TEST_CASE("object: get<V>() throws for unknown field", "[object][get][throw]") {
+TEST_CASE("type_instance: get<V>() throws for unknown field", "[type_instance][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count");
     auto obj = t.create();
@@ -723,7 +723,7 @@ TEST_CASE("hybrid: get<V>() throws for type mismatch", "[type_def][hybrid][get_t
     REQUIRE_THROWS_AS(t.get<std::string>(rex, "age"), std::logic_error);
 }
 
-TEST_CASE("object: get<V>() throws for type mismatch", "[object][get][throw]") {
+TEST_CASE("type_instance: get<V>() throws for type mismatch", "[type_instance][get][throw]") {
     auto t = type_def("Event")
         .field<int>("count", 42);
     auto obj = t.create();

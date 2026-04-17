@@ -21,7 +21,7 @@ TEST_CASE("hybrid: create()", "[type_def][hybrid][create]") {
     REQUIRE(dog.age == 0);
 }
 
-TEST_CASE("object: constructed via create()", "[object][create]") {
+TEST_CASE("type_instance: constructed via create()", "[type_instance][create]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 100);
@@ -43,7 +43,7 @@ TEST_CASE("typed: create() preserves field defaults", "[type_def][typed][create]
     REQUIRE(d.breed.value.empty());
 }
 
-TEST_CASE("object: has default values from type_def", "[object][create][defaults]") {
+TEST_CASE("type_instance: has default values from type_def", "[type_instance][create][defaults]") {
     auto t = type_def("Event")
         .field<int>("count", 100)
         .field<std::string>("title", std::string("Untitled"));
@@ -72,7 +72,7 @@ TEST_CASE("hybrid: create() result is mutable and works with set", "[type_def][h
     REQUIRE(t.get<std::string>(dog, "name") == "Buddy");
 }
 
-TEST_CASE("object: create() result is mutable and works with set", "[object][create]") {
+TEST_CASE("type_instance: create() result is mutable and works with set", "[type_instance][create]") {
     auto t = type_def("Event")
         .field<std::string>("title");
     auto obj = t.create();
@@ -84,7 +84,7 @@ TEST_CASE("object: create() result is mutable and works with set", "[object][cre
 // Fields without defaults get default-constructed values
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("object: fields without defaults get default-constructed values", "[object][create][defaults]") {
+TEST_CASE("type_instance: fields without defaults get default-constructed values", "[type_instance][create][defaults]") {
     auto t = type_def("Event")
         .field<int>("count")
         .field<std::string>("title");
@@ -97,11 +97,11 @@ TEST_CASE("object: fields without defaults get default-constructed values", "[ob
 // Construction from type_def
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("object: construction from type_def", "[object][create]") {
+TEST_CASE("type_instance: construction from type_def", "[type_instance][create]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 100);
-    object obj(t);
+    type_instance obj(t);
     REQUIRE(obj.type().name() == "Event");
     REQUIRE(obj.get<int>("count") == 100);
 }
@@ -118,7 +118,7 @@ TEST_CASE("typed: create() on meta-only struct", "[type_def][typed][create][meta
     REQUIRE(t.field_count() == 0);
 }
 
-TEST_CASE("object: create() on meta-only type_def", "[object][create][meta]") {
+TEST_CASE("type_instance: create() on meta-only type_def", "[type_instance][create][meta]") {
     auto t = type_def("Health")
         .meta<endpoint_info>({.path = "/health"});
     auto obj = t.create();
@@ -165,7 +165,7 @@ TEST_CASE("hybrid: multiple instances are independent", "[type_def][hybrid][crea
     REQUIRE(t.get<int>(b, "age") == 3);
 }
 
-TEST_CASE("object: multiple objects from same type_def are independent", "[object][create][independence]") {
+TEST_CASE("type_instance: multiple objects from same type_def are independent", "[type_instance][create][independence]") {
     auto t = type_def("Event")
         .field<std::string>("title", std::string("Default"))
         .field<int>("count", 0);
@@ -189,7 +189,7 @@ TEST_CASE("object: multiple objects from same type_def are independent", "[objec
 // Full integration
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("object: full integration", "[object][integration]") {
+TEST_CASE("type_instance: full integration", "[type_instance][integration]") {
     auto event_t = type_def("Event")
         .meta<endpoint_info>({.path = "/events"})
         .meta<help_info>({.summary = "An event"})

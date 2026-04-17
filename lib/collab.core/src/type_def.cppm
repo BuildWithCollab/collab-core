@@ -382,7 +382,7 @@ public:
 
 class field_value {
     std::any* value_;
-    friend class object;
+    friend class type_instance;
     explicit field_value(std::any* v) : value_(v) {}
 
 public:
@@ -409,7 +409,7 @@ public:
 
 class const_field_value {
     const std::any* value_;
-    friend class object;
+    friend class type_instance;
     explicit const_field_value(const std::any* v) : value_(v) {}
 
 public:
@@ -740,14 +740,14 @@ public:
 // Dynamic type_def — runtime builder, no backing struct
 // ═══════════════════════════════════════════════════════════════════════
 
-// Forward declaration for object (defined below)
-class object;
+// Forward declaration for type_instance (defined below)
+class type_instance;
 
 // ── type_def<dynamic_tag> — the non-templated dynamic type_def ───────────
 
 template <>
 class type_def<dynamic_tag> {
-    friend class object;
+    friend class type_instance;
 
     std::string                           name_;
     std::vector<detail::dynamic_field_def> fields_;
@@ -874,7 +874,7 @@ public:
 
     // ── Create instance ─────────────────────────────────────────────
 
-    object create() const;
+    type_instance create() const;
 };
 
 // ── CTAD: type_def("Event") deduces to type_def<dynamic_tag> ─────────────
@@ -883,10 +883,10 @@ type_def(const char*) -> type_def<dynamic_tag>;
 type_def(std::string_view) -> type_def<dynamic_tag>;
 
 // ═══════════════════════════════════════════════════════════════════════
-// object — instance of a dynamic type_def
+// type_instance — instance of a dynamic type_def
 // ═══════════════════════════════════════════════════════════════════════
 
-class object {
+class type_instance {
     const type_def<dynamic_tag>* type_;
     std::vector<std::any>        values_;
 
@@ -898,7 +898,7 @@ class object {
     }
 
 public:
-    explicit object(const type_def<dynamic_tag>& t) : type_(&t) {
+    explicit type_instance(const type_def<dynamic_tag>& t) : type_(&t) {
         values_.reserve(t.fields_.size());
         for (auto& fd : t.fields_) {
             if (fd.has_default)
@@ -915,7 +915,7 @@ public:
         int idx = find_field_index(name);
         if (idx < 0)
             throw std::logic_error(
-                "object (type '" + std::string(type_->name_) +
+                "type_instance (type '" + std::string(type_->name_) +
                 "'): no field named '" + std::string(name) + "'");
         auto& fd = type_->fields_[idx];
         std::any wrapped(std::forward<V>(value));
@@ -927,7 +927,7 @@ public:
             if (fd.setter(values_[idx], std::move(str))) return;
         }
         throw std::logic_error(
-            "object (type '" + std::string(type_->name_) +
+            "type_instance (type '" + std::string(type_->name_) +
             "'): field '" + std::string(name) + "' type mismatch");
     }
 
@@ -938,12 +938,12 @@ public:
         int idx = find_field_index(name);
         if (idx < 0)
             throw std::logic_error(
-                "object (type '" + std::string(type_->name_) +
+                "type_instance (type '" + std::string(type_->name_) +
                 "'): no field named '" + std::string(name) + "'");
         if (auto* p = std::any_cast<V>(&values_[idx]))
             return *p;
         throw std::logic_error(
-            "object (type '" + std::string(type_->name_) +
+            "type_instance (type '" + std::string(type_->name_) +
             "'): field '" + std::string(name) + "' type mismatch");
     }
 
@@ -982,8 +982,8 @@ public:
 
 // ── type_def<dynamic_tag>::create() ──────────────────────────────────────
 
-inline object type_def<dynamic_tag>::create() const {
-    return object(*this);
+inline type_instance type_def<dynamic_tag>::create() const {
+    return type_instance(*this);
 }
 
 }  // namespace collab::model

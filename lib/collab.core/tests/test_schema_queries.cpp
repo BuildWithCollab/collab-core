@@ -41,7 +41,7 @@ TEST_CASE("dynamic: name() with different names", "[type_def][dynamic][name]") {
     REQUIRE(type_def("").name() == "");
 }
 
-TEST_CASE("object: name()", "[object][name]") {
+TEST_CASE("type_instance: name()", "[type_instance][name]") {
     auto t = type_def("Event")
         .field<int>("x");
     auto obj = t.create();
@@ -115,7 +115,7 @@ TEST_CASE("dynamic: field_count() ignores type-level metas", "[type_def][dynamic
     REQUIRE(t.field_count() == 1);
 }
 
-TEST_CASE("object: field_count()", "[object][field_count]") {
+TEST_CASE("type_instance: field_count()", "[type_instance][field_count]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count");
@@ -193,7 +193,7 @@ TEST_CASE("dynamic: field_names() empty", "[type_def][dynamic][field_names]") {
     REQUIRE(type_def("Empty").field_names().empty());
 }
 
-TEST_CASE("object: field_names()", "[object][field_names]") {
+TEST_CASE("type_instance: field_names()", "[type_instance][field_names]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count");
@@ -291,10 +291,10 @@ TEST_CASE("dynamic: two type_def instances behave identically", "[type_def][dyna
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// type() access (object)
+// type() access (type_instance)
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("object: type() returns the backing type_def", "[object][type]") {
+TEST_CASE("type_instance: type() returns the backing type_def", "[type_instance][type]") {
     auto t = type_def("Event")
         .meta<endpoint_info>({.path = "/events"})
         .field<std::string>("title")

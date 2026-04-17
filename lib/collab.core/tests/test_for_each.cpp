@@ -50,7 +50,7 @@ TEST_CASE("hybrid: for_each() iterates registered fields with typed refs", "[typ
     REQUIRE(names[2] == "breed");
 }
 
-TEST_CASE("object: for_each() iterates all fields", "[object][for_each]") {
+TEST_CASE("type_instance: for_each() iterates all fields", "[type_instance][for_each]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 100);
@@ -113,7 +113,7 @@ TEST_CASE("hybrid: for_each() provides real typed values", "[type_def][hybrid][f
     REQUIRE(found_age == 3);
 }
 
-TEST_CASE("object: for_each() provides typed access via field_value", "[object][for_each]") {
+TEST_CASE("type_instance: for_each() provides typed access via field_value", "[type_instance][for_each]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count");
@@ -166,7 +166,7 @@ TEST_CASE("hybrid: for_each() provides mutable access", "[type_def][hybrid][for_
     REQUIRE(rex.name == "Buddy");
 }
 
-TEST_CASE("object: for_each() provides mutable access via field_value", "[object][for_each]") {
+TEST_CASE("type_instance: for_each() provides mutable access via field_value", "[type_instance][for_each]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 0);
@@ -266,7 +266,7 @@ TEST_CASE("hybrid: for_each on empty hybrid calls nothing", "[type_def][hybrid][
     REQUIRE(count == 0);
 }
 
-TEST_CASE("object: for_each() on empty type_def", "[object][for_each]") {
+TEST_CASE("type_instance: for_each() on empty type_def", "[type_instance][for_each]") {
     auto t = type_def("Empty");
     auto obj = t.create();
 
@@ -311,7 +311,7 @@ TEST_CASE("hybrid: for_each() with const instance", "[type_def][hybrid][for_each
     REQUIRE(found_name == "Rex");
 }
 
-TEST_CASE("object: for_each() with const object", "[object][for_each]") {
+TEST_CASE("type_instance: for_each() with const type_instance", "[type_instance][for_each]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 42);
@@ -501,7 +501,7 @@ TEST_CASE("dynamic: for_each_field() empty", "[type_def][dynamic][for_each_field
     REQUIRE(count == 0);
 }
 
-TEST_CASE("object: for_each_field() via type()", "[object][for_each_field]") {
+TEST_CASE("type_instance: for_each_field() via type()", "[type_instance][for_each_field]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 0);
@@ -585,7 +585,7 @@ TEST_CASE("dynamic: for_each_field() can query field metas", "[type_def][dynamic
     REQUIRE(verbose_flag == 'v');
 }
 
-TEST_CASE("object: for_each_field() can query field metas via type()", "[object][for_each_field]") {
+TEST_CASE("type_instance: for_each_field() can query field metas via type()", "[type_instance][for_each_field]") {
     auto t = type_def("CLI")
         .field<std::string>("query")
         .field<bool>("verbose", false,
