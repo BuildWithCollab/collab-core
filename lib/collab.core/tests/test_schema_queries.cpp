@@ -230,7 +230,7 @@ TEST_CASE("typed: type_def<T> without hybrid still works", "[type_def][hybrid][c
     rex.age = 3;
 
     std::string found_name;
-    t.for_each(rex, [&](std::string_view name, auto& value) {
+    t.for_each_field(rex, [&](std::string_view name, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>)
             if (name == "name") found_name = value;
     });

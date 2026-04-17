@@ -68,7 +68,7 @@ concept type_definition = requires(const T& t, std::string_view sv) {
 //   dog_t.field_count();              // 3
 //   dog_t.has_meta<endpoint_info>();  // true
 //   dog_t.meta<endpoint_info>().path; // "/dogs"
-//   dog_t.for_each(rex, [](std::string_view name, auto& value) { ... });
+//   dog_t.for_each_field(rex, [](std::string_view name, auto& value) { ... });
 
 namespace detail {
 
@@ -602,14 +602,14 @@ public:
         return detail::extract_all_metas<const T, M>(instance, indices_{});
     }
 
-    // ── Instance iteration ──────────────────────────────────────────
+    // ── Instance field iteration ────────────────────────────────────
     //
     // Callback signature: fn(std::string_view name, auto& value)
     // Auto-discovered field<> members give typed references.
     // Hybrid-registered fields also give real typed references.
 
     template <typename F>
-    void for_each(T& obj, F&& fn) const {
+    void for_each_field(T& obj, F&& fn) const {
         detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
         std::apply([&](const auto&... regs) {
             (fn(std::string_view(regs.name), obj.*(regs.member)), ...);
@@ -617,7 +617,7 @@ public:
     }
 
     template <typename F>
-    void for_each(const T& obj, F&& fn) const {
+    void for_each_field(const T& obj, F&& fn) const {
         detail::for_each_field_value(obj, std::forward<F>(fn), indices_{});
         std::apply([&](const auto&... regs) {
             (fn(std::string_view(regs.name), obj.*(regs.member)), ...);
@@ -1000,14 +1000,14 @@ public:
 
     const type_def<dynamic_tag>& type() const { return *type_; }
 
-    // ── Iteration ────────────────────────────────────────────────────
+    // ── Field iteration ─────────────────────────────────────────────
     //
     // Callback receives (std::string_view name, const_field_value value)
     // or (std::string_view name, field_value value).
     // Access typed values via value.as<T>() or value.try_as<T>().
 
     template <typename F>
-    void for_each(F&& fn) const {
+    void for_each_field(F&& fn) const {
         auto& fields = type_->fields_;
         for (std::size_t i = 0; i < fields.size(); ++i)
             fn(std::string_view(fields[i].name),
@@ -1015,7 +1015,7 @@ public:
     }
 
     template <typename F>
-    void for_each(F&& fn) {
+    void for_each_field(F&& fn) {
         auto& fields = type_->fields_;
         for (std::size_t i = 0; i < fields.size(); ++i)
             fn(std::string_view(fields[i].name),

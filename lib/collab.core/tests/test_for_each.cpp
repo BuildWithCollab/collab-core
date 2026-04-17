@@ -11,17 +11,17 @@ struct cli_meta_fe {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// for_each iterates fields with name and value
+// for_each_field iterates fields with name and value
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("typed: for_each iterates field<> members with name and value", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field iterates field<> members with name and value", "[type_def][typed][for_each_field]") {
     SimpleArgs args;
     args.name = "Alice";
     args.age = 30;
     args.active = true;
 
     std::vector<std::string> collected_names;
-    type_def<SimpleArgs>{}.for_each(args, [&](std::string_view name, auto& value) {
+    type_def<SimpleArgs>{}.for_each_field(args, [&](std::string_view name, auto& value) {
         collected_names.emplace_back(name);
     });
 
@@ -31,7 +31,7 @@ TEST_CASE("typed: for_each iterates field<> members with name and value", "[type
     REQUIRE(collected_names[2] == "active");
 }
 
-TEST_CASE("hybrid: for_each() iterates registered fields with typed refs", "[type_def][hybrid][for_each]") {
+TEST_CASE("hybrid: for_each_field() iterates registered fields with typed refs", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name")
         .field(&PlainDog::age, "age")
@@ -40,7 +40,7 @@ TEST_CASE("hybrid: for_each() iterates registered fields with typed refs", "[typ
     PlainDog rex{"Rex", 3, "Husky"};
 
     std::vector<std::string> names;
-    t.for_each(rex, [&](std::string_view name, auto& value) {
+    t.for_each_field(rex, [&](std::string_view name, auto& value) {
         names.emplace_back(name);
     });
 
@@ -50,7 +50,7 @@ TEST_CASE("hybrid: for_each() iterates registered fields with typed refs", "[typ
     REQUIRE(names[2] == "breed");
 }
 
-TEST_CASE("type_instance: for_each() iterates all fields", "[type_instance][for_each]") {
+TEST_CASE("type_instance: for_each_field() iterates all fields", "[type_instance][for_each_field]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 100);
@@ -58,7 +58,7 @@ TEST_CASE("type_instance: for_each() iterates all fields", "[type_instance][for_
     obj.set("title", std::string("Party"));
 
     std::vector<std::string> names;
-    obj.for_each([&](std::string_view name, field_value) {
+    obj.for_each_field([&](std::string_view name, field_value) {
         names.emplace_back(name);
     });
 
@@ -68,10 +68,10 @@ TEST_CASE("type_instance: for_each() iterates all fields", "[type_instance][for_
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// for_each provides typed value access
+// for_each_field provides typed value access
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("typed: for_each provides access to field values", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field provides access to field values", "[type_def][typed][for_each_field]") {
     SimpleArgs args;
     args.name = "Bob";
     args.age = 25;
@@ -80,7 +80,7 @@ TEST_CASE("typed: for_each provides access to field values", "[type_def][typed][
     std::string found_name;
     int found_age = 0;
 
-    type_def<SimpleArgs>{}.for_each(args, [&](std::string_view name, auto& value) {
+    type_def<SimpleArgs>{}.for_each_field(args, [&](std::string_view name, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
             if (name == "name") found_name = value;
         } else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
@@ -92,7 +92,7 @@ TEST_CASE("typed: for_each provides access to field values", "[type_def][typed][
     REQUIRE(found_age == 25);
 }
 
-TEST_CASE("hybrid: for_each() provides real typed values", "[type_def][hybrid][for_each]") {
+TEST_CASE("hybrid: for_each_field() provides real typed values", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name")
         .field(&PlainDog::age, "age");
@@ -101,7 +101,7 @@ TEST_CASE("hybrid: for_each() provides real typed values", "[type_def][hybrid][f
 
     std::string found_name;
     int found_age = 0;
-    t.for_each(rex, [&](std::string_view name, auto& value) {
+    t.for_each_field(rex, [&](std::string_view name, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
             if (name == "name") found_name = value;
         } else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
@@ -113,7 +113,7 @@ TEST_CASE("hybrid: for_each() provides real typed values", "[type_def][hybrid][f
     REQUIRE(found_age == 3);
 }
 
-TEST_CASE("type_instance: for_each() provides typed access via field_value", "[type_instance][for_each]") {
+TEST_CASE("type_instance: for_each_field() provides typed access via field_value", "[type_instance][for_each_field]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count");
@@ -123,7 +123,7 @@ TEST_CASE("type_instance: for_each() provides typed access via field_value", "[t
 
     std::string found_title;
     int found_count = 0;
-    obj.for_each([&](std::string_view name, field_value value) {
+    obj.for_each_field([&](std::string_view name, field_value value) {
         if (name == "title")
             found_title = value.as<std::string>();
         if (name == "count")
@@ -135,14 +135,14 @@ TEST_CASE("type_instance: for_each() provides typed access via field_value", "[t
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// for_each provides mutable access
+// for_each_field provides mutable access
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("typed: for_each provides mutable value access", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field provides mutable value access", "[type_def][typed][for_each_field]") {
     SimpleArgs args;
     args.name = "Original";
 
-    type_def<SimpleArgs>{}.for_each(args, [](std::string_view name, auto& value) {
+    type_def<SimpleArgs>{}.for_each_field(args, [](std::string_view name, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
             value = "Changed";
         }
@@ -151,13 +151,13 @@ TEST_CASE("typed: for_each provides mutable value access", "[type_def][typed][fo
     REQUIRE(args.name.value == "Changed");
 }
 
-TEST_CASE("hybrid: for_each() provides mutable access", "[type_def][hybrid][for_each]") {
+TEST_CASE("hybrid: for_each_field() provides mutable access", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
 
     PlainDog rex{"Rex", 3, "Husky"};
 
-    t.for_each(rex, [](std::string_view name, auto& value) {
+    t.for_each_field(rex, [](std::string_view name, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
             value = "Buddy";
         }
@@ -166,7 +166,7 @@ TEST_CASE("hybrid: for_each() provides mutable access", "[type_def][hybrid][for_
     REQUIRE(rex.name == "Buddy");
 }
 
-TEST_CASE("type_instance: for_each() provides mutable access via field_value", "[type_instance][for_each]") {
+TEST_CASE("type_instance: for_each_field() provides mutable access via field_value", "[type_instance][for_each_field]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 0);
@@ -174,7 +174,7 @@ TEST_CASE("type_instance: for_each() provides mutable access via field_value", "
     obj.set("title", std::string("Before"));
     obj.set("count", 10);
 
-    obj.for_each([&](std::string_view name, field_value value) {
+    obj.for_each_field([&](std::string_view name, field_value value) {
         if (name == "title")
             value.as<std::string>() = "After";
         if (name == "count")
@@ -186,17 +186,17 @@ TEST_CASE("type_instance: for_each() provides mutable access via field_value", "
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// for_each skips meta/plain members
+// for_each_field skips meta/plain members
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("typed: for_each skips meta<> members", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field skips meta<> members", "[type_def][typed][for_each_field]") {
     Dog rex;
     rex.name = "Rex";
     rex.age = 3;
     rex.breed = "Husky";
 
     std::vector<std::string> names;
-    type_def<Dog>{}.for_each(rex, [&](std::string_view name, auto&) {
+    type_def<Dog>{}.for_each_field(rex, [&](std::string_view name, auto&) {
         names.emplace_back(name);
     });
 
@@ -206,14 +206,14 @@ TEST_CASE("typed: for_each skips meta<> members", "[type_def][typed][for_each]")
     REQUIRE(names[2] == "breed");
 }
 
-TEST_CASE("hybrid: for_each skips meta members", "[type_def][hybrid][for_each]") {
+TEST_CASE("hybrid: for_each_field(instance) skips meta members", "[type_def][hybrid][for_each_field]") {
     type_def<MetaDog> t;
     MetaDog rex;
     rex.name = "Rex";
     rex.age = 3;
 
     std::vector<std::string> names;
-    t.for_each(rex, [&](std::string_view name, auto&) {
+    t.for_each_field(rex, [&](std::string_view name, auto&) {
         names.emplace_back(name);
     });
 
@@ -225,14 +225,14 @@ TEST_CASE("hybrid: for_each skips meta members", "[type_def][hybrid][for_each]")
     }
 }
 
-TEST_CASE("typed: for_each skips plain members", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field skips plain members", "[type_def][typed][for_each_field]") {
     MixedStruct ms;
     ms.label = "hello";
     ms.counter = 999;
     ms.score = 42;
 
     std::vector<std::string> names;
-    type_def<MixedStruct>{}.for_each(ms, [&](std::string_view name, auto&) {
+    type_def<MixedStruct>{}.for_each_field(ms, [&](std::string_view name, auto&) {
         names.emplace_back(name);
     });
 
@@ -242,44 +242,44 @@ TEST_CASE("typed: for_each skips plain members", "[type_def][typed][for_each]") 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// for_each on empty/meta-only
+// for_each_field on empty/meta-only
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("typed: for_each on meta-only struct calls nothing", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field on meta-only struct calls nothing", "[type_def][typed][for_each_field]") {
     MetaOnly mo;
 
     int count = 0;
-    type_def<MetaOnly>{}.for_each(mo, [&](std::string_view, auto&) {
+    type_def<MetaOnly>{}.for_each_field(mo, [&](std::string_view, auto&) {
         ++count;
     });
 
     REQUIRE(count == 0);
 }
 
-TEST_CASE("hybrid: for_each on empty hybrid calls nothing", "[type_def][hybrid][for_each]") {
+TEST_CASE("hybrid: for_each_field on empty hybrid calls nothing", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>();
 
     PlainDog rex{"Rex", 3, "Husky"};
 
     int count = 0;
-    t.for_each(rex, [&](std::string_view, auto&) { ++count; });
+    t.for_each_field(rex, [&](std::string_view, auto&) { ++count; });
     REQUIRE(count == 0);
 }
 
-TEST_CASE("type_instance: for_each() on empty type_def", "[type_instance][for_each]") {
+TEST_CASE("type_instance: for_each_field() on empty type_def", "[type_instance][for_each_field]") {
     auto t = type_def("Empty");
     auto obj = t.create();
 
     int count = 0;
-    obj.for_each([&](std::string_view, field_value) { ++count; });
+    obj.for_each_field([&](std::string_view, field_value) { ++count; });
     REQUIRE(count == 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// for_each with const instance
+// for_each_field with const instance
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("typed: for_each with const instance", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field with const instance", "[type_def][typed][for_each_field]") {
     SimpleArgs args;
     args.name = "Const";
     args.age = 99;
@@ -287,14 +287,14 @@ TEST_CASE("typed: for_each with const instance", "[type_def][typed][for_each]") 
     const SimpleArgs& cargs = args;
 
     std::vector<std::string> names;
-    type_def<SimpleArgs>{}.for_each(cargs, [&](std::string_view name, const auto&) {
+    type_def<SimpleArgs>{}.for_each_field(cargs, [&](std::string_view name, const auto&) {
         names.emplace_back(name);
     });
 
     REQUIRE(names.size() == 3);
 }
 
-TEST_CASE("hybrid: for_each() with const instance", "[type_def][hybrid][for_each]") {
+TEST_CASE("hybrid: for_each_field() with const instance", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name")
         .field(&PlainDog::age, "age");
@@ -302,7 +302,7 @@ TEST_CASE("hybrid: for_each() with const instance", "[type_def][hybrid][for_each
     const PlainDog rex{"Rex", 3, "Husky"};
 
     std::string found_name;
-    t.for_each(rex, [&](std::string_view name, const auto& value) {
+    t.for_each_field(rex, [&](std::string_view name, const auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
             if (name == "name") found_name = value;
         }
@@ -311,14 +311,14 @@ TEST_CASE("hybrid: for_each() with const instance", "[type_def][hybrid][for_each
     REQUIRE(found_name == "Rex");
 }
 
-TEST_CASE("type_instance: for_each() with const type_instance", "[type_instance][for_each]") {
+TEST_CASE("type_instance: for_each_field() with const type_instance", "[type_instance][for_each_field]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 42);
     const auto obj = t.create();
 
     std::vector<std::string> names;
-    obj.for_each([&](std::string_view name, const_field_value) {
+    obj.for_each_field([&](std::string_view name, const_field_value) {
         names.emplace_back(name);
     });
 
@@ -328,10 +328,10 @@ TEST_CASE("type_instance: for_each() with const type_instance", "[type_instance]
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// for_each count matches field_count
+// for_each_field count matches field_count
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("hybrid: for_each() count matches field_count()", "[type_def][hybrid][for_each]") {
+TEST_CASE("hybrid: for_each_field(instance) count matches field_count()", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name")
         .field(&PlainDog::age, "age")
@@ -340,22 +340,22 @@ TEST_CASE("hybrid: for_each() count matches field_count()", "[type_def][hybrid][
     PlainDog rex{"Rex", 3, "Husky"};
 
     int visited = 0;
-    t.for_each(rex, [&](std::string_view, auto&) { ++visited; });
+    t.for_each_field(rex, [&](std::string_view, auto&) { ++visited; });
     REQUIRE(visited == static_cast<int>(t.field_count()));
 }
 
-TEST_CASE("typed: for_each count matches field_count()", "[type_def][typed][for_each]") {
+TEST_CASE("typed: for_each_field(instance) count matches field_count()", "[type_def][typed][for_each_field]") {
     SimpleArgs args;
     args.name = "Alice";
     args.age = 30;
     args.active = true;
 
     int visited = 0;
-    type_def<SimpleArgs>{}.for_each(args, [&](std::string_view, auto&) { ++visited; });
+    type_def<SimpleArgs>{}.for_each_field(args, [&](std::string_view, auto&) { ++visited; });
     REQUIRE(visited == static_cast<int>(type_def<SimpleArgs>{}.field_count()));
 }
 
-TEST_CASE("dynamic: for_each count matches field_count()", "[type_def][dynamic][for_each]") {
+TEST_CASE("dynamic: for_each_field(instance) count matches field_count()", "[type_def][dynamic][for_each_field]") {
     auto t = type_def("Event")
         .field<std::string>("title")
         .field<int>("count", 0)
@@ -363,7 +363,7 @@ TEST_CASE("dynamic: for_each count matches field_count()", "[type_def][dynamic][
     auto obj = t.create();
 
     int visited = 0;
-    obj.for_each([&](std::string_view, field_value) { ++visited; });
+    obj.for_each_field([&](std::string_view, field_value) { ++visited; });
     REQUIRE(obj.type().field_count() == 3);
     REQUIRE(visited == static_cast<int>(obj.type().field_count()));
 }

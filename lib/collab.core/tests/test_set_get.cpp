@@ -436,7 +436,7 @@ TEST_CASE("typed: CliArgs integration — fields, metas, and extensions", "[type
 
     // for_each to read query
     std::string query_val;
-    t.for_each(args, [&](std::string_view name, auto& value) {
+    t.for_each_field(args, [&](std::string_view name, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
             if (name == "query") query_val = value;
         }

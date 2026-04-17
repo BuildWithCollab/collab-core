@@ -26,7 +26,7 @@ export namespace collab::model {
 
 // ── to_json ────────────────────────────────────────────────────────────
 //
-// Serializes a reflected_struct to JSON via type_def<T>.for_each().
+// Serializes a reflected_struct to JSON via type_def<T>.for_each_field().
 // Only field<> members are visited; non-field members are skipped.
 // Nested reflected_structs recurse automatically.
 
@@ -88,7 +88,7 @@ namespace detail {
             return obj;
         } else if constexpr (reflected_struct<T>) {
             nlohmann::json j = nlohmann::json::object();
-            collab::model::type_def<T>{}.for_each(v, [&](std::string_view name, const auto& value) {
+            collab::model::type_def<T>{}.for_each_field(v, [&](std::string_view name, const auto& value) {
                 j[std::string(name)] = value_to_json(value);
             });
             return j;
