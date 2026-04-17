@@ -19,40 +19,51 @@ This TODO exists because a previous agent silently decided that type mismatches 
 
 ---
 
-## 💀 Silent error swallowing — previous agent decisions made without consulting Purr
+## ~~💀 Silent error swallowing~~ ✅ FIXED
 
-Purr's position: this is a schema, not a container. Programmer errors must surface immediately. `has_field()` and `has_meta()` exist for the query case.
+All 12 silent error paths now throw `std::logic_error` with descriptive messages. 28 Catch2 tests verify exception type + message content. `set()` returns void, `get<V>()` returns V (not optional). Commit `a362814`.
 
-### Unchecked `std::any_cast` dereferences — actual UB
+---
 
-- [ ] **`field_view::default_value<V>()`** — dereferences `any_cast` result without null check. Wrong type = nullptr deref.
-- [ ] **`field_view::meta<M>()`** — unchecked deref when found. Returns `M{}` (default-constructed) when not found — error becomes invisible.
-- [ ] **`field_view::metas<M>()`** — unchecked deref inside the loop.
-- [ ] **`field_value::as<V>()` / `const_field_value::as<V>()`** — unconditional deref. `try_as()` exists as safe path but `as()` is a live footgun.
+## 💀 Test coverage is inconsistent across typed/hybrid/dynamic/object paths
 
-### Returns wrong data as fallback
+The four paths have wildly uneven test coverage. This needs to be reorganized so every path covers every applicable capability. Current gap analysis:
 
-- [ ] **`type_def<dynamic_tag>::field("nonexistent")`** — returns a `field_view` pointing at the **first field** when name not found. Code silently operates on the wrong field. Source comment says *"A real implementation might throw"*. 💀
+| Capability | Typed | Hybrid | Dynamic | Object |
+|---|---|---|---|---|
+| name() | ✅ 2 | ✅ 1 | ✅ 2 | via type() |
+| field_count() | ✅ 5 | ✅ 1 | ✅ 3 | via type() |
+| field_names() | ✅ 3 | ✅ 1 | ✅ 2 | — |
+| has_field() | ✅ 6 | ✅ 1 | ✅ 1 | — |
+| field() query | ✅ 3 | ✅ 1 | ✅ 4 | — |
+| has_meta() | ✅ 4 | **0** 💀 | ✅ 2 | — |
+| meta() | ✅ 3 | **0** 💀 | ✅ 3 | — |
+| meta_count() | ✅ 3 | **0** 💀 | ✅ 1 | — |
+| metas() | ✅ 2 | **0** 💀 | ✅ 1 | — |
+| for_each(instance) | ✅ 7 | ✅ 5 | — | ✅ 3 |
+| for_each_field() | ✅ 3 | ✅ 5 | ✅ 3 | — |
+| for_each_meta() | ✅ 5 | ✅ 2 | **0** (removed) | — |
+| get() callback | ✅ 5 | ✅ 2 | n/a | n/a |
+| get<V>() | ✅ 5 | ✅ 4 | n/a | ✅ 4 |
+| set() | ✅ 11 | ✅ 7 | n/a | ✅ 7 |
+| create() | ✅ 3 | ✅ 1 | n/a | ✅ 2 |
+| field-level metas | ✅ 3 | ✅ 4 | ✅ 4 | — |
+| defaults | — | — | ✅ 3 | ✅ 2 |
+| edge cases | ✅ 3 | **0** 💀 | **0** 💀 | — |
 
-### Default-constructed values masking errors
+**Key problems:**
+- Hybrid has **zero** type-level meta tests (has_meta, meta, meta_count, metas) despite supporting them
+- has_field() coverage: typed has 6 cases (unknown names, meta names, plain members, edge cases), hybrid has 1, dynamic has 1
+- Edge cases only tested on typed path — single-field struct, meta-only struct, etc. not tested elsewhere
+- Test files are organized by path (test_type_def, test_hybrid_type_def, test_dynamic_type_def, test_object) which makes it invisible when one path is missing coverage that another has
 
-- [ ] **`type_def<dynamic_tag>::meta<M>()`** — returns `M{}` when meta not found. Valid-looking object with default values. Completely invisible failure.
-
-### Silent `false`/`nullopt` conflating different errors
-
-- [ ] **`object::set()`** — returns `false` for field-not-found, type-mismatch, AND setter-rejection. All three indistinguishable.
-- [ ] **`object::get<V>()`** — returns `nullopt` for field-not-found AND type-mismatch. Can't tell which.
-- [ ] **`type_def<T>::set()`** — same silent `false` pattern on the typed side.
-- [ ] **`type_def<T>::get()` (callback version)** — returns `false`, callback silently never runs.
-- [ ] **`type_def<T>::get<V>()` (optional version)** — `nullopt` for two different failure modes.
-- [ ] **Dynamic setter lambdas** — return `false` on `any_cast` failure, indistinguishable from field-not-found.
+**Proposed fix:** Reorganize tests so coverage is consistent. Options include parameterized tests, a shared test matrix, or splitting by capability instead of by path. Needs design discussion with Purr.
 
 ---
 
 ## 🔥 API gaps
 
 - [ ] **Dynamic `for_each_meta(fn)` missing** — removed because it leaked `std::any`. Needs reimpl with a wrapper type (like `field_value` wraps field data). Typed path has it, dynamic doesn't. Note: typed path also has an *instance* overload (`type_def<Dog>{}.for_each_meta(rex, callback)`) — dynamic equivalent presumably needed too.
-- [ ] **Hybrid mode has very thin test coverage** — only `schema_summary()`, `has_field()`, and `field().name()` tested in `test_type_schema.cpp`. No tests for `get()`, `set()`, `for_each()`, `create()`, or meta operations on hybrid type_defs.
 - [ ] **Namespace cleanup** — move internal symbols into `collab::model::detail`. Public surface: `type_def`, `type_definition`, `field`, `with`, `meta`, `type_instance`, `to_json`, `to_json_string`. Everything else is `detail`.
 - [ ] **Non-PFR registration** — `reflect_on<T>()` and `field_info<T>(...)` need a home (`detail` or sub-namespace).
 - [ ] **`dynamic_tag`** leaks into public API (`type_def<dynamic_tag>` in static_assert).
