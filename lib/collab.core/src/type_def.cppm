@@ -49,8 +49,9 @@ concept type_definition = requires(const T& t, std::string_view sv) {
     { t.template meta<detail::concept_sentinel_meta>() } -> std::same_as<detail::concept_sentinel_meta>;
     { t.template meta_count<detail::concept_sentinel_meta>() } -> std::convertible_to<std::size_t>;
     { t.template metas<detail::concept_sentinel_meta>() } -> std::same_as<std::vector<detail::concept_sentinel_meta>>;
-    // Field iteration (schema-only)
+    // Schema iteration
     t.for_each_field([](auto) {});
+    t.for_each_meta([](auto) {});
     // Create instance
     t.create();
 };
