@@ -1244,3 +1244,215 @@ TEST_CASE("dynamic to_json: metas are not serialized", "[to_json][dynamic][meta]
     REQUIRE(!j.contains("endpoint"));
     REQUIRE(!j.contains("path"));
 }
+
+TEST_CASE("dynamic to_json: set after create reflects updated value", "[to_json][dynamic]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Original"));
+    auto obj = t.create();
+
+    obj.set("title", std::string("Updated"));
+
+    REQUIRE(obj.to_json()["title"] == "Updated");
+}
+
+TEST_CASE("dynamic to_json_string: round-trip parse matches to_json", "[to_json][dynamic][string]") {
+    auto t = type_def("Event")
+        .field<std::string>("title", std::string("Party"))
+        .field<int>("count", 42);
+    auto obj = t.create();
+
+    auto from_string = json::parse(obj.to_json_string());
+    auto from_method = obj.to_json();
+
+    REQUIRE(from_string == from_method);
+}
+
+TEST_CASE("dynamic to_json_string: empty type produces empty object string", "[to_json][dynamic][string]") {
+    auto t = type_def("Empty");
+    auto obj = t.create();
+
+    REQUIRE(obj.to_json_string() == "{}");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Hybrid to_json — structs with meta<> + field<> members
+// ═════════════════════════════════════════════════════════════════════════
+//
+// These use the shared model types from test_model_types.hpp (Dog,
+// MetaDog, MixedStruct, etc.) which have meta<> members that must
+// NOT appear in JSON output.
+
+struct hjson_endpoint_info {
+    const char* path   = "";
+    const char* method = "GET";
+};
+
+struct hjson_help_info {
+    const char* summary = "";
+};
+
+struct HJsonDog {
+    meta<hjson_endpoint_info> endpoint{{.path = "/dogs", .method = "POST"}};
+    meta<hjson_help_info>     help{{.summary = "A good boy"}};
+
+    field<std::string>  name;
+    field<int>          age;
+    field<std::string>  breed;
+};
+
+struct HJsonMixed {
+    meta<hjson_help_info>  help{{.summary = "mixed test"}};
+
+    field<std::string> label;
+    int                counter = 0;
+    field<int>         score;
+};
+
+struct HJsonMetaOnly {
+    meta<hjson_endpoint_info> endpoint{{.path = "/health", .method = "GET"}};
+    meta<hjson_help_info>     help{{.summary = "health check"}};
+};
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<HJsonDog>() {
+    return collab::model::field_info<HJsonDog>("endpoint", "help", "name", "age", "breed");
+}
+
+template <>
+constexpr auto collab::model::struct_info<HJsonMixed>() {
+    return collab::model::field_info<HJsonMixed>("help", "label", "counter", "score");
+}
+
+template <>
+constexpr auto collab::model::struct_info<HJsonMetaOnly>() {
+    return collab::model::field_info<HJsonMetaOnly>("endpoint", "help");
+}
+#endif
+
+TEST_CASE("hybrid to_json: struct with metas — only fields serialized", "[to_json][hybrid][meta]") {
+    HJsonDog d;
+    d.name = "Rex";
+    d.age = 3;
+    d.breed = "Husky";
+
+    auto j = to_json(d);
+
+    REQUIRE(j.size() == 3);
+    REQUIRE(j["name"] == "Rex");
+    REQUIRE(j["age"] == 3);
+    REQUIRE(j["breed"] == "Husky");
+    REQUIRE(!j.contains("endpoint"));
+    REQUIRE(!j.contains("help"));
+}
+
+TEST_CASE("hybrid to_json: mixed struct skips meta and plain members", "[to_json][hybrid][meta]") {
+    HJsonMixed ms;
+    ms.label = "hello";
+    ms.counter = 999;
+    ms.score = 42;
+
+    auto j = to_json(ms);
+
+    REQUIRE(j.size() == 2);
+    REQUIRE(j["label"] == "hello");
+    REQUIRE(j["score"] == 42);
+    REQUIRE(!j.contains("counter"));
+    REQUIRE(!j.contains("help"));
+}
+
+TEST_CASE("hybrid from_json: struct with metas — metas untouched", "[from_json][hybrid][meta]") {
+    auto j = json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}};
+    auto d = from_json<HJsonDog>(j);
+
+    REQUIRE(d.name.value == "Rex");
+    REQUIRE(d.age.value == 3);
+    REQUIRE(d.breed.value == "Husky");
+    REQUIRE(std::string_view{d.endpoint->path} == "/dogs");
+    REQUIRE(std::string_view{d.endpoint->method} == "POST");
+    REQUIRE(std::string_view{d.help->summary} == "A good boy");
+}
+
+TEST_CASE("hybrid from_json: missing keys preserve defaults, metas untouched", "[from_json][hybrid][meta]") {
+    auto j = json{{"name", "Rex"}};
+    auto d = from_json<HJsonDog>(j);
+
+    REQUIRE(d.name.value == "Rex");
+    REQUIRE(d.age.value == 0);
+    REQUIRE(d.breed.value.empty());
+    REQUIRE(std::string_view{d.endpoint->path} == "/dogs");
+}
+
+TEST_CASE("hybrid from_json: extra keys ignored, metas untouched", "[from_json][hybrid][meta]") {
+    auto j = json{{"name", "Rex"}, {"endpoint", "junk"}, {"help", 42}};
+    auto d = from_json<HJsonDog>(j);
+
+    REQUIRE(d.name.value == "Rex");
+    REQUIRE(std::string_view{d.endpoint->path} == "/dogs");
+}
+
+TEST_CASE("hybrid from_json: empty JSON gives defaults, metas untouched", "[from_json][hybrid][meta]") {
+    auto d = from_json<HJsonDog>(json::object());
+
+    REQUIRE(d.name.value.empty());
+    REQUIRE(d.age.value == 0);
+    REQUIRE(std::string_view{d.endpoint->path} == "/dogs");
+}
+
+TEST_CASE("hybrid from_json: throws on non-object", "[from_json][hybrid][throw]") {
+    REQUIRE_THROWS_AS(from_json<HJsonDog>(json(42)), std::logic_error);
+    REQUIRE_THROWS_AS(from_json<HJsonDog>(json::array()), std::logic_error);
+}
+
+TEST_CASE("hybrid from_json: throws on type mismatch", "[from_json][hybrid][throw]") {
+    auto j = json{{"name", 42}};
+    REQUIRE_THROWS_AS(from_json<HJsonDog>(j), std::logic_error);
+}
+
+TEST_CASE("hybrid round-trip: to_json then from_json preserves fields", "[json][hybrid][roundtrip]") {
+    HJsonDog original;
+    original.name = "Buddy";
+    original.age = 5;
+    original.breed = "Golden";
+
+    auto j = to_json(original);
+    auto restored = from_json<HJsonDog>(j);
+
+    REQUIRE(restored.name.value == "Buddy");
+    REQUIRE(restored.age.value == 5);
+    REQUIRE(restored.breed.value == "Golden");
+    REQUIRE(std::string_view{restored.endpoint->path} == "/dogs");
+}
+
+TEST_CASE("hybrid from_json: from JSON string", "[from_json][hybrid][string]") {
+    auto d = from_json<HJsonDog>(std::string(R"({"name":"Rex","age":3,"breed":"Husky"})"));
+
+    REQUIRE(d.name.value == "Rex");
+    REQUIRE(d.age.value == 3);
+}
+
+TEST_CASE("hybrid to_json_string: compact output", "[to_json][hybrid][string]") {
+    HJsonDog d;
+    d.name = "Rex";
+    d.age = 3;
+    d.breed = "Husky";
+
+    auto s = to_json_string(d);
+
+    auto j = json::parse(s);
+    REQUIRE(j["name"] == "Rex");
+    REQUIRE(s.find('\n') == std::string::npos);
+}
+
+TEST_CASE("hybrid to_json_string: pretty output", "[to_json][hybrid][string]") {
+    HJsonDog d;
+    d.name = "Rex";
+    d.age = 3;
+    d.breed = "Husky";
+
+    auto s = to_json_string(d, 2);
+
+    auto j = json::parse(s);
+    REQUIRE(j["name"] == "Rex");
+    REQUIRE(s.find('\n') != std::string::npos);
+}
