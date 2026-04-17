@@ -18,16 +18,6 @@ If a function is callable by a user of this library, **you do not get to decide 
 
 ---
 
-## 🧩 `type_definition` concept — needs more methods
-
-Currently checks: `name()`, `field_count()`, `field_names()`, `has_field()`, `field()`, `has_meta<M>()`, `meta<M>()`, `meta_count<M>()`, `metas<M>()`
-
-Still missing:
-- [ ] `for_each_field(fn)`
-- [ ] `create()` (different return types across modes — design question)
-
----
-
 ## 🧹 Cleanup
 
 - [ ] **MSVC `if constexpr` codegen workaround** — `field_indices_` (filtered index sequence) makes the `else if constexpr` branches in `try_set_field`/`try_get_field` dead code. Consider removing them.
