@@ -128,3 +128,11 @@ TEST_CASE("hybrid: field().has_default() returns false", "[type_def][hybrid][fie
         .field(&PlainDog::name, "name");
     REQUIRE(t.field("name").has_default() == false);
 }
+
+TEST_CASE("object: field_view has_default() false", "[object][field_query]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+    auto obj = t.create();
+
+    REQUIRE(obj.type().field("title").has_default() == false);
+}

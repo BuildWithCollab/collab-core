@@ -282,6 +282,18 @@ TEST_CASE("dynamic: field meta_count for absent meta", "[type_def][dynamic][fiel
     REQUIRE(t.field("verbose").meta_count<render_meta>() == 0);
 }
 
+TEST_CASE("object: field-level meta_count and metas via type()", "[object][field_meta]") {
+    auto t = type_def("CLI")
+        .field<bool>("verbose", false,
+            with<cli_meta>({.cli = {.short_flag = 'v'}}))
+        .field<std::string>("query");
+    auto obj = t.create();
+
+    REQUIRE(obj.type().field("verbose").meta_count<cli_meta>() == 1);
+    REQUIRE(obj.type().field("verbose").metas<cli_meta>()[0].cli.short_flag == 'v');
+    REQUIRE(obj.type().field("query").meta_count<cli_meta>() == 0);
+}
+
 TEST_CASE("object: field-level meta via type().field()", "[object][field_meta]") {
     auto t = type_def("CLI")
         .field<bool>("verbose", false,

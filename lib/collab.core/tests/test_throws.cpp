@@ -594,6 +594,22 @@ TEST_CASE("dynamic: field() throws for unknown name", "[type_def][dynamic][field
     }
 }
 
+TEST_CASE("object: field() throws for unknown name", "[object][field_query][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+
+    try {
+        obj.type().field("nonexistent");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("nonexistent") != std::string::npos);
+        REQUIRE(msg.find("Event") != std::string::npos);
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // field() throws on meta-only / empty struct
 // ═══════════════════════════════════════════════════════════════════════════
@@ -627,6 +643,20 @@ TEST_CASE("dynamic: field() throws on empty type_def", "[type_def][dynamic][fiel
 
     try {
         t.field("anything");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("anything") != std::string::npos);
+        REQUIRE(msg.find("Empty") != std::string::npos);
+    }
+}
+
+TEST_CASE("object: field() throws on empty type_def", "[object][field_query][throw]") {
+    auto t = type_def("Empty");
+    auto obj = t.create();
+
+    try {
+        obj.type().field("anything");
         FAIL("Expected std::logic_error");
     } catch (const std::logic_error& e) {
         std::string msg = e.what();
@@ -689,12 +719,77 @@ TEST_CASE("dynamic: field_view default_value throws when no default set", "[type
     }
 }
 
+TEST_CASE("typed: field_view default_value throws", "[type_def][typed][field_query][throw]") {
+    try {
+        type_def<SimpleArgs>{}.field("name").default_value<std::string>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("name") != std::string::npos);
+        REQUIRE(msg.find("default") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: field_view default_value throws", "[type_def][hybrid][field_query][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+
+    try {
+        t.field("name").default_value<std::string>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("name") != std::string::npos);
+        REQUIRE(msg.find("default") != std::string::npos);
+    }
+}
+
 TEST_CASE("dynamic: field_view meta() throws for absent meta", "[type_def][dynamic][field_meta][throw]") {
     auto t = type_def("Event")
         .field<std::string>("title");
 
     try {
         t.field("title").meta<cli_meta>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("title") != std::string::npos);
+        REQUIRE(msg.find("no meta") != std::string::npos);
+    }
+}
+
+TEST_CASE("typed: field_view meta() throws for absent meta", "[type_def][typed][field_meta][throw]") {
+    try {
+        type_def<CliArgs>{}.field("query").meta<cli_meta>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("query") != std::string::npos);
+        REQUIRE(msg.find("no meta") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: field_view meta() throws for absent meta", "[type_def][hybrid][field_meta][throw]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+
+    try {
+        t.field("name").meta<cli_meta>();
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("name") != std::string::npos);
+        REQUIRE(msg.find("no meta") != std::string::npos);
+    }
+}
+
+TEST_CASE("object: field_view meta() throws for absent meta", "[object][field_meta][throw]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+    auto obj = t.create();
+
+    try {
+        obj.type().field("title").meta<cli_meta>();
         FAIL("Expected std::logic_error");
     } catch (const std::logic_error& e) {
         std::string msg = e.what();

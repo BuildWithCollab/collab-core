@@ -32,6 +32,16 @@ TEST_CASE("dynamic: has_field()", "[type_def][dynamic][has_field]") {
     REQUIRE(!t.has_field(""));
 }
 
+TEST_CASE("object: has_field() via type()", "[object][has_field]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count");
+    auto obj = t.create();
+
+    REQUIRE(obj.type().has_field("title") == true);
+    REQUIRE(obj.type().has_field("nope") == false);
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // Rejects unknown names
 // ═════════════════════════════════════════════════════════════════════════

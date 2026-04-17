@@ -585,6 +585,27 @@ TEST_CASE("dynamic: for_each_field() can query field metas", "[type_def][dynamic
     REQUIRE(verbose_flag == 'v');
 }
 
+TEST_CASE("object: for_each_field() can query field metas via type()", "[object][for_each_field]") {
+    auto t = type_def("CLI")
+        .field<std::string>("query")
+        .field<bool>("verbose", false,
+            with<cli_meta>({.cli = {.short_flag = 'v'}}));
+    auto obj = t.create();
+
+    bool verbose_has_cli = false;
+    bool query_has_cli = true;
+
+    obj.type().for_each_field([&](field_view fd) {
+        if (fd.name() == "verbose")
+            verbose_has_cli = fd.has_meta<cli_meta>();
+        if (fd.name() == "query")
+            query_has_cli = fd.has_meta<cli_meta>();
+    });
+
+    REQUIRE(verbose_has_cli);
+    REQUIRE(!query_has_cli);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each_field count matches
 // ═══════════════════════════════════════════════════════════════════════════
