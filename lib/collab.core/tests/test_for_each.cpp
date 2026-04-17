@@ -280,6 +280,29 @@ TEST_CASE("hybrid: for_each() count matches field_count()", "[type_def][hybrid][
     REQUIRE(visited == static_cast<int>(t.field_count()));
 }
 
+TEST_CASE("typed: for_each count matches field_count()", "[type_def][typed][for_each]") {
+    SimpleArgs args;
+    args.name = "Alice";
+    args.age = 30;
+    args.active = true;
+
+    int visited = 0;
+    type_def<SimpleArgs>{}.for_each(args, [&](std::string_view, auto&) { ++visited; });
+    REQUIRE(visited == static_cast<int>(type_def<SimpleArgs>{}.field_count()));
+}
+
+TEST_CASE("dynamic: for_each count matches field_count()", "[type_def][dynamic][for_each]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count", 0)
+        .field<bool>("active", true);
+    auto obj = t.create();
+
+    int visited = 0;
+    obj.for_each([&](std::string_view, field_value) { ++visited; });
+    REQUIRE(visited == 3);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each_field iterates field descriptors
 // ═══════════════════════════════════════════════════════════════════════════
@@ -356,6 +379,37 @@ TEST_CASE("typed: for_each_field skips meta members", "[type_def][typed][for_eac
     REQUIRE(names[1] == "score");
 }
 
+TEST_CASE("hybrid: for_each_field skips meta members", "[type_def][hybrid][for_each_field]") {
+    type_def<MetaDog> t;
+
+    std::vector<std::string> names;
+    t.for_each_field([&](auto descriptor) {
+        names.emplace_back(descriptor.name());
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    // "help" (meta member) must not appear
+    for (auto& n : names) {
+        REQUIRE(n != "help");
+    }
+}
+
+TEST_CASE("dynamic: for_each_field skips meta members", "[type_def][dynamic][for_each_field]") {
+    auto t = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
+        .field<std::string>("title");
+
+    std::vector<std::string> names;
+    t.for_each_field([&](field_view fd) {
+        names.emplace_back(fd.name());
+    });
+
+    REQUIRE(names.size() == 1);
+    REQUIRE(names[0] == "title");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each_field on empty
 // ═══════════════════════════════════════════════════════════════════════════
@@ -385,6 +439,25 @@ TEST_CASE("dynamic: for_each_field() empty", "[type_def][dynamic][for_each_field
 // ═══════════════════════════════════════════════════════════════════════════
 // for_each_field can query field metas
 // ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: for_each_field can query field metas", "[type_def][typed][for_each_field]") {
+    bool verbose_has_cli = false;
+    bool query_has_cli = true;
+
+    type_def<CliArgs>{}.for_each_field([&](auto descriptor) {
+        if constexpr (requires { descriptor.index(); }) {
+            if (descriptor.name() == "verbose") {
+                verbose_has_cli = descriptor.template has_meta<cli_meta>();
+            }
+            if (descriptor.name() == "query") {
+                query_has_cli = descriptor.template has_meta<cli_meta>();
+            }
+        }
+    });
+
+    REQUIRE(verbose_has_cli);
+    REQUIRE(!query_has_cli);
+}
 
 TEST_CASE("hybrid: for_each_field() can query field metas", "[type_def][hybrid][for_each_field]") {
     auto t = type_def<PlainDog>()
@@ -525,6 +598,25 @@ TEST_CASE("hybrid: for_each_meta() on struct with metas", "[type_def][hybrid][fo
     int count = 0;
     t.for_each_meta([&](auto&) { ++count; });
     REQUIRE(count == 1);
+}
+
+TEST_CASE("hybrid: for_each_meta iterates meta values", "[type_def][hybrid][for_each_meta]") {
+    type_def<MetaDog> t;
+
+    int count = 0;
+    bool found_help = false;
+
+    t.for_each_meta([&](auto& meta_value) {
+        ++count;
+        using M = std::remove_cvref_t<decltype(meta_value)>;
+        if constexpr (std::is_same_v<M, help_info>) {
+            REQUIRE(std::string_view{meta_value.summary} == "A dog");
+            found_help = true;
+        }
+    });
+
+    REQUIRE(count == 1);
+    REQUIRE(found_help);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

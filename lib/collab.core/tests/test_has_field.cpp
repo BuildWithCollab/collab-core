@@ -42,6 +42,20 @@ TEST_CASE("typed: has_field() returns false for unknown names", "[type_def][type
     REQUIRE(!t.has_field("Name"));
 }
 
+TEST_CASE("hybrid: has_field() returns false for unknown names", "[type_def][hybrid][has_field]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    REQUIRE(!t.has_field("nope"));
+    REQUIRE(!t.has_field(""));
+}
+
+TEST_CASE("dynamic: has_field() returns false for unknown names", "[type_def][dynamic][has_field]") {
+    auto t = type_def("Event")
+        .field<int>("x");
+    REQUIRE(!t.has_field("nope"));
+    REQUIRE(!t.has_field(""));
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // Rejects meta member names
 // ═════════════════════════════════════════════════════════════════════════
@@ -80,6 +94,20 @@ TEST_CASE("typed: has_field() on single-field struct", "[type_def][typed][has_fi
     REQUIRE(!t.has_field("other"));
 }
 
+TEST_CASE("hybrid: has_field() on single-field struct", "[type_def][hybrid][has_field]") {
+    auto t = type_def<PlainPoint>()
+        .field(&PlainPoint::x, "x");
+    REQUIRE(t.has_field("x"));
+    REQUIRE(!t.has_field("y"));
+}
+
+TEST_CASE("dynamic: has_field() on single-field struct", "[type_def][dynamic][has_field]") {
+    auto t = type_def("Thing")
+        .field<int>("value");
+    REQUIRE(t.has_field("value"));
+    REQUIRE(!t.has_field("other"));
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // Meta-only struct
 // ═════════════════════════════════════════════════════════════════════════
@@ -88,6 +116,11 @@ TEST_CASE("typed: has_field() on meta-only struct", "[type_def][typed][has_field
     type_def<MetaOnly> t;
     REQUIRE(!t.has_field("endpoint"));
     REQUIRE(!t.has_field("help"));
+}
+
+TEST_CASE("dynamic: has_field() on empty type_def", "[type_def][dynamic][has_field]") {
+    auto t = type_def("Empty");
+    REQUIRE(!t.has_field("anything"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

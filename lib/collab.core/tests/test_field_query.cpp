@@ -33,6 +33,26 @@ TEST_CASE("typed: field() works for each field", "[type_def][typed][field_query]
     REQUIRE(t.field("breed").name() == "breed");
 }
 
+TEST_CASE("hybrid: field() works for each field", "[type_def][hybrid][field_query]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+    REQUIRE(t.field("name").name() == "name");
+    REQUIRE(t.field("age").name() == "age");
+    REQUIRE(t.field("breed").name() == "breed");
+}
+
+TEST_CASE("dynamic: field() works for each field", "[type_def][dynamic][field_query]") {
+    auto t = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count")
+        .field<bool>("active");
+    REQUIRE(t.field("title").name() == "title");
+    REQUIRE(t.field("count").name() == "count");
+    REQUIRE(t.field("active").name() == "active");
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // field_view has_default()
 // ═════════════════════════════════════════════════════════════════════════
@@ -79,6 +99,18 @@ TEST_CASE("typed: single field struct field access", "[type_def][typed][field_qu
         }
     });
     REQUIRE(got == 42);
+}
+
+TEST_CASE("hybrid: single field struct field access", "[type_def][hybrid][field_query]") {
+    auto t = type_def<PlainPoint>()
+        .field(&PlainPoint::x, "x");
+    REQUIRE(t.field("x").name() == "x");
+}
+
+TEST_CASE("dynamic: single field struct field access", "[type_def][dynamic][field_query]") {
+    auto t = type_def("Thing")
+        .field<int>("value");
+    REQUIRE(t.field("value").name() == "value");
 }
 
 TEST_CASE("typed: default field values are accessible", "[type_def][typed][field_query]") {

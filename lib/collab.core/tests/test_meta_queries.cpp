@@ -10,6 +10,11 @@ TEST_CASE("typed: has_meta() detects present metas", "[type_def][typed][has_meta
     REQUIRE(t.has_meta<help_info>());
 }
 
+TEST_CASE("hybrid: has_meta() detects present metas", "[type_def][hybrid][has_meta]") {
+    type_def<MetaDog> t;
+    REQUIRE(t.has_meta<help_info>());
+}
+
 TEST_CASE("dynamic: has_meta()", "[type_def][dynamic][has_meta]") {
     auto t = type_def("Event")
         .meta<endpoint_info>({.path = "/events"});
@@ -25,6 +30,11 @@ TEST_CASE("typed: has_meta() returns false for absent metas", "[type_def][typed]
     type_def<Dog> t;
     REQUIRE(!t.has_meta<tag_info>());
     REQUIRE(!t.has_meta<cli_meta>());
+}
+
+TEST_CASE("hybrid: has_meta() returns false for absent metas", "[type_def][hybrid][has_meta]") {
+    type_def<MetaDog> t;
+    REQUIRE(!t.has_meta<endpoint_info>());
 }
 
 TEST_CASE("dynamic: has_meta() false when no metas", "[type_def][dynamic][has_meta]") {
@@ -53,6 +63,15 @@ TEST_CASE("typed: has_meta() works for multi-tagged struct", "[type_def][typed][
     REQUIRE(!t.has_meta<endpoint_info>());
 }
 
+TEST_CASE("dynamic: has_meta() works for multi-tagged", "[type_def][dynamic][has_meta]") {
+    auto t = type_def("MultiTag")
+        .meta<tag_info>({.value = "a"})
+        .meta<tag_info>({.value = "b"})
+        .meta<tag_info>({.value = "c"});
+    REQUIRE(t.has_meta<tag_info>());
+    REQUIRE(!t.has_meta<endpoint_info>());
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // meta() — returns the metadata value
 // ═══════════════════════════════════════════════════════════════════════════
@@ -62,6 +81,12 @@ TEST_CASE("typed: meta() returns the metadata value", "[type_def][typed][meta]")
     auto ep = t.meta<endpoint_info>();
     REQUIRE(std::string_view{ep.path} == "/dogs");
     REQUIRE(std::string_view{ep.method} == "POST");
+}
+
+TEST_CASE("hybrid: meta() returns the metadata value", "[type_def][hybrid][meta]") {
+    type_def<MetaDog> t;
+    auto h = t.meta<help_info>();
+    REQUIRE(std::string_view{h.summary} == "A dog");
 }
 
 TEST_CASE("dynamic: meta()", "[type_def][dynamic][meta]") {
@@ -80,6 +105,23 @@ TEST_CASE("typed: meta() returns different metadata types", "[type_def][typed][m
     type_def<Dog> t;
     auto h = t.meta<help_info>();
     REQUIRE(std::string_view{h.summary} == "A good boy");
+}
+
+TEST_CASE("hybrid: meta() returns different metadata types", "[type_def][hybrid][meta]") {
+    type_def<MetaDog> t;
+    auto h = t.meta<help_info>();
+    REQUIRE(std::string_view{h.summary} == "A dog");
+}
+
+TEST_CASE("dynamic: meta() returns different metadata types", "[type_def][dynamic][meta]") {
+    auto t = type_def("Multi")
+        .meta<endpoint_info>({.path = "/multi", .method = "PUT"})
+        .meta<help_info>({.summary = "multi endpoint"});
+    auto ep = t.meta<endpoint_info>();
+    REQUIRE(std::string_view{ep.path} == "/multi");
+    REQUIRE(std::string_view{ep.method} == "PUT");
+    auto h = t.meta<help_info>();
+    REQUIRE(std::string_view{h.summary} == "multi endpoint");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -117,6 +159,12 @@ TEST_CASE("typed: meta_count() is zero for no-meta struct", "[type_def][typed][m
     REQUIRE(type_def<SimpleArgs>{}.meta_count<endpoint_info>() == 0);
 }
 
+TEST_CASE("hybrid: meta_count()", "[type_def][hybrid][meta_count]") {
+    type_def<MetaDog> t;
+    REQUIRE(t.meta_count<help_info>() == 1);
+    REQUIRE(t.meta_count<endpoint_info>() == 0);
+}
+
 TEST_CASE("dynamic: meta_count()", "[type_def][dynamic][meta_count]") {
     auto t = type_def("Tagged")
         .meta<tag_info>({.value = "a"})
@@ -139,11 +187,24 @@ TEST_CASE("typed: metas() returns all metas of a given type", "[type_def][typed]
     REQUIRE(std::string_view{tags[2].value} == "good-boy");
 }
 
+TEST_CASE("hybrid: metas() returns all metas of a given type", "[type_def][hybrid][metas]") {
+    type_def<MetaDog> t;
+    auto helps = t.metas<help_info>();
+    REQUIRE(helps.size() == 1);
+}
+
 TEST_CASE("typed: metas() returns single-element vector for one meta", "[type_def][typed][metas]") {
     type_def<Dog> t;
     auto eps = t.metas<endpoint_info>();
     REQUIRE(eps.size() == 1);
     REQUIRE(std::string_view{eps[0].path} == "/dogs");
+}
+
+TEST_CASE("hybrid: metas() returns single-element vector", "[type_def][hybrid][metas]") {
+    type_def<MetaDog> t;
+    auto helps = t.metas<help_info>();
+    REQUIRE(helps.size() == 1);
+    REQUIRE(std::string_view{helps[0].summary} == "A dog");
 }
 
 TEST_CASE("dynamic: metas()", "[type_def][dynamic][metas]") {
@@ -156,12 +217,29 @@ TEST_CASE("dynamic: metas()", "[type_def][dynamic][metas]") {
     REQUIRE(std::string_view{tags[1].value} == "b");
 }
 
+TEST_CASE("dynamic: metas() returns single-element vector", "[type_def][dynamic][metas]") {
+    auto t = type_def("Single")
+        .meta<endpoint_info>({.path = "/single", .method = "GET"});
+    auto eps = t.metas<endpoint_info>();
+    REQUIRE(eps.size() == 1);
+    REQUIRE(std::string_view{eps[0].path} == "/single");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Meta-only struct
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("typed: meta-only struct has zero fields but metas work", "[type_def][typed][meta]") {
     type_def<MetaOnly> t;
+    REQUIRE(t.field_count() == 0);
+    REQUIRE(t.has_meta<endpoint_info>());
+    auto ep = t.meta<endpoint_info>();
+    REQUIRE(std::string_view{ep.path} == "/health");
+}
+
+TEST_CASE("dynamic: meta-only type_def has zero fields but metas work", "[type_def][dynamic][meta]") {
+    auto t = type_def("Health")
+        .meta<endpoint_info>({.path = "/health"});
     REQUIRE(t.field_count() == 0);
     REQUIRE(t.has_meta<endpoint_info>());
     auto ep = t.meta<endpoint_info>();

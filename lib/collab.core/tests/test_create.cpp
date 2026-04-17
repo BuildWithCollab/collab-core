@@ -61,6 +61,23 @@ TEST_CASE("typed: create() result is mutable and works with set", "[type_def][ty
     REQUIRE(t.get<std::string>(d, "name") == "Buddy");
 }
 
+TEST_CASE("hybrid: create() result is mutable and works with set", "[type_def][hybrid][create]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+    PlainDog dog = t.create();
+    t.set(dog, "name", std::string("Buddy"));
+    REQUIRE(t.get<std::string>(dog, "name") == "Buddy");
+}
+
+TEST_CASE("object: create() result is mutable and works with set", "[object][create]") {
+    auto t = type_def("Event")
+        .field<std::string>("title");
+    auto obj = t.create();
+    obj.set("title", std::string("Party"));
+    REQUIRE(obj.get<std::string>("title") == "Party");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Fields without defaults get default-constructed values
 // ═══════════════════════════════════════════════════════════════════════════
@@ -89,6 +106,37 @@ TEST_CASE("object: construction from type_def", "[object][create]") {
 // ═══════════════════════════════════════════════════════════════════════════
 // Multiple instances are independent
 // ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: multiple instances are independent", "[type_def][typed][create][independence]") {
+    type_def<SimpleArgs> t;
+    SimpleArgs a = t.create();
+    SimpleArgs b = t.create();
+
+    t.set(a, "name", std::string("Alice"));
+    t.set(a, "age", 30);
+
+    t.set(b, "name", std::string("Bob"));
+    t.set(b, "age", 25);
+
+    REQUIRE(t.get<std::string>(a, "name") == "Alice");
+    REQUIRE(t.get<int>(a, "age") == 30);
+    REQUIRE(t.get<std::string>(b, "name") == "Bob");
+    REQUIRE(t.get<int>(b, "age") == 25);
+}
+
+TEST_CASE("hybrid: multiple instances are independent", "[type_def][hybrid][create][independence]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age");
+    PlainDog a = t.create();
+    PlainDog b = t.create();
+
+    t.set(a, "name", std::string("Rex"));
+    t.set(b, "name", std::string("Fido"));
+
+    REQUIRE(t.get<std::string>(a, "name") == "Rex");
+    REQUIRE(t.get<std::string>(b, "name") == "Fido");
+}
 
 TEST_CASE("object: multiple objects from same type_def are independent", "[object][create][independence]") {
     auto t = type_def("Event")

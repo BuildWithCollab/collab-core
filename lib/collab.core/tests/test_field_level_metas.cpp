@@ -24,6 +24,67 @@ TEST_CASE("typed: for_each_field detects field-level metas", "[type_def][typed][
     REQUIRE(found_limit_render);
 }
 
+TEST_CASE("hybrid: for_each_field detects field-level metas", "[type_def][hybrid][field_meta]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name",
+            with<help_info>({.summary = "Dog's name"}))
+        .field(&PlainDog::age, "age",
+            with<render_meta>({.render = {.style = "bold", .width = 5}}))
+        .field(&PlainDog::breed, "breed");
+
+    bool name_has_help = false;
+    bool age_has_render = false;
+    bool breed_has_help = false;
+    bool breed_has_render = false;
+
+    t.for_each_field([&](auto descriptor) {
+        if (descriptor.name() == "name")
+            name_has_help = descriptor.template has_meta<help_info>();
+        if (descriptor.name() == "age")
+            age_has_render = descriptor.template has_meta<render_meta>();
+        if (descriptor.name() == "breed") {
+            breed_has_help = descriptor.template has_meta<help_info>();
+            breed_has_render = descriptor.template has_meta<render_meta>();
+        }
+    });
+
+    REQUIRE(name_has_help);
+    REQUIRE(age_has_render);
+    REQUIRE(!breed_has_help);
+    REQUIRE(!breed_has_render);
+}
+
+TEST_CASE("dynamic: for_each_field detects field-level metas", "[type_def][dynamic][field_meta]") {
+    auto t = type_def("CLI")
+        .field<std::string>("query")
+        .field<bool>("verbose", false,
+            with<cli_meta>({.cli = {.short_flag = 'v'}}))
+        .field<int>("limit", 10,
+            with<cli_meta>({.cli = {.short_flag = 'l'}}),
+            with<render_meta>({.render = {.style = "bold", .width = 10}}));
+
+    bool query_has_cli = true;
+    bool verbose_has_cli = false;
+    bool limit_has_cli = false;
+    bool limit_has_render = false;
+
+    t.for_each_field([&](auto descriptor) {
+        if (descriptor.name() == "query")
+            query_has_cli = descriptor.template has_meta<cli_meta>();
+        if (descriptor.name() == "verbose")
+            verbose_has_cli = descriptor.template has_meta<cli_meta>();
+        if (descriptor.name() == "limit") {
+            limit_has_cli = descriptor.template has_meta<cli_meta>();
+            limit_has_render = descriptor.template has_meta<render_meta>();
+        }
+    });
+
+    REQUIRE(!query_has_cli);
+    REQUIRE(verbose_has_cli);
+    REQUIRE(limit_has_cli);
+    REQUIRE(limit_has_render);
+}
+
 TEST_CASE("hybrid: field with meta", "[type_def][hybrid][field_meta]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name",
@@ -106,6 +167,44 @@ TEST_CASE("dynamic: field without meta returns false", "[type_def][dynamic][fiel
 // meta_count and metas on fields
 // ═════════════════════════════════════════════════════════════════════════
 
+TEST_CASE("typed: field meta_count and metas", "[type_def][typed][field_meta]") {
+    bool found_limit = false;
+    bool limit_has_cli = false;
+    bool limit_has_render = false;
+    char limit_short_flag = '\0';
+
+    type_def<CliArgs>{}.for_each_field([&](auto descriptor) {
+        if constexpr (requires { descriptor.index(); }) {
+            if (descriptor.name() == "limit") {
+                found_limit = true;
+                limit_has_cli = descriptor.template has_meta<cli_meta>();
+                limit_has_render = descriptor.template has_meta<render_meta>();
+                if constexpr (descriptor.template has_meta<cli_meta>()) {
+                    limit_short_flag = descriptor.template meta<cli_meta>().cli.short_flag;
+                }
+            }
+        }
+    });
+
+    REQUIRE(found_limit);
+    REQUIRE(limit_has_cli);
+    REQUIRE(limit_has_render);
+    REQUIRE(limit_short_flag == 'l');
+}
+
+TEST_CASE("hybrid: field meta_count and metas", "[type_def][hybrid][field_meta]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name",
+            with<tag_info>({.value = "a"}),
+            with<tag_info>({.value = "b"}));
+
+    REQUIRE(t.field("name").meta_count<tag_info>() == 2);
+    auto tags = t.field("name").metas<tag_info>();
+    REQUIRE(tags.size() == 2);
+    REQUIRE(std::string_view{tags[0].value} == "a");
+    REQUIRE(std::string_view{tags[1].value} == "b");
+}
+
 TEST_CASE("dynamic: field meta_count and metas", "[type_def][dynamic][field_meta]") {
     auto t = type_def("Event")
         .field<std::string>("title", std::string(""),
@@ -151,4 +250,18 @@ TEST_CASE("hybrid: for_each_field reads meta values", "[type_def][hybrid][field_
     });
 
     REQUIRE(summary == "Dog's name");
+}
+
+TEST_CASE("dynamic: for_each_field reads meta values", "[type_def][dynamic][field_meta]") {
+    auto t = type_def("CLI")
+        .field<bool>("verbose", false,
+            with<cli_meta>({.cli = {.short_flag = 'v'}}));
+
+    char short_flag = '\0';
+    t.for_each_field([&](auto descriptor) {
+        if (descriptor.name() == "verbose" && descriptor.template has_meta<cli_meta>())
+            short_flag = descriptor.template meta<cli_meta>().cli.short_flag;
+    });
+
+    REQUIRE(short_flag == 'v');
 }

@@ -89,6 +89,16 @@ TEST_CASE("typed: set() overwrites existing values", "[type_def][typed][set]") {
     REQUIRE(args.name.value == "Second");
 }
 
+TEST_CASE("hybrid: set() overwrites existing values", "[type_def][hybrid][set]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+
+    t.set(rex, "name", std::string("Rex"));
+    t.set(rex, "name", std::string("Buddy"));
+    REQUIRE(rex.name == "Buddy");
+}
+
 TEST_CASE("object: set() overwrites existing values", "[object][set]") {
     auto t = type_def("Event")
         .field<std::string>("title", std::string("First"));
@@ -115,6 +125,17 @@ TEST_CASE("typed: set() works on struct with metas", "[type_def][typed][set]") {
     REQUIRE(rex.breed.value == "Husky");
 }
 
+TEST_CASE("hybrid: set() works on struct with metas", "[type_def][hybrid][set]") {
+    MetaDog rex;
+    type_def<MetaDog> t;
+
+    t.set(rex, "name", std::string("Rex"));
+    t.set(rex, "age", 3);
+
+    REQUIRE(rex.name.value == "Rex");
+    REQUIRE(rex.age.value == 3);
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // get() callback finds field by name
 // ═════════════════════════════════════════════════════════════════════════
@@ -125,6 +146,22 @@ TEST_CASE("typed: get() finds field by name", "[type_def][typed][get]") {
 
     int found_value = 0;
     type_def<SimpleArgs>{}.get(args, "age", [&](std::string_view, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
+            found_value = value;
+        }
+    });
+
+    REQUIRE(found_value == 25);
+}
+
+TEST_CASE("hybrid: get() finds field by name", "[type_def][hybrid][get]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::age, "age");
+    PlainDog rex;
+    rex.age = 25;
+
+    int found_value = 0;
+    t.get(rex, "age", [&](std::string_view, auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
             found_value = value;
         }
@@ -150,6 +187,21 @@ TEST_CASE("typed: get() callback allows mutation", "[type_def][typed][get]") {
     REQUIRE(args.name.value == "Modified");
 }
 
+TEST_CASE("hybrid: get() callback allows mutation", "[type_def][hybrid][get]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    rex.name = "Original";
+
+    t.get(rex, "name", [](std::string_view, auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, std::string>) {
+            value = "Modified";
+        }
+    });
+
+    REQUIRE(rex.name == "Modified");
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // get() callback on const instance
 // ═════════════════════════════════════════════════════════════════════════
@@ -161,6 +213,23 @@ TEST_CASE("typed: get() on const instance", "[type_def][typed][get]") {
 
     int found_value = 0;
     type_def<SimpleArgs>{}.get(cargs, "age", [&](std::string_view, const auto& value) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
+            found_value = value;
+        }
+    });
+
+    REQUIRE(found_value == 42);
+}
+
+TEST_CASE("hybrid: get() on const instance", "[type_def][hybrid][get]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::age, "age");
+    PlainDog rex;
+    rex.age = 42;
+    const PlainDog& cref = rex;
+
+    int found_value = 0;
+    t.get(cref, "age", [&](std::string_view, const auto& value) {
         if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, int>) {
             found_value = value;
         }
@@ -279,6 +348,25 @@ TEST_CASE("object: get() round-trips with set()", "[object][get][set]") {
 // ═════════════════════════════════════════════════════════════════════════
 // get<V>() on const instance
 // ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid: get<V>() on const instance", "[type_def][hybrid][get_typed]") {
+    auto t = type_def<PlainDog>()
+        .field(&PlainDog::name, "name");
+    PlainDog rex;
+    rex.name = "Rex";
+    const PlainDog& cref = rex;
+
+    REQUIRE(t.get<std::string>(cref, "name") == "Rex");
+}
+
+TEST_CASE("object: get<V>() on const instance", "[object][get_typed]") {
+    auto t = type_def("Event")
+        .field<int>("count", 42);
+    auto obj = t.create();
+    const auto& cref = obj;
+
+    REQUIRE(cref.get<int>("count") == 42);
+}
 
 TEST_CASE("typed: get<V>() on const instance", "[type_def][typed][get_typed]") {
     SimpleArgs args;

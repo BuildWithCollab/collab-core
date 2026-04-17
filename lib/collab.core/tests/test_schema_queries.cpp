@@ -177,6 +177,32 @@ TEST_CASE("typed: two type_def instances behave identically", "[type_def][typed]
     REQUIRE(std::string_view{ep1.method} == std::string_view{ep2.method});
 }
 
+TEST_CASE("hybrid: two type_def instances behave identically", "[type_def][hybrid][stateless]") {
+    auto t1 = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+    auto t2 = type_def<PlainDog>()
+        .field(&PlainDog::name, "name")
+        .field(&PlainDog::age, "age")
+        .field(&PlainDog::breed, "breed");
+
+    REQUIRE(t1.name() == t2.name());
+    REQUIRE(t1.field_count() == t2.field_count());
+}
+
+TEST_CASE("dynamic: two type_def instances behave identically", "[type_def][dynamic][stateless]") {
+    auto t1 = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count");
+    auto t2 = type_def("Event")
+        .field<std::string>("title")
+        .field<int>("count");
+
+    REQUIRE(t1.name() == t2.name());
+    REQUIRE(t1.field_count() == t2.field_count());
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // type() access (object)
 // ═══════════════════════════════════════════════════════════════════════════
