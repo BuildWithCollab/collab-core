@@ -119,6 +119,19 @@ struct MetaDog {
 };
 
 // ═════════════════════════════════════════════════════════════════════════
+// Hybrid structs — with multiple meta<> members of same type
+// ═════════════════════════════════════════════════════════════════════════
+
+struct MultiTagDog {
+    meta<tag_info> tag1{{.value = "pet"}};
+    meta<tag_info> tag2{{.value = "animal"}};
+    meta<help_info> help{{.summary = "A tagged dog"}};
+
+    std::string name;
+    int         age = 0;
+};
+
+// ═════════════════════════════════════════════════════════════════════════
 // reflect_on fallbacks (non-PFR builds)
 // ═════════════════════════════════════════════════════════════════════════
 
@@ -171,5 +184,10 @@ constexpr auto collab::model::reflect_on<PlainPoint>() {
 template <>
 constexpr auto collab::model::reflect_on<MetaDog>() {
     return collab::model::field_info<MetaDog>("help", "name", "age");
+}
+
+template <>
+constexpr auto collab::model::reflect_on<MultiTagDog>() {
+    return collab::model::field_info<MultiTagDog>("tag1", "tag2", "help", "name", "age");
 }
 #endif

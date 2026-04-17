@@ -178,6 +178,18 @@ TEST_CASE("dynamic: field_names() empty", "[type_def][dynamic][field_names]") {
     REQUIRE(type_def("Empty").field_names().empty());
 }
 
+TEST_CASE("dynamic: field_names() preserves registration order", "[type_def][dynamic][field_names]") {
+    auto t = type_def("Event")
+        .field<bool>("verbose")
+        .field<std::string>("title")
+        .field<int>("count");
+    auto names = t.field_names();
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "verbose");
+    REQUIRE(names[1] == "title");
+    REQUIRE(names[2] == "count");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // typed type_def still works without hybrid registration
 // ═══════════════════════════════════════════════════════════════════════════
@@ -234,15 +246,22 @@ TEST_CASE("hybrid: two type_def instances behave identically", "[type_def][hybri
 
 TEST_CASE("dynamic: two type_def instances behave identically", "[type_def][dynamic][stateless]") {
     auto t1 = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
         .field<std::string>("title")
         .field<int>("count");
     auto t2 = type_def("Event")
+        .meta<endpoint_info>({.path = "/events"})
         .field<std::string>("title")
         .field<int>("count");
 
     REQUIRE(t1.name() == t2.name());
     REQUIRE(t1.field_count() == t2.field_count());
     REQUIRE(t1.field_names() == t2.field_names());
+    REQUIRE(t1.has_meta<endpoint_info>() == t2.has_meta<endpoint_info>());
+
+    auto ep1 = t1.meta<endpoint_info>();
+    auto ep2 = t2.meta<endpoint_info>();
+    REQUIRE(std::string_view{ep1.path} == std::string_view{ep2.path});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

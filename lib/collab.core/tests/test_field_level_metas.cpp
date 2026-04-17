@@ -226,6 +226,20 @@ TEST_CASE("typed: field meta_count via field_view", "[type_def][typed][field_met
     REQUIRE(verbose_fv.meta_count<render_meta>() == 0);
 }
 
+TEST_CASE("typed: field metas<M>() via field_view", "[type_def][typed][field_meta]") {
+    type_def<CliArgs> t;
+    auto cli_metas = t.field("limit").metas<cli_meta>();
+    REQUIRE(cli_metas.size() == 1);
+    REQUIRE(cli_metas[0].cli.short_flag == 'l');
+
+    auto render_metas = t.field("limit").metas<render_meta>();
+    REQUIRE(render_metas.size() == 1);
+    REQUIRE(std::string_view{render_metas[0].render.style} == "bold");
+
+    auto empty = t.field("query").metas<cli_meta>();
+    REQUIRE(empty.empty());
+}
+
 TEST_CASE("hybrid: field meta_count and metas", "[type_def][hybrid][field_meta]") {
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name",

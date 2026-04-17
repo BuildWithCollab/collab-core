@@ -130,6 +130,13 @@ TEST_CASE("typed: has_field() on meta-only struct", "[type_def][typed][has_field
     REQUIRE(!t.has_field("help"));
 }
 
+TEST_CASE("hybrid: has_field() on meta-only struct with zero fields", "[type_def][hybrid][has_field]") {
+    auto t = type_def<MetaOnly>();
+    REQUIRE(!t.has_field("endpoint"));
+    REQUIRE(!t.has_field("help"));
+    REQUIRE(!t.has_field("anything"));
+}
+
 TEST_CASE("dynamic: has_field() on empty type_def", "[type_def][dynamic][has_field]") {
     auto t = type_def("Empty");
     REQUIRE(!t.has_field("anything"));

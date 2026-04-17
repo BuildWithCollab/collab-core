@@ -69,6 +69,13 @@ TEST_CASE("typed: has_meta() works for multi-tagged struct", "[type_def][typed][
     REQUIRE(!t.has_meta<endpoint_info>());
 }
 
+TEST_CASE("hybrid: has_meta() works for multi-tagged struct", "[type_def][hybrid][has_meta]") {
+    auto t = type_def<MultiTagDog>()
+        .field(&MultiTagDog::name, "name");
+    REQUIRE(t.has_meta<tag_info>());
+    REQUIRE(!t.has_meta<endpoint_info>());
+}
+
 TEST_CASE("dynamic: has_meta() works for multi-tagged", "[type_def][dynamic][has_meta]") {
     auto t = type_def("MultiTag")
         .meta<tag_info>({.value = "a"})
@@ -140,6 +147,12 @@ TEST_CASE("typed: meta() returns first when multiple of same type", "[type_def][
     REQUIRE(std::string_view{tag.value} == "pet");
 }
 
+TEST_CASE("hybrid: meta() returns first when multiple of same type", "[type_def][hybrid][meta]") {
+    auto t = type_def<MultiTagDog>()
+        .field(&MultiTagDog::name, "name");
+    REQUIRE(std::string_view{t.meta<tag_info>().value} == "pet");
+}
+
 TEST_CASE("dynamic: meta() returns first when multiple", "[type_def][dynamic][meta]") {
     auto t = type_def("Tagged")
         .meta<tag_info>({.value = "first"})
@@ -175,6 +188,13 @@ TEST_CASE("hybrid: meta_count() is zero for no-meta struct", "[type_def][hybrid]
     auto t = type_def<PlainDog>()
         .field(&PlainDog::name, "name");
     REQUIRE(t.meta_count<help_info>() == 0);
+}
+
+TEST_CASE("hybrid: meta_count() for multiple metas of same type", "[type_def][hybrid][meta_count]") {
+    auto t = type_def<MultiTagDog>()
+        .field(&MultiTagDog::name, "name");
+    REQUIRE(t.meta_count<tag_info>() == 2);
+    REQUIRE(t.meta_count<help_info>() == 1);
 }
 
 TEST_CASE("dynamic: meta_count()", "[type_def][dynamic][meta_count]") {
@@ -243,6 +263,12 @@ TEST_CASE("typed: metas() returns empty vector for absent type", "[type_def][typ
     REQUIRE(tags.size() == 0);
 }
 
+TEST_CASE("hybrid: metas() returns empty vector for absent type", "[type_def][hybrid][metas]") {
+    type_def<MetaDog> t;
+    auto eps = t.metas<endpoint_info>();
+    REQUIRE(eps.size() == 0);
+}
+
 TEST_CASE("dynamic: metas() returns empty vector for absent type", "[type_def][dynamic][metas]") {
     auto t = type_def("Event")
         .field<int>("x");
@@ -265,6 +291,14 @@ TEST_CASE("dynamic: has_meta() returns false for absent metas on meta-bearing ty
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("typed: meta-only struct has zero fields but metas work", "[type_def][typed][meta]") {
+    type_def<MetaOnly> t;
+    REQUIRE(t.field_count() == 0);
+    REQUIRE(t.has_meta<endpoint_info>());
+    auto ep = t.meta<endpoint_info>();
+    REQUIRE(std::string_view{ep.path} == "/health");
+}
+
+TEST_CASE("hybrid: meta-only struct has zero fields but metas work", "[type_def][hybrid][meta]") {
     type_def<MetaOnly> t;
     REQUIRE(t.field_count() == 0);
     REQUIRE(t.has_meta<endpoint_info>());

@@ -206,6 +206,25 @@ TEST_CASE("typed: for_each skips meta<> members", "[type_def][typed][for_each]")
     REQUIRE(names[2] == "breed");
 }
 
+TEST_CASE("hybrid: for_each skips meta members", "[type_def][hybrid][for_each]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+    rex.name = "Rex";
+    rex.age = 3;
+
+    std::vector<std::string> names;
+    t.for_each(rex, [&](std::string_view name, auto&) {
+        names.emplace_back(name);
+    });
+
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "name");
+    REQUIRE(names[1] == "age");
+    for (auto& n : names) {
+        REQUIRE(n != "help");
+    }
+}
+
 TEST_CASE("typed: for_each skips plain members", "[type_def][typed][for_each]") {
     MixedStruct ms;
     ms.label = "hello";
@@ -644,6 +663,25 @@ TEST_CASE("typed: for_each_meta with instance reads from that instance", "[type_
             found = true;
         }
     });
+    REQUIRE(found);
+}
+
+TEST_CASE("hybrid: for_each_meta with instance reads from that instance", "[type_def][hybrid][for_each_meta]") {
+    type_def<MetaDog> t;
+    MetaDog rex;
+
+    bool found = false;
+    int count = 0;
+    t.for_each_meta(rex, [&](auto& meta_value) {
+        ++count;
+        using M = std::remove_cvref_t<decltype(meta_value)>;
+        if constexpr (std::is_same_v<M, help_info>) {
+            REQUIRE(std::string_view{meta_value.summary} == "A dog");
+            found = true;
+        }
+    });
+
+    REQUIRE(count == 1);
     REQUIRE(found);
 }
 

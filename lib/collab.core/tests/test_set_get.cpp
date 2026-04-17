@@ -136,6 +136,19 @@ TEST_CASE("typed: set() works on struct with metas (MetaDog)", "[type_def][typed
     REQUIRE(rex.age.value == 3);
 }
 
+TEST_CASE("hybrid: set() on struct with meta members (MultiTagDog)", "[type_def][hybrid][set]") {
+    auto t = type_def<MultiTagDog>()
+        .field(&MultiTagDog::name, "name")
+        .field(&MultiTagDog::age, "age");
+    MultiTagDog dog;
+    t.set(dog, "name", std::string("Rex"));
+    t.set(dog, "age", 3);
+    REQUIRE(dog.name == "Rex");
+    REQUIRE(dog.age == 3);
+    // Verify metas are untouched
+    REQUIRE(std::string_view{dog.tag1->value} == "pet");
+}
+
 TEST_CASE("object: set() works on type_def with metas", "[object][set]") {
     auto t = type_def("Event")
         .meta<endpoint_info>({.path = "/events"})

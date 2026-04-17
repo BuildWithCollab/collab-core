@@ -51,6 +51,38 @@ TEST_CASE("object: set() throws for unknown field", "[object][set][throw]") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// set()/get() throws for empty string field name
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("object: set() throws for empty string field name", "[object][set][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+
+    try {
+        obj.set("", 42);
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+TEST_CASE("object: get<V>() throws for empty string field name", "[object][get][throw]") {
+    auto t = type_def("Event")
+        .field<int>("count");
+    auto obj = t.create();
+
+    try {
+        obj.get<int>("");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("no field") != std::string::npos);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // set() throws for type mismatch
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -398,8 +430,32 @@ TEST_CASE("dynamic: field() throws for unknown name", "[type_def][dynamic][field
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// field() throws on empty type_def
+// field() throws on meta-only / empty struct
 // ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed: field() throws on meta-only struct", "[type_def][typed][field_query][throw]") {
+    try {
+        type_def<MetaOnly>{}.field("anything");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("anything") != std::string::npos);
+        REQUIRE(msg.find("MetaOnly") != std::string::npos);
+    }
+}
+
+TEST_CASE("hybrid: field() throws on empty hybrid", "[type_def][hybrid][field_query][throw]") {
+    auto t = type_def<PlainDog>();
+
+    try {
+        t.field("anything");
+        FAIL("Expected std::logic_error");
+    } catch (const std::logic_error& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("anything") != std::string::npos);
+        REQUIRE(msg.find("PlainDog") != std::string::npos);
+    }
+}
 
 TEST_CASE("dynamic: field() throws on empty type_def", "[type_def][dynamic][field_query][throw]") {
     auto t = type_def("Empty");
