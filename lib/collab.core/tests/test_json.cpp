@@ -46,6 +46,18 @@ struct FloatStruct;
 struct BigNumbers;
 struct Inner;
 struct Outer;
+struct VecOfVecs;
+struct MapOfVecs;
+struct VecOfMaps;
+struct OptionalVec;
+struct VecOfOptionals;
+struct DeepInner;
+struct DeepMiddle;
+struct DeepOuter;
+struct DenseMapOfStructs;
+struct PersonList;
+struct VecOfEnums;
+struct MapOfEnums;
 
 #ifndef COLLAB_FIELD_HAS_PFR
 template <>
@@ -172,6 +184,66 @@ template <>
 constexpr auto collab::model::struct_info<MultiEnumStruct>() {
     return collab::model::field_info<MultiEnumStruct>("color", "method", "label");
 }
+
+template <>
+constexpr auto collab::model::struct_info<VecOfVecs>() {
+    return collab::model::field_info<VecOfVecs>("matrix");
+}
+
+template <>
+constexpr auto collab::model::struct_info<MapOfVecs>() {
+    return collab::model::field_info<MapOfVecs>("grouped");
+}
+
+template <>
+constexpr auto collab::model::struct_info<VecOfMaps>() {
+    return collab::model::field_info<VecOfMaps>("records");
+}
+
+template <>
+constexpr auto collab::model::struct_info<OptionalVec>() {
+    return collab::model::field_info<OptionalVec>("maybe_tags");
+}
+
+template <>
+constexpr auto collab::model::struct_info<VecOfOptionals>() {
+    return collab::model::field_info<VecOfOptionals>("scores");
+}
+
+template <>
+constexpr auto collab::model::struct_info<DeepInner>() {
+    return collab::model::field_info<DeepInner>("value");
+}
+
+template <>
+constexpr auto collab::model::struct_info<DeepMiddle>() {
+    return collab::model::field_info<DeepMiddle>("label", "inner");
+}
+
+template <>
+constexpr auto collab::model::struct_info<DeepOuter>() {
+    return collab::model::field_info<DeepOuter>("name", "middle", "items");
+}
+
+template <>
+constexpr auto collab::model::struct_info<DenseMapOfStructs>() {
+    return collab::model::field_info<DenseMapOfStructs>("locations");
+}
+
+template <>
+constexpr auto collab::model::struct_info<PersonList>() {
+    return collab::model::field_info<PersonList>("org", "people");
+}
+
+template <>
+constexpr auto collab::model::struct_info<VecOfEnums>() {
+    return collab::model::field_info<VecOfEnums>("methods");
+}
+
+template <>
+constexpr auto collab::model::struct_info<MapOfEnums>() {
+    return collab::model::field_info<MapOfEnums>("palette");
+}
 #endif
 
 // ── Test structs ─────────────────────────────────────────────────────────
@@ -293,6 +365,50 @@ struct Inner {
 struct Outer {
     field<std::string>          name;
     field<std::optional<Inner>> extra;
+};
+
+struct VecOfVecs {
+    field<std::vector<std::vector<int>>> matrix;
+};
+
+struct MapOfVecs {
+    field<std::map<std::string, std::vector<std::string>>> grouped;
+};
+
+struct VecOfMaps {
+    field<std::vector<std::map<std::string, int>>> records;
+};
+
+struct OptionalVec {
+    field<std::optional<std::vector<std::string>>> maybe_tags;
+};
+
+struct VecOfOptionals {
+    field<std::vector<std::optional<int>>> scores;
+};
+
+struct DeepInner {
+    field<std::string> value;
+};
+
+struct DeepMiddle {
+    field<std::string>  label;
+    field<DeepInner>    inner;
+};
+
+struct DeepOuter {
+    field<std::string>              name;
+    field<DeepMiddle>               middle;
+    field<std::vector<DeepInner>>   items;
+};
+
+struct DenseMapOfStructs {
+    field<ankerl::unordered_dense::map<std::string, Address>> locations;
+};
+
+struct PersonList {
+    field<std::string>         org;
+    field<std::vector<Person>> people;
 };
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -774,6 +890,668 @@ TEST_CASE("typed from_json: throws on type mismatch — map field gets array", "
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// Typed to_json — explicit serialization tests (not just round-trips)
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed to_json: primitive fields", "[to_json][typed]") {
+    SimpleArgs args;
+    args.name = "Alice";
+    args.age = 30;
+    args.active = true;
+
+    auto j = to_json(args);
+
+    REQUIRE(j.is_object());
+    REQUIRE(j["name"] == "Alice");
+    REQUIRE(j["age"] == 30);
+    REQUIRE(j["active"] == true);
+}
+
+TEST_CASE("typed to_json: default-constructed struct", "[to_json][typed]") {
+    SimpleArgs args;
+    auto j = to_json(args);
+
+    REQUIRE(j["name"] == "");
+    REQUIRE(j["age"] == 0);
+    REQUIRE(j["active"] == false);
+}
+
+TEST_CASE("typed to_json: struct with defaults", "[to_json][typed]") {
+    WithDefaults w;
+    auto j = to_json(w);
+
+    REQUIRE(j["city"] == "Portland");
+    REQUIRE(j["days"] == 7);
+}
+
+TEST_CASE("typed to_json: nested struct", "[to_json][typed][nested]") {
+    Person p;
+    p.name = "Bob";
+    p.address.value.street = "123 Main St";
+    p.address.value.zip = "97201";
+
+    auto j = to_json(p);
+
+    REQUIRE(j["name"] == "Bob");
+    REQUIRE(j["address"].is_object());
+    REQUIRE(j["address"]["street"] == "123 Main St");
+    REQUIRE(j["address"]["zip"] == "97201");
+}
+
+TEST_CASE("typed to_json: vector of strings", "[to_json][typed][vector]") {
+    TaggedItem item;
+    item.title = "Post";
+    item.tags.value = {"c++", "modules", "reflection"};
+
+    auto j = to_json(item);
+
+    REQUIRE(j["tags"].is_array());
+    REQUIRE(j["tags"].size() == 3);
+    REQUIRE(j["tags"][0] == "c++");
+    REQUIRE(j["tags"][1] == "modules");
+    REQUIRE(j["tags"][2] == "reflection");
+}
+
+TEST_CASE("typed to_json: empty vector", "[to_json][typed][vector]") {
+    TaggedItem item;
+    item.title = "Empty";
+
+    auto j = to_json(item);
+
+    REQUIRE(j["tags"].is_array());
+    REQUIRE(j["tags"].empty());
+}
+
+TEST_CASE("typed to_json: vector of structs", "[to_json][typed][vector]") {
+    Team team;
+    team.team_name = "Pirates";
+    SimpleArgs a1; a1.name = "Alice"; a1.age = 30; a1.active = true;
+    SimpleArgs a2; a2.name = "Bob"; a2.age = 25; a2.active = false;
+    team.members.value = {a1, a2};
+
+    auto j = to_json(team);
+
+    REQUIRE(j["members"].is_array());
+    REQUIRE(j["members"].size() == 2);
+    REQUIRE(j["members"][0]["name"] == "Alice");
+    REQUIRE(j["members"][0]["age"] == 30);
+    REQUIRE(j["members"][1]["name"] == "Bob");
+}
+
+TEST_CASE("typed to_json: optional present", "[to_json][typed][optional]") {
+    MaybeNickname m;
+    m.name = "Alice";
+    m.nickname.value = "Ali";
+
+    auto j = to_json(m);
+
+    REQUIRE(j["nickname"] == "Ali");
+}
+
+TEST_CASE("typed to_json: optional absent", "[to_json][typed][optional]") {
+    MaybeNickname m;
+    m.name = "Bob";
+
+    auto j = to_json(m);
+
+    REQUIRE(j["nickname"].is_null());
+}
+
+TEST_CASE("typed to_json: optional nested struct present", "[to_json][typed][optional][nested]") {
+    Outer o;
+    o.name = "test";
+    o.extra.value = Inner{};
+    o.extra.value->x = 42;
+
+    auto j = to_json(o);
+
+    REQUIRE(j["extra"].is_object());
+    REQUIRE(j["extra"]["x"] == 42);
+}
+
+TEST_CASE("typed to_json: optional nested struct absent", "[to_json][typed][optional][nested]") {
+    Outer o;
+    o.name = "test";
+
+    auto j = to_json(o);
+
+    REQUIRE(j["extra"].is_null());
+}
+
+TEST_CASE("typed to_json: std::map<string, int>", "[to_json][typed][map]") {
+    Config c;
+    c.name = "app";
+    c.settings.value = {{"timeout", 30}, {"retries", 3}};
+
+    auto j = to_json(c);
+
+    REQUIRE(j["settings"].is_object());
+    REQUIRE(j["settings"]["timeout"] == 30);
+    REQUIRE(j["settings"]["retries"] == 3);
+}
+
+TEST_CASE("typed to_json: map of structs", "[to_json][typed][map]") {
+    ServiceMap sm;
+    Endpoint api; api.url = "https://api.example.com"; api.port = 443;
+    sm.services.value = {{"api", api}};
+
+    auto j = to_json(sm);
+
+    REQUIRE(j["services"]["api"].is_object());
+    REQUIRE(j["services"]["api"]["url"] == "https://api.example.com");
+    REQUIRE(j["services"]["api"]["port"] == 443);
+}
+
+TEST_CASE("typed to_json: empty map", "[to_json][typed][map]") {
+    EmptyConfig ec;
+    auto j = to_json(ec);
+
+    REQUIRE(j["settings"].is_object());
+    REQUIRE(j["settings"].empty());
+}
+
+TEST_CASE("typed to_json: std::set<string>", "[to_json][typed][set]") {
+    TagSet ts;
+    ts.tags.value = {"alpha", "beta", "gamma"};
+
+    auto j = to_json(ts);
+
+    REQUIRE(j["tags"].is_array());
+    REQUIRE(j["tags"].size() == 3);
+}
+
+TEST_CASE("typed to_json: std::unordered_set<int>", "[to_json][typed][set]") {
+    IdSet is;
+    is.ids.value = {10, 20, 30};
+
+    auto j = to_json(is);
+
+    REQUIRE(j["ids"].is_array());
+    REQUIRE(j["ids"].size() == 3);
+}
+
+TEST_CASE("typed to_json: ankerl::unordered_dense::map", "[to_json][typed][dense]") {
+    DenseMapStruct dm;
+    dm.scores.value = {{"alice", 100}, {"bob", 85}};
+
+    auto j = to_json(dm);
+
+    REQUIRE(j["scores"].is_object());
+    REQUIRE(j["scores"]["alice"] == 100);
+    REQUIRE(j["scores"]["bob"] == 85);
+}
+
+TEST_CASE("typed to_json: ankerl::unordered_dense::set", "[to_json][typed][dense]") {
+    DenseSetStruct ds;
+    ds.names.value = {"x", "y", "z"};
+
+    auto j = to_json(ds);
+
+    REQUIRE(j["names"].is_array());
+    REQUIRE(j["names"].size() == 3);
+}
+
+TEST_CASE("typed to_json: double field", "[to_json][typed][numeric]") {
+    Measurement m;
+    m.unit = "celsius";
+    m.value = 72.5;
+
+    auto j = to_json(m);
+
+    REQUIRE(j["value"] == 72.5);
+}
+
+TEST_CASE("typed to_json: float field", "[to_json][typed][numeric]") {
+    FloatStruct fs;
+    fs.weight = 3.14f;
+
+    auto j = to_json(fs);
+
+    REQUIRE(j["weight"].get<float>() == Catch::Approx(3.14f));
+}
+
+TEST_CASE("typed to_json: int64 and uint64", "[to_json][typed][numeric]") {
+    BigNumbers bn;
+    bn.signed_big = 9'000'000'000LL;
+    bn.unsigned_big = 18'000'000'000ULL;
+
+    auto j = to_json(bn);
+
+    REQUIRE(j["signed_big"] == 9000000000LL);
+    REQUIRE(j["unsigned_big"] == 18000000000ULL);
+}
+
+TEST_CASE("typed to_json: mixed struct skips non-field members", "[to_json][typed][mixed]") {
+    MixedStruct ms;
+    ms.visible = "hello";
+    ms.internal_counter = 999;
+    ms.score = 42;
+
+    auto j = to_json(ms);
+
+    REQUIRE(j.size() == 2);
+    REQUIRE(j["visible"] == "hello");
+    REQUIRE(j["score"] == 42);
+    REQUIRE(!j.contains("internal_counter"));
+}
+
+TEST_CASE("typed to_json: extensions untouched in output", "[to_json][typed][with]") {
+    CliArgs args;
+    args.query = "hello";
+    args.verbose = true;
+
+    auto j = to_json(args);
+
+    REQUIRE(j["query"] == "hello");
+    REQUIRE(j["verbose"] == true);
+    REQUIRE(!j.contains("posix"));
+    REQUIRE(!j.contains("with"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed — nested collections (trying to break it 🔪)
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed to_json: vector of vectors", "[to_json][typed][nested_collections]") {
+    VecOfVecs vv;
+    vv.matrix.value = {{1, 2, 3}, {4, 5}, {6}};
+
+    auto j = to_json(vv);
+
+    REQUIRE(j["matrix"].is_array());
+    REQUIRE(j["matrix"].size() == 3);
+    REQUIRE(j["matrix"][0] == json::array({1, 2, 3}));
+    REQUIRE(j["matrix"][1] == json::array({4, 5}));
+    REQUIRE(j["matrix"][2] == json::array({6}));
+}
+
+TEST_CASE("typed from_json: vector of vectors", "[from_json][typed][nested_collections]") {
+    auto j = json{{"matrix", {{1, 2, 3}, {4, 5}, {6}}}};
+    auto vv = from_json<VecOfVecs>(j);
+
+    REQUIRE(vv.matrix.value.size() == 3);
+    REQUIRE(vv.matrix.value[0] == std::vector<int>{1, 2, 3});
+    REQUIRE(vv.matrix.value[1] == std::vector<int>{4, 5});
+    REQUIRE(vv.matrix.value[2] == std::vector<int>{6});
+}
+
+TEST_CASE("typed round-trip: vector of vectors", "[json][typed][nested_collections][roundtrip]") {
+    VecOfVecs original;
+    original.matrix.value = {{1, 2}, {3, 4, 5}, {}};
+
+    auto restored = from_json<VecOfVecs>(to_json(original));
+
+    REQUIRE(restored.matrix.value.size() == 3);
+    REQUIRE(restored.matrix.value[0] == std::vector<int>{1, 2});
+    REQUIRE(restored.matrix.value[2].empty());
+}
+
+TEST_CASE("typed to_json: map of vectors", "[to_json][typed][nested_collections]") {
+    MapOfVecs mv;
+    mv.grouped.value = {{"fruits", {"apple", "banana"}}, {"colors", {"red"}}};
+
+    auto j = to_json(mv);
+
+    REQUIRE(j["grouped"]["fruits"] == json::array({"apple", "banana"}));
+    REQUIRE(j["grouped"]["colors"] == json::array({"red"}));
+}
+
+TEST_CASE("typed from_json: map of vectors", "[from_json][typed][nested_collections]") {
+    auto j = json{{"grouped", {{"fruits", {"apple", "banana"}}, {"colors", {"red"}}}}};
+    auto mv = from_json<MapOfVecs>(j);
+
+    REQUIRE(mv.grouped.value.at("fruits").size() == 2);
+    REQUIRE(mv.grouped.value.at("fruits")[0] == "apple");
+    REQUIRE(mv.grouped.value.at("colors").size() == 1);
+}
+
+TEST_CASE("typed round-trip: map of vectors", "[json][typed][nested_collections][roundtrip]") {
+    MapOfVecs original;
+    original.grouped.value = {{"a", {"x", "y"}}, {"b", {}}};
+
+    auto restored = from_json<MapOfVecs>(to_json(original));
+
+    REQUIRE(restored.grouped.value.at("a") == std::vector<std::string>{"x", "y"});
+    REQUIRE(restored.grouped.value.at("b").empty());
+}
+
+TEST_CASE("typed to_json: vector of maps", "[to_json][typed][nested_collections]") {
+    VecOfMaps vm;
+    vm.records.value = {{{"x", 1}, {"y", 2}}, {{"z", 3}}};
+
+    auto j = to_json(vm);
+
+    REQUIRE(j["records"].is_array());
+    REQUIRE(j["records"].size() == 2);
+    REQUIRE(j["records"][0]["x"] == 1);
+    REQUIRE(j["records"][0]["y"] == 2);
+    REQUIRE(j["records"][1]["z"] == 3);
+}
+
+TEST_CASE("typed from_json: vector of maps", "[from_json][typed][nested_collections]") {
+    auto j = json{{"records", {{{"x", 1}, {"y", 2}}, {{"z", 3}}}}};
+    auto vm = from_json<VecOfMaps>(j);
+
+    REQUIRE(vm.records.value.size() == 2);
+    REQUIRE(vm.records.value[0].at("x") == 1);
+    REQUIRE(vm.records.value[1].at("z") == 3);
+}
+
+TEST_CASE("typed round-trip: vector of maps", "[json][typed][nested_collections][roundtrip]") {
+    VecOfMaps original;
+    original.records.value = {{{"a", 1}}, {{"b", 2}, {"c", 3}}};
+
+    auto restored = from_json<VecOfMaps>(to_json(original));
+
+    REQUIRE(restored.records.value.size() == 2);
+    REQUIRE(restored.records.value[0].at("a") == 1);
+    REQUIRE(restored.records.value[1].size() == 2);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed — optional + collection combos (🔪🔪)
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed to_json: optional vector present", "[to_json][typed][optional_collection]") {
+    OptionalVec ov;
+    ov.maybe_tags.value = std::vector<std::string>{"a", "b"};
+
+    auto j = to_json(ov);
+
+    REQUIRE(j["maybe_tags"].is_array());
+    REQUIRE(j["maybe_tags"].size() == 2);
+    REQUIRE(j["maybe_tags"][0] == "a");
+}
+
+TEST_CASE("typed to_json: optional vector absent", "[to_json][typed][optional_collection]") {
+    OptionalVec ov;
+
+    auto j = to_json(ov);
+
+    REQUIRE(j["maybe_tags"].is_null());
+}
+
+TEST_CASE("typed from_json: optional vector present", "[from_json][typed][optional_collection]") {
+    auto j = json{{"maybe_tags", {"a", "b", "c"}}};
+    auto ov = from_json<OptionalVec>(j);
+
+    REQUIRE(ov.maybe_tags.value.has_value());
+    REQUIRE(ov.maybe_tags.value->size() == 3);
+    REQUIRE((*ov.maybe_tags.value)[0] == "a");
+}
+
+TEST_CASE("typed from_json: optional vector null", "[from_json][typed][optional_collection]") {
+    auto j = json{{"maybe_tags", nullptr}};
+    auto ov = from_json<OptionalVec>(j);
+
+    REQUIRE(!ov.maybe_tags.value.has_value());
+}
+
+TEST_CASE("typed from_json: optional vector missing key", "[from_json][typed][optional_collection]") {
+    auto j = json::object();
+    auto ov = from_json<OptionalVec>(j);
+
+    REQUIRE(!ov.maybe_tags.value.has_value());
+}
+
+TEST_CASE("typed round-trip: optional vector present", "[json][typed][optional_collection][roundtrip]") {
+    OptionalVec original;
+    original.maybe_tags.value = std::vector<std::string>{"x", "y"};
+
+    auto restored = from_json<OptionalVec>(to_json(original));
+
+    REQUIRE(restored.maybe_tags.value.has_value());
+    REQUIRE(*restored.maybe_tags.value == std::vector<std::string>{"x", "y"});
+}
+
+TEST_CASE("typed round-trip: optional vector absent", "[json][typed][optional_collection][roundtrip]") {
+    OptionalVec original;
+
+    auto restored = from_json<OptionalVec>(to_json(original));
+
+    REQUIRE(!restored.maybe_tags.value.has_value());
+}
+
+TEST_CASE("typed to_json: vector of optionals", "[to_json][typed][optional_collection]") {
+    VecOfOptionals vo;
+    vo.scores.value = {1, std::nullopt, 3, std::nullopt, 5};
+
+    auto j = to_json(vo);
+
+    REQUIRE(j["scores"].is_array());
+    REQUIRE(j["scores"].size() == 5);
+    REQUIRE(j["scores"][0] == 1);
+    REQUIRE(j["scores"][1].is_null());
+    REQUIRE(j["scores"][2] == 3);
+    REQUIRE(j["scores"][3].is_null());
+    REQUIRE(j["scores"][4] == 5);
+}
+
+TEST_CASE("typed from_json: vector of optionals with nulls", "[from_json][typed][optional_collection]") {
+    auto j = json{{"scores", {1, nullptr, 3, nullptr, 5}}};
+    auto vo = from_json<VecOfOptionals>(j);
+
+    REQUIRE(vo.scores.value.size() == 5);
+    REQUIRE(vo.scores.value[0].has_value());
+    REQUIRE(*vo.scores.value[0] == 1);
+    REQUIRE(!vo.scores.value[1].has_value());
+    REQUIRE(*vo.scores.value[2] == 3);
+    REQUIRE(!vo.scores.value[3].has_value());
+    REQUIRE(*vo.scores.value[4] == 5);
+}
+
+TEST_CASE("typed round-trip: vector of optionals", "[json][typed][optional_collection][roundtrip]") {
+    VecOfOptionals original;
+    original.scores.value = {10, std::nullopt, 30};
+
+    auto restored = from_json<VecOfOptionals>(to_json(original));
+
+    REQUIRE(restored.scores.value.size() == 3);
+    REQUIRE(*restored.scores.value[0] == 10);
+    REQUIRE(!restored.scores.value[1].has_value());
+    REQUIRE(*restored.scores.value[2] == 30);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed — deep nesting (3 levels + collections) (🔪🔪🔪)
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed to_json: 3-level deep nested struct", "[to_json][typed][deep_nesting]") {
+    DeepOuter obj;
+    obj.name = "root";
+    obj.middle.value.label = "mid";
+    obj.middle.value.inner.value.value = "leaf";
+    DeepInner item_a; item_a.value = "a";
+    DeepInner item_b; item_b.value = "b";
+    obj.items.value = {item_a, item_b};
+
+    auto j = to_json(obj);
+
+    REQUIRE(j["name"] == "root");
+    REQUIRE(j["middle"]["label"] == "mid");
+    REQUIRE(j["middle"]["inner"]["value"] == "leaf");
+    REQUIRE(j["items"].is_array());
+    REQUIRE(j["items"].size() == 2);
+    REQUIRE(j["items"][0]["value"] == "a");
+    REQUIRE(j["items"][1]["value"] == "b");
+}
+
+TEST_CASE("typed from_json: 3-level deep nested struct", "[from_json][typed][deep_nesting]") {
+    auto j = json{
+        {"name", "root"},
+        {"middle", {
+            {"label", "mid"},
+            {"inner", {{"value", "leaf"}}}
+        }},
+        {"items", {
+            {{"value", "a"}},
+            {{"value", "b"}},
+            {{"value", "c"}}
+        }}
+    };
+    auto obj = from_json<DeepOuter>(j);
+
+    REQUIRE(obj.name.value == "root");
+    REQUIRE(obj.middle.value.label.value == "mid");
+    REQUIRE(obj.middle.value.inner.value.value.value == "leaf");
+    REQUIRE(obj.items.value.size() == 3);
+    REQUIRE(obj.items.value[0].value.value == "a");
+    REQUIRE(obj.items.value[2].value.value == "c");
+}
+
+TEST_CASE("typed round-trip: 3-level deep nested struct", "[json][typed][deep_nesting][roundtrip]") {
+    DeepOuter original;
+    original.name = "root";
+    original.middle.value.label = "mid";
+    original.middle.value.inner.value.value = "leaf";
+    DeepInner ix; ix.value = "x";
+    DeepInner iy; iy.value = "y";
+    original.items.value = {ix, iy};
+
+    auto restored = from_json<DeepOuter>(to_json(original));
+
+    REQUIRE(restored.name.value == "root");
+    REQUIRE(restored.middle.value.label.value == "mid");
+    REQUIRE(restored.middle.value.inner.value.value.value == "leaf");
+    REQUIRE(restored.items.value.size() == 2);
+    REQUIRE(restored.items.value[0].value.value == "x");
+}
+
+TEST_CASE("typed from_json: deep nested with missing inner keys", "[from_json][typed][deep_nesting]") {
+    auto j = json{{"name", "root"}, {"middle", {{"label", "mid"}}}};
+    auto obj = from_json<DeepOuter>(j);
+
+    REQUIRE(obj.name.value == "root");
+    REQUIRE(obj.middle.value.label.value == "mid");
+    REQUIRE(obj.middle.value.inner.value.value.value.empty());
+    REQUIRE(obj.items.value.empty());
+}
+
+TEST_CASE("typed to_json: vector of persons with nested addresses", "[to_json][typed][deep_nesting]") {
+    PersonList pl;
+    pl.org = "Collab";
+    Person p1; p1.name = "Alice"; p1.address.value.street = "1st St"; p1.address.value.zip = "10001";
+    Person p2; p2.name = "Bob"; p2.address.value.street = "2nd Ave"; p2.address.value.zip = "20002";
+    pl.people.value = {p1, p2};
+
+    auto j = to_json(pl);
+
+    REQUIRE(j["org"] == "Collab");
+    REQUIRE(j["people"].size() == 2);
+    REQUIRE(j["people"][0]["name"] == "Alice");
+    REQUIRE(j["people"][0]["address"]["street"] == "1st St");
+    REQUIRE(j["people"][1]["address"]["zip"] == "20002");
+}
+
+TEST_CASE("typed from_json: vector of persons with nested addresses", "[from_json][typed][deep_nesting]") {
+    auto j = json{
+        {"org", "Collab"},
+        {"people", {
+            {{"name", "Alice"}, {"address", {{"street", "1st St"}, {"zip", "10001"}}}},
+            {{"name", "Bob"}, {"address", {{"street", "2nd Ave"}, {"zip", "20002"}}}}
+        }}
+    };
+    auto pl = from_json<PersonList>(j);
+
+    REQUIRE(pl.org.value == "Collab");
+    REQUIRE(pl.people.value.size() == 2);
+    REQUIRE(pl.people.value[0].name.value == "Alice");
+    REQUIRE(pl.people.value[0].address.value.street.value == "1st St");
+    REQUIRE(pl.people.value[1].address.value.zip.value == "20002");
+}
+
+TEST_CASE("typed round-trip: vector of persons with nested addresses", "[json][typed][deep_nesting][roundtrip]") {
+    PersonList original;
+    original.org = "Pirates";
+    Person p; p.name = "Rex"; p.address.value.street = "Dog Ln"; p.address.value.zip = "99999";
+    original.people.value = {p};
+
+    auto restored = from_json<PersonList>(to_json(original));
+
+    REQUIRE(restored.people.value.size() == 1);
+    REQUIRE(restored.people.value[0].address.value.street.value == "Dog Ln");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed — dense containers with struct values
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed to_json: ankerl dense map of structs", "[to_json][typed][dense]") {
+    DenseMapOfStructs dm;
+    Address home; home.street = "123 Main"; home.zip = "97201";
+    Address work; work.street = "456 Corp Dr"; work.zip = "97202";
+    dm.locations.value = {{"home", home}, {"work", work}};
+
+    auto j = to_json(dm);
+
+    REQUIRE(j["locations"]["home"]["street"] == "123 Main");
+    REQUIRE(j["locations"]["work"]["zip"] == "97202");
+}
+
+TEST_CASE("typed from_json: ankerl dense map of structs", "[from_json][typed][dense]") {
+    auto j = json{{"locations", {
+        {"home", {{"street", "123 Main"}, {"zip", "97201"}}},
+        {"work", {{"street", "456 Corp"}, {"zip", "97202"}}}
+    }}};
+    auto dm = from_json<DenseMapOfStructs>(j);
+
+    REQUIRE(dm.locations.value.at("home").street.value == "123 Main");
+    REQUIRE(dm.locations.value.at("work").zip.value == "97202");
+}
+
+TEST_CASE("typed round-trip: ankerl dense map of structs", "[json][typed][dense][roundtrip]") {
+    DenseMapOfStructs original;
+    Address a; a.street = "Dog St"; a.zip = "00000";
+    original.locations.value = {{"park", a}};
+
+    auto restored = from_json<DenseMapOfStructs>(to_json(original));
+
+    REQUIRE(restored.locations.value.at("park").street.value == "Dog St");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed — set edge cases
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed from_json: set deduplicates array with duplicates", "[from_json][typed][set][edge]") {
+    auto j = json{{"tags", {"alpha", "beta", "alpha", "gamma", "beta"}}};
+    auto ts = from_json<TagSet>(j);
+
+    REQUIRE(ts.tags.value.size() == 3);
+    REQUIRE(ts.tags.value.count("alpha") == 1);
+    REQUIRE(ts.tags.value.count("beta") == 1);
+    REQUIRE(ts.tags.value.count("gamma") == 1);
+}
+
+TEST_CASE("typed from_json: unordered_set deduplicates", "[from_json][typed][set][edge]") {
+    auto j = json{{"ids", {1, 2, 3, 1, 2}}};
+    auto is = from_json<IdSet>(j);
+
+    REQUIRE(is.ids.value.size() == 3);
+}
+
+TEST_CASE("typed from_json: dense set deduplicates", "[from_json][typed][dense][edge]") {
+    auto j = json{{"names", {"x", "y", "x", "z", "y"}}};
+    auto ds = from_json<DenseSetStruct>(j);
+
+    REQUIRE(ds.names.value.size() == 3);
+}
+
+TEST_CASE("typed round-trip: set preserves unique elements", "[json][typed][set][roundtrip]") {
+    TagSet original;
+    original.tags.value = {"a", "b", "c"};
+
+    auto j = to_json(original);
+    REQUIRE(j["tags"].size() == 3);
+
+    auto restored = from_json<TagSet>(j);
+    REQUIRE(restored.tags.value.size() == 3);
+    REQUIRE(restored.tags.value.count("a") == 1);
+    REQUIRE(restored.tags.value.count("b") == 1);
+    REQUIRE(restored.tags.value.count("c") == 1);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // Dynamic from_json — factory
 // ═════════════════════════════════════════════════════════════════════════
 
@@ -912,6 +1690,14 @@ struct MultiEnumStruct {
     field<std::string> label;
 };
 
+struct VecOfEnums {
+    field<std::vector<HttpMethod>> methods;
+};
+
+struct MapOfEnums {
+    field<std::map<std::string, Color>> palette;
+};
+
 // ── to_json: enums serialize as strings ──────────────────────────────────
 
 TEST_CASE("typed to_json: enum field serializes as string", "[json][enum][to_json]") {
@@ -1026,6 +1812,96 @@ TEST_CASE("typed from_json: enum field throws on object value", "[json][enum][fr
 TEST_CASE("typed from_json: enum field throws on array value", "[json][enum][from_json][throw]") {
     auto j = json{{"method", json::array()}, {"name", "test"}};
     REQUIRE_THROWS_AS(from_json<EnumStruct>(j), std::logic_error);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed — enums inside collections
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed to_json: vector of enums", "[to_json][typed][enum][collection]") {
+    VecOfEnums ve;
+    ve.methods.value = {HttpMethod::GET, HttpMethod::POST, HttpMethod::PUT};
+
+    auto j = to_json(ve);
+
+    REQUIRE(j["methods"].is_array());
+    REQUIRE(j["methods"].size() == 3);
+    REQUIRE(j["methods"][0] == "GET");
+    REQUIRE(j["methods"][1] == "POST");
+    REQUIRE(j["methods"][2] == "PUT");
+}
+
+TEST_CASE("typed from_json: vector of enums", "[from_json][typed][enum][collection]") {
+    auto j = json{{"methods", {"GET", "POST", "DELETE_METHOD"}}};
+    auto ve = from_json<VecOfEnums>(j);
+
+    REQUIRE(ve.methods.value.size() == 3);
+    REQUIRE(ve.methods.value[0] == HttpMethod::GET);
+    REQUIRE(ve.methods.value[1] == HttpMethod::POST);
+    REQUIRE(ve.methods.value[2] == HttpMethod::DELETE_METHOD);
+}
+
+TEST_CASE("typed from_json: vector of enums with integer values", "[from_json][typed][enum][collection]") {
+    auto j = json{{"methods", {0, 1, 2}}};
+    auto ve = from_json<VecOfEnums>(j);
+
+    REQUIRE(ve.methods.value.size() == 3);
+    REQUIRE(ve.methods.value[0] == HttpMethod::GET);
+    REQUIRE(ve.methods.value[1] == HttpMethod::POST);
+    REQUIRE(ve.methods.value[2] == HttpMethod::PUT);
+}
+
+TEST_CASE("typed round-trip: vector of enums", "[json][typed][enum][collection][roundtrip]") {
+    VecOfEnums original;
+    original.methods.value = {HttpMethod::DELETE_METHOD, HttpMethod::GET};
+
+    auto restored = from_json<VecOfEnums>(to_json(original));
+
+    REQUIRE(restored.methods.value.size() == 2);
+    REQUIRE(restored.methods.value[0] == HttpMethod::DELETE_METHOD);
+    REQUIRE(restored.methods.value[1] == HttpMethod::GET);
+}
+
+TEST_CASE("typed to_json: map of enums", "[to_json][typed][enum][collection]") {
+    MapOfEnums me;
+    me.palette.value = {{"sky", Color::blue}, {"grass", Color::green}};
+
+    auto j = to_json(me);
+
+    REQUIRE(j["palette"]["sky"] == "blue");
+    REQUIRE(j["palette"]["grass"] == "green");
+}
+
+TEST_CASE("typed from_json: map of enums", "[from_json][typed][enum][collection]") {
+    auto j = json{{"palette", {{"sky", "blue"}, {"fire", "red"}}}};
+    auto me = from_json<MapOfEnums>(j);
+
+    REQUIRE(me.palette.value.at("sky") == Color::blue);
+    REQUIRE(me.palette.value.at("fire") == Color::red);
+}
+
+TEST_CASE("typed round-trip: map of enums", "[json][typed][enum][collection][roundtrip]") {
+    MapOfEnums original;
+    original.palette.value = {{"a", Color::red}, {"b", Color::green}, {"c", Color::blue}};
+
+    auto restored = from_json<MapOfEnums>(to_json(original));
+
+    REQUIRE(restored.palette.value.size() == 3);
+    REQUIRE(restored.palette.value.at("a") == Color::red);
+    REQUIRE(restored.palette.value.at("b") == Color::green);
+    REQUIRE(restored.palette.value.at("c") == Color::blue);
+}
+
+TEST_CASE("typed from_json: vector of enums throws on unknown string", "[from_json][typed][enum][collection][throw]") {
+    auto j = json{{"methods", {"GET", "PATCH"}}};
+    REQUIRE_THROWS_AS(from_json<VecOfEnums>(j), std::logic_error);
+}
+
+TEST_CASE("typed from_json: empty vector of enums", "[from_json][typed][enum][collection]") {
+    auto j = json{{"methods", json::array()}};
+    auto ve = from_json<VecOfEnums>(j);
+
+    REQUIRE(ve.methods.value.empty());
 }
 
 // ═════════════════════════════════════════════════════════════════════════
