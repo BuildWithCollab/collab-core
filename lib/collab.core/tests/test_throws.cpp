@@ -347,10 +347,10 @@ TEST_CASE("hybrid: field() throws for meta member names", "[type_def][hybrid][fi
 // ═══════════════════════════════════════════════════════════════════════════
 
 // 💀 BUG: set()/get()/get<V>() on plain member names (e.g. "counter" on MixedStruct)
-// cause a SIGSEGV instead of throwing std::logic_error. The implementation iterates
-// all struct members including plain ones and crashes when treating a plain int as field<int>.
-// field("counter") correctly throws — only set/get paths are broken.
-// These tests are commented out until the bug is fixed:
+// SIGSEGV instead of throwing. The is_field<member_t> guard in try_set_field/try_get_field
+// should skip plain members, but MSVC release codegen appears to miscompile the
+// if constexpr path — the crash is inside the pruned branch. Needs investigation.
+// field("counter") correctly throws via a separate code path.
 //
 // TEST_CASE("typed: set() throws for plain member names")
 // TEST_CASE("typed: get<V>() throws for plain member names")
