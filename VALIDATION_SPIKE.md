@@ -1,64 +1,9 @@
-# Validation — Implementation Status
+# Validation — Remaining Gaps
 
-> Tracking doc. See `validation.md` for the full design spec.
-
----
-
-## ✅ Done
-
-### Core infrastructure
-- [x] `validation_error` struct (path, message, constraint)
-- [x] `validation_result` struct (ok(), error_count(), errors(), operator bool, iterable)
-- [x] `validator_pack<Vs...>` wrapper type
-- [x] `validators()` free function creates packs
-- [x] Built-in validators: `not_empty`, `max_length`, `positive` (in `collab::model::validations`)
-- [x] `extract_short_validator_name()` — cross-compiler constraint name extraction (MSVC `[]`, GCC `@`, Clang clean)
-- [x] `nameof-module-support` package (fork with MSVC module fix)
-- [x] Custom user-defined validators work with zero registration
-- [x] Constraint names auto-derived via `nameof`
-
-### valid() / validate() — all 4 paths
-- [x] **type_instance** — `obj.valid()`, `obj.validate()`
-- [x] **typed** — `t.valid(instance)`, `t.validate(instance)`
-- [x] **hybrid** — `dog_t.valid(instance)`, `dog_t.validate(instance)`
-- [x] **dynamic** — via type_instance
-
-### Validators on fields — all 4 paths
-- [x] **dynamic** — `.field<T>("name", default, validators(...))`
-- [x] **typed** — `field<T> name { .validators = validators(...) }`
-- [x] **hybrid** — `.field(&T::member, "name", validators(...))`
-- [x] Validators + `with<>` metas mixable in any order (dynamic + hybrid tested)
-
-### Nested validation (dynamic/type_instance only)
-- [x] `validate()` recurses into nested type_instances
-- [x] Dotted paths: `"address.street"`, `"middle.leaf.tag"` (3-level deep)
-- [x] `valid()` short-circuits through nesting
-
-### parse_result — all 3 paths
-- [x] `parse_result<T>` struct — value + extra_keys + missing_fields + validation_errors
-- [x] **dynamic** — `dog_t.parse(json)` → `parse_result<type_instance>`
-- [x] **typed** — `type_def<Dog>{}.parse(json)` → `parse_result<Dog>`
-- [x] **hybrid** — `dog_t.parse(json)` → `parse_result<PlainDog>`
-- [x] `operator*` / `operator->` for value access
-- [x] `checked_value()` throws if validation errors exist
-- [x] Extra keys and missing fields are informational (don't affect `valid()`)
-
----
-
-## ❌ Not done
-
-### parse_options ✅
-- [x] `parse_options` struct: `reject_extra_keys`, `require_all_fields`, `require_valid`, `strict`
-- [x] `.parse(json, {.strict = true})` throws on any issue
-- [x] `.parse(json, {.reject_extra_keys = true})` throws on unknown keys
-- [x] `parse_error` exception carrying structured data (extra_keys, missing_fields, validation_errors)
-
-### Type mismatch graceful handling ✅
-- [x] `parse()` catches JSON type mismatches (string where int expected)
-- [x] Mismatched fields get default value instead of throwing
-- [x] All three paths: dynamic, typed, hybrid
-
-### Nested validation on typed path ✅
-- [x] Typed structs with nested `field<Address>` — validate recurses with dotted paths
-- [x] `valid()` short-circuits through nested typed structs
-- [x] Outer + inner errors collected together
+- [ ] Hybrid nested validation — hybrid structs with nested registered members
+- [ ] parse_options on typed/hybrid — zero tests, could be broken
+- [ ] Typed parse() with nested field<> structs — uses nlohmann .get<>() which won't go through our reflection, likely broken
+- [ ] Dynamic builder: validators without default value — `.field<std::string>("name", validators(not_empty{}))` not tested, might not compile
+- [ ] Validators + metas mixed on typed path — only tested on dynamic and hybrid, no typed struct test
+- [ ] parse_error data correctness — only one test checks structured data on the exception
+- [ ] CLAUDE.md test coverage rule — several capabilities only tested on one or two paths, not all four
