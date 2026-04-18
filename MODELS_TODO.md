@@ -12,7 +12,7 @@ If a function is callable by a user of this library, **you do not get to decide 
 
 ## 📋 Open gaps
 
-- [ ] **Hybrid without field<> members — JSON**: Plain structs registered via `type_def<PlainDog>().field(&PlainDog::name, "name")` can't use `from_json<PlainDog>()` because the template requires `reflected_struct` (which needs `field<>` members). Needs a `from_json` / `to_json` overload that takes a `type_def<T>` alongside the struct.
+- [x] ~~**Hybrid without field<> members — JSON**~~ → `to_json(instance, type_def)` and `from_json<T>(json, type_def)` overloads added. Note: `from_json` must be qualified as `collab::model::from_json` to avoid ADL collision with nlohmann's `from_json`.
 
 - [x] ~~**`const_cast` in `field_json.cpp`**~~ → codec fields are now `mutable`, zero `const_cast` remaining in src/
 
