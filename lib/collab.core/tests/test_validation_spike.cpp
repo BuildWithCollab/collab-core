@@ -147,3 +147,137 @@ TEST_CASE("spike: validators don't affect set/get/to_json", "[validation][spike]
     REQUIRE(dog.type().field_count() == 2);
     REQUIRE(dog.type().field_names()[0] == "name");
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Validators mixed with metas in the same .field() call
+// ═════════════════════════════════════════════════════════════════════════
+
+struct spike_help_info {
+    const char* summary = "";
+};
+
+struct spike_cli_meta {
+    struct { char short_flag = '\0'; } cli;
+};
+
+TEST_CASE("spike: validators and with<> metas in same field call", "[validation][dynamic]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}),
+            with<spike_help_info>({.summary = "Dog's name"}))
+        .field<int>("age", 0,
+            validators(positive{}),
+            with<spike_cli_meta>({.cli = {.short_flag = 'a'}}),
+            with<spike_help_info>({.summary = "Age in years"}));
+
+    // Validators work
+    auto dog = dog_type.create();
+    REQUIRE(!dog.valid());
+
+    dog.set("name", std::string("Rex"));
+    dog.set("age", 3);
+    REQUIRE(dog.valid());
+
+    // Metas are accessible
+    REQUIRE(dog_type.field("name").has_meta<spike_help_info>());
+    REQUIRE(std::string_view{dog_type.field("name").meta<spike_help_info>().summary} == "Dog's name");
+    REQUIRE(dog_type.field("age").has_meta<spike_cli_meta>());
+    REQUIRE(dog_type.field("age").meta<spike_cli_meta>().cli.short_flag == 'a');
+    REQUIRE(dog_type.field("age").has_meta<spike_help_info>());
+}
+
+TEST_CASE("spike: metas before validators in same field call", "[validation][dynamic]") {
+    // Order shouldn't matter — metas first, then validators
+    auto config_type = type_def("Config")
+        .field<std::string>("token", std::string("secret"),
+            with<spike_help_info>({.summary = "API token"}),
+            validators(not_empty{}, max_length{50}));
+
+    auto config = config_type.create();
+    REQUIRE(config.valid());
+
+    // Meta still accessible
+    REQUIRE(config.type().field("token").has_meta<spike_help_info>());
+    REQUIRE(std::string_view{config.type().field("token").meta<spike_help_info>().summary} == "API token");
+
+    // Validator still works
+    config.set("token", std::string(""));
+    REQUIRE(!config.valid());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Custom user-defined validators
+// ═════════════════════════════════════════════════════════════════════════
+
+struct starts_with_uppercase {
+    std::optional<std::string> operator()(const std::string& value) const {
+        if (value.empty() || std::isupper(static_cast<unsigned char>(value[0])))
+            return std::nullopt;
+        return std::format("'{}' must start with an uppercase letter", value);
+    }
+};
+
+struct in_range {
+    int minimum;
+    int maximum;
+    std::optional<std::string> operator()(int value) const {
+        if (value >= minimum && value <= maximum)
+            return std::nullopt;
+        return std::format("{} must be between {} and {}", value, minimum, maximum);
+    }
+};
+
+TEST_CASE("spike: custom validator — basic contract", "[validation][dynamic][custom]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string("rex"),
+            validators(starts_with_uppercase{}));
+
+    auto dog = dog_type.create();
+    REQUIRE(!dog.valid());
+
+    auto result = dog.validate();
+    REQUIRE(result.error_count() == 1);
+    REQUIRE(result.errors()[0].path == "name");
+    REQUIRE(result.errors()[0].constraint == "starts_with_uppercase");
+    REQUIRE(result.errors()[0].message.find("uppercase") != std::string::npos);
+
+    dog.set("name", std::string("Rex"));
+    REQUIRE(dog.valid());
+}
+
+TEST_CASE("spike: custom validator with parameters", "[validation][dynamic][custom]") {
+    auto dog_type = type_def("Dog")
+        .field<int>("age", 0,
+            validators(in_range{.minimum = 0, .maximum = 30}));
+
+    auto dog = dog_type.create();
+    REQUIRE(dog.valid());  // 0 is in range [0, 30]
+
+    dog.set("age", 31);
+    REQUIRE(!dog.valid());
+
+    auto result = dog.validate();
+    REQUIRE(result.errors()[0].constraint == "in_range");
+    REQUIRE(result.errors()[0].message.find("30") != std::string::npos);
+
+    dog.set("age", 15);
+    REQUIRE(dog.valid());
+}
+
+TEST_CASE("spike: custom validators mixed with built-ins", "[validation][dynamic][custom]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}, starts_with_uppercase{}))
+        .field<int>("age", 0,
+            validators(positive{}, in_range{.minimum = 1, .maximum = 30}));
+
+    auto dog = dog_type.create();
+
+    // Empty name fails not_empty (starts_with_uppercase passes on empty by design)
+    auto result = dog.validate();
+    REQUIRE(result.error_count() >= 2);  // name: not_empty, age: positive + in_range overlap
+
+    dog.set("name", std::string("Rex"));
+    dog.set("age", 5);
+    REQUIRE(dog.valid());
+}
