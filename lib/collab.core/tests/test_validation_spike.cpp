@@ -981,3 +981,75 @@ TEST_CASE("hybrid parse: type mismatch defaults the field", "[validation][hybrid
     REQUIRE(result->age == 0);  // default
     REQUIRE(result->breed == "Husky");
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Nested validation on typed path
+// ═════════════════════════════════════════════════════════════════════════
+
+struct ValidatedAddress {
+    field<std::string> street {
+        .value = "",
+        .validators = validators(not_empty{})
+    };
+    field<std::string> zip {
+        .value = "",
+        .validators = validators(not_empty{})
+    };
+};
+
+struct ValidatedPerson {
+    field<std::string> name {
+        .value = "",
+        .validators = validators(not_empty{})
+    };
+    field<ValidatedAddress> address;
+};
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<ValidatedAddress>() {
+    return collab::model::field_info<ValidatedAddress>("street", "zip");
+}
+
+template <>
+constexpr auto collab::model::struct_info<ValidatedPerson>() {
+    return collab::model::field_info<ValidatedPerson>("name", "address");
+}
+#endif
+
+TEST_CASE("typed: nested validation — inner fields fail with dotted paths", "[validation][typed][nested]") {
+    ValidatedPerson person;
+    person.name = "Alice";
+    // address.street and address.zip are both "" — should fail
+
+    type_def<ValidatedPerson> person_type;
+    auto result = person_type.validate(person);
+
+    REQUIRE(!result);
+    REQUIRE(result.error_count() == 2);
+    REQUIRE(result.errors()[0].path == "address.street");
+    REQUIRE(result.errors()[1].path == "address.zip");
+}
+
+TEST_CASE("typed: nested validation — all valid", "[validation][typed][nested]") {
+    ValidatedPerson person;
+    person.name = "Alice";
+    person.address.value.street = "123 Main St";
+    person.address.value.zip = "97201";
+
+    type_def<ValidatedPerson> person_type;
+    REQUIRE(person_type.valid(person));
+}
+
+TEST_CASE("typed: nested validation — outer and inner both fail", "[validation][typed][nested]") {
+    ValidatedPerson person;
+    // name is "" and address fields are ""
+
+    type_def<ValidatedPerson> person_type;
+    auto result = person_type.validate(person);
+
+    REQUIRE(result.error_count() == 3);
+    REQUIRE(result.errors()[0].path == "name");
+    REQUIRE(result.errors()[1].path == "address.street");
+    REQUIRE(result.errors()[2].path == "address.zip");
+}

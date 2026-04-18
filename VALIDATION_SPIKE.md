@@ -58,6 +58,7 @@
 - [x] Mismatched fields get default value instead of throwing
 - [x] All three paths: dynamic, typed, hybrid
 
-### Nested validation on typed/hybrid — not started
-- [ ] Typed structs with nested `field<Address>` — validate walks into nested structs
-- [ ] Hybrid structs with nested registered members
+### Nested validation on typed path ✅
+- [x] Typed structs with nested `field<Address>` — validate recurses with dotted paths
+- [x] `valid()` short-circuits through nested typed structs
+- [x] Outer + inner errors collected together

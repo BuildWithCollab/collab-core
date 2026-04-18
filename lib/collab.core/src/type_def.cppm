@@ -1025,7 +1025,13 @@ public:
             if (!is_valid) return;
             if (raw_field.validators) {
                 auto errors = raw_field.validators(raw_field.value, name);
-                if (!errors.empty()) is_valid = false;
+                if (!errors.empty()) { is_valid = false; return; }
+            }
+            // Recurse into nested reflected structs
+            using InnerType = std::remove_cvref_t<decltype(raw_field.value)>;
+            if constexpr (detail::reflected_struct<InnerType>) {
+                if (!type_def<InnerType>{}.valid(raw_field.value))
+                    is_valid = false;
             }
         }, indices_{});
         if (!is_valid) return false;
@@ -1043,20 +1049,41 @@ public:
     }
 
     validation_result validate(const T& obj) const {
+        return validate_with_prefix(obj, "");
+    }
+
+  private:
+    validation_result validate_with_prefix(const T& obj, std::string_view prefix) const {
         validation_result result;
         // Check auto-discovered field<T> members
         detail::for_each_raw_field(obj, [&](std::string_view name, const auto& raw_field) {
+            auto full_path = prefix.empty()
+                ? std::string(name)
+                : std::string(prefix) + "." + std::string(name);
+
             if (raw_field.validators) {
-                auto errors = raw_field.validators(raw_field.value, name);
+                auto errors = raw_field.validators(raw_field.value, full_path);
                 for (auto& error : errors)
                     result.add(std::move(error));
+            }
+            // Recurse into nested reflected structs
+            using InnerType = std::remove_cvref_t<decltype(raw_field.value)>;
+            if constexpr (detail::reflected_struct<InnerType>) {
+                auto nested_result = type_def<InnerType>{}.validate_with_prefix(
+                    raw_field.value, full_path);
+                for (auto& error : nested_result.errors())
+                    result.add(validation_error{error.path, error.message, error.constraint});
             }
         }, indices_{});
         // Check hybrid-registered members
         std::apply([&](const auto&... regs) {
             (([&] {
+                auto full_path = prefix.empty()
+                    ? regs.name
+                    : std::string(prefix) + "." + regs.name;
+
                 if (regs.validate_fn) {
-                    auto errors = regs.validate_fn(obj.*(regs.member), regs.name);
+                    auto errors = regs.validate_fn(obj.*(regs.member), full_path);
                     for (auto& error : errors)
                         result.add(std::move(error));
                 }
@@ -1064,6 +1091,8 @@ public:
         }, typed_regs_);
         return result;
     }
+
+  public:
 
     // ── Create instance ──────────────────────────────────────────────
 
