@@ -14,7 +14,7 @@ module;
 #include <vector>
 
 #include <nameof.hpp>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 export module collab.core:type_def;
 
@@ -1034,7 +1034,51 @@ public:
     T create() const { return T{}; }
 
     // ── Parse JSON with reporting ───────────────────────────────────
-    // Free function: parse(json, type_def) — defined in field_json.cppm.
+
+    parse_result<T> parse(const nlohmann::json& j) const {
+        if (!j.is_object()) throw std::logic_error("parse: expected JSON object");
+
+        // Use from_json to populate (it's a free function in :field_json)
+        // We can't call it directly due to partition ordering, so we
+        // populate field-by-field using nlohmann's built-in conversion.
+        parse_result<T> result{.value = T{}};
+
+        for_each_field(result.value, [&](std::string_view name, auto& value) {
+            std::string key(name);
+            if (j.contains(key)) {
+                using ValueType = std::remove_cvref_t<decltype(value)>;
+                try {
+                    value = j[key].get<ValueType>();
+                } catch (...) {
+                    // Type mismatch — keep default
+                }
+            }
+        });
+
+        // Extra keys
+        auto schema_names_vec = field_names();
+        for (auto& [key, val] : j.items()) {
+            bool found = false;
+            for (auto& schema_name : schema_names_vec)
+                if (key == schema_name) { found = true; break; }
+            if (!found)
+                result.extra_keys_.push_back(key);
+        }
+
+        // Missing fields
+        for (auto& schema_name : schema_names_vec) {
+            if (!j.contains(schema_name))
+                result.missing_fields_.push_back(schema_name);
+        }
+
+        // Validation
+        auto validation_check = validate(result.value);
+        for (auto& error : validation_check.errors())
+            result.validation_errors_.push_back(
+                validation_error{error.path, error.message, error.constraint});
+
+        return result;
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════
