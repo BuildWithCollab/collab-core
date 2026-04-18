@@ -15,6 +15,13 @@ module;
 
 #include <nameof.hpp>
 #include <nlohmann/json.hpp>
+#include <magic_enum/magic_enum.hpp>
+#include <ankerl/unordered_dense.h>
+
+#include <map>
+#include <set>
+#include <unordered_map>
+#include <unordered_set>
 
 export module collab.core:type_def;
 
@@ -1103,22 +1110,41 @@ public:
     parse_result<T> parse(const nlohmann::json& j) const {
         if (!j.is_object()) throw std::logic_error("parse: expected JSON object");
 
-        // Use from_json to populate (it's a free function in :field_json)
-        // We can't call it directly due to partition ordering, so we
-        // populate field-by-field using nlohmann's built-in conversion.
         parse_result<T> result{.value = T{}};
 
-        for_each_field(result.value, [&](std::string_view name, auto& value) {
+        // Populate using raw field iteration — handles nested structs recursively
+        detail::for_each_raw_field(result.value, [&](std::string_view name, auto& raw_field) {
             std::string key(name);
             if (j.contains(key)) {
-                using ValueType = std::remove_cvref_t<decltype(value)>;
-                try {
-                    value = j[key].get<ValueType>();
-                } catch (...) {
-                    // Type mismatch — keep default
+                using InnerType = std::remove_cvref_t<decltype(raw_field.value)>;
+                if constexpr (detail::reflected_struct<InnerType>) {
+                    // Nested struct — recurse via parse
+                    if (j[key].is_object()) {
+                        auto nested_result = type_def<InnerType>{}.parse(j[key]);
+                        raw_field.value = std::move(nested_result.value);
+                    }
+                } else {
+                    try {
+                        raw_field.value = j[key].get<InnerType>();
+                    } catch (...) {
+                        // Type mismatch — keep default
+                    }
                 }
             }
-        });
+        }, indices_{});
+
+        // Also populate hybrid-registered fields
+        std::apply([&](const auto&... regs) {
+            (([&] {
+                if (j.contains(regs.name)) {
+                    using MemT = std::remove_cvref_t<
+                        decltype(result.value.*(regs.member))>;
+                    try {
+                        result.value.*(regs.member) = j[regs.name].get<MemT>();
+                    } catch (...) {}
+                }
+            }()), ...);
+        }, typed_regs_);
 
         // Extra keys
         auto schema_names_vec = field_names();

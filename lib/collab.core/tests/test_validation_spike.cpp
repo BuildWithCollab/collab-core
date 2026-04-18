@@ -1053,3 +1053,142 @@ TEST_CASE("typed: nested validation — outer and inner both fail", "[validation
     REQUIRE(result.errors()[1].path == "address.street");
     REQUIRE(result.errors()[2].path == "address.zip");
 }
+
+TEST_CASE("typed parse: nested field<> structs populate correctly", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedPerson>{}.parse(json{
+        {"name", "Alice"},
+        {"address", {{"street", "123 Main"}, {"zip", "97201"}}}
+    });
+
+    REQUIRE(result->name.value == "Alice");
+    REQUIRE(result->address.value.street.value == "123 Main");
+    REQUIRE(result->address.value.zip.value == "97201");
+    REQUIRE(result.valid());
+}
+
+TEST_CASE("typed parse: nested struct missing inner keys", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedPerson>{}.parse(json{
+        {"name", "Alice"},
+        {"address", {{"street", "123 Main"}}}
+        // zip missing from address
+    });
+
+    REQUIRE(result->name.value == "Alice");
+    REQUIRE(result->address.value.street.value == "123 Main");
+    REQUIRE(result->address.value.zip.value == "");  // default
+}
+
+TEST_CASE("typed parse: nested struct entirely missing", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedPerson>{}.parse(json{
+        {"name", "Alice"}
+        // address entirely missing
+    });
+
+    REQUIRE(result->name.value == "Alice");
+    REQUIRE(result->address.value.street.value == "");
+    REQUIRE(result->address.value.zip.value == "");
+}
+
+TEST_CASE("typed parse: nested validation errors have dotted paths", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedPerson>{}.parse(json{
+        {"name", "Alice"},
+        {"address", {{"street", ""}, {"zip", ""}}}
+    });
+
+    // name is valid, but address.street and address.zip fail not_empty
+    REQUIRE(!result.valid());
+    REQUIRE(result.validation_errors().size() == 2);
+    REQUIRE(result.validation_errors()[0].path == "address.street");
+    REQUIRE(result.validation_errors()[1].path == "address.zip");
+}
+
+TEST_CASE("typed parse: extra keys inside nested object", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedPerson>{}.parse(json{
+        {"name", "Alice"},
+        {"address", {{"street", "123 Main"}, {"zip", "97201"}, {"country", "US"}}}
+    });
+
+    // "country" is an extra key inside the nested address
+    REQUIRE(result->address.value.street.value == "123 Main");
+}
+
+TEST_CASE("typed parse: type mismatch in nested field", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedPerson>{}.parse(json{
+        {"name", "Alice"},
+        {"address", {{"street", 42}, {"zip", "97201"}}}
+        // street is int instead of string
+    });
+
+    REQUIRE(result->address.value.street.value == "");  // default on mismatch
+    REQUIRE(result->address.value.zip.value == "97201");
+}
+
+// ── 3-level deep typed parse ────────────────────────────────────────────
+
+struct ValidatedLeaf {
+    field<std::string> tag {
+        .value = "",
+        .validators = validators(not_empty{})
+    };
+};
+
+struct ValidatedMiddle {
+    field<std::string> label {.value = "mid"};
+    field<ValidatedLeaf> leaf;
+};
+
+struct ValidatedRoot {
+    field<std::string> name {.value = "root"};
+    field<ValidatedMiddle> middle;
+};
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<ValidatedLeaf>() {
+    return collab::model::field_info<ValidatedLeaf>("tag");
+}
+
+template <>
+constexpr auto collab::model::struct_info<ValidatedMiddle>() {
+    return collab::model::field_info<ValidatedMiddle>("label", "leaf");
+}
+
+template <>
+constexpr auto collab::model::struct_info<ValidatedRoot>() {
+    return collab::model::field_info<ValidatedRoot>("name", "middle");
+}
+#endif
+
+TEST_CASE("typed parse: 3-level deep nested populate", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedRoot>{}.parse(json{
+        {"name", "top"},
+        {"middle", {{"label", "mid"}, {"leaf", {{"tag", "deep"}}}}}
+    });
+
+    REQUIRE(result->name.value == "top");
+    REQUIRE(result->middle.value.label.value == "mid");
+    REQUIRE(result->middle.value.leaf.value.tag.value == "deep");
+    REQUIRE(result.valid());
+}
+
+TEST_CASE("typed parse: 3-level deep validation error has full dotted path", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedRoot>{}.parse(json{
+        {"name", "top"},
+        {"middle", {{"label", "mid"}, {"leaf", {{"tag", ""}}}}}
+    });
+
+    REQUIRE(!result.valid());
+    REQUIRE(result.validation_errors().size() == 1);
+    REQUIRE(result.validation_errors()[0].path == "middle.leaf.tag");
+}
+
+TEST_CASE("typed parse: 3-level deep entirely missing nested", "[validation][typed][parse][nested]") {
+    auto result = type_def<ValidatedRoot>{}.parse(json{
+        {"name", "top"}
+        // middle entirely missing
+    });
+
+    REQUIRE(result->name.value == "top");
+    REQUIRE(result->middle.value.label.value == "mid");  // default
+    REQUIRE(result->middle.value.leaf.value.tag.value == "");  // default
+}
