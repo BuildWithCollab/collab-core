@@ -19,15 +19,29 @@ struct HybridDog {
     std::string breed;
 };
 
-inline auto hybrid_dog_type = type_def<HybridDog>()
-    .field(&HybridDog::name, "name")
-    .field(&HybridDog::age, "age")
-    .field(&HybridDog::breed, "breed");
-
 struct HybridPoint {
     double x = 0.0;
     double y = 0.0;
 };
+
+// ── struct_info fallbacks (non-PFR builds) ──────────────────────────────
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<HybridDog>() {
+    return collab::model::field_info<HybridDog>("name", "age", "breed");
+}
+
+template <>
+constexpr auto collab::model::struct_info<HybridPoint>() {
+    return collab::model::field_info<HybridPoint>("x", "y");
+}
+#endif
+
+inline auto hybrid_dog_type = type_def<HybridDog>()
+    .field(&HybridDog::name, "name")
+    .field(&HybridDog::age, "age")
+    .field(&HybridDog::breed, "breed");
 
 inline auto hybrid_point_type = type_def<HybridPoint>()
     .field(&HybridPoint::x, "x")
