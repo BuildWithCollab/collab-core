@@ -222,7 +222,7 @@ namespace detail {
 namespace detail {
 
     template <typename V>
-    void init_json_codec(dynamic_field_def& fd) {
+    void init_json_codec(const dynamic_field_def& fd) {
         fd.to_json_fn = [](const std::any& a) -> std::any {
             return std::any(value_to_json(*std::any_cast<V>(&a)));
         };

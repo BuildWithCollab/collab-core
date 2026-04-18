@@ -247,7 +247,7 @@ namespace detail {
     struct dynamic_field_def;
 
     template <typename V>
-    void init_json_codec(dynamic_field_def& fd);
+    void init_json_codec(const dynamic_field_def& fd);
 
     // ── Type-erased meta entry ───────────────────────────────────────
 
@@ -272,9 +272,10 @@ namespace detail {
         // that calls init_json_codec<V> to populate to_json_fn/from_json_fn.
         // The std::function wraps a generic lambda whose body is NOT
         // instantiated until called (from field_json.cpp).
-        std::function<void(dynamic_field_def&)> _json_init;
-        std::function<std::any(const std::any&)>        to_json_fn;
-        std::function<void(std::any&, const std::any&)> from_json_fn;
+        // Mutable so lazy init works even on const type_def instances.
+        mutable std::function<void(const dynamic_field_def&)> _json_init;
+        mutable std::function<std::any(const std::any&)>        to_json_fn;
+        mutable std::function<void(std::any&, const std::any&)> from_json_fn;
     };
 
     // ── Extract metas from a with<Exts...> ───────────────────────────
@@ -833,7 +834,7 @@ public:
             return false;
         };
         auto factory = []() -> std::any { return std::any(V{}); };
-        auto json_init = [](detail::dynamic_field_def& fd) {
+        auto json_init = [](const detail::dynamic_field_def& fd) {
             detail::init_json_codec<V>(fd);
         };
         fields_.push_back({std::string(fname), typeid(V), {}, false, {},
@@ -852,7 +853,7 @@ public:
             return false;
         };
         auto factory = []() -> std::any { return std::any(V{}); };
-        auto json_init = [](detail::dynamic_field_def& fd) {
+        auto json_init = [](const detail::dynamic_field_def& fd) {
             detail::init_json_codec<V>(fd);
         };
         detail::dynamic_field_def fd{

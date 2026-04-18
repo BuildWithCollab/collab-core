@@ -15,7 +15,7 @@ module collab.core;
 
 // ── Lazy codec init ──────────────────────────────────────────────────────
 
-static void ensure_codec(collab::model::detail::dynamic_field_def& fd) {
+static void ensure_codec(const collab::model::detail::dynamic_field_def& fd) {
     if (fd.to_json_fn) return;
     if (fd._json_init) fd._json_init(fd);
 }
@@ -29,7 +29,7 @@ void collab::model::type_instance::load_json(const nlohmann::json& j) {
     for (auto& [key, val] : j.items()) {
         int idx = find_field_index(key);
         if (idx < 0) continue;
-        auto& fd = const_cast<detail::dynamic_field_def&>(fields[idx]);
+        auto& fd = fields[idx];
         ensure_codec(fd);
         fd.from_json_fn(values_[idx], std::any(val));
     }
@@ -41,7 +41,7 @@ nlohmann::json collab::model::type_instance::to_json() const {
     nlohmann::json j = nlohmann::json::object();
     auto& fields = type_->fields_;
     for (std::size_t i = 0; i < fields.size(); ++i) {
-        auto& fd = const_cast<detail::dynamic_field_def&>(fields[i]);
+        auto& fd = fields[i];
         ensure_codec(fd);
         auto result = fd.to_json_fn(values_[i]);
         j[fd.name] = *std::any_cast<nlohmann::json>(&result);
@@ -86,7 +86,7 @@ collab::model::type_def<collab::model::detail::dynamic_tag>::field(
 
     // JSON codec — to_json calls type_instance::to_json(),
     // from_json creates a fresh instance and calls load_json().
-    auto json_init = [nested_ptr](detail::dynamic_field_def& fd) {
+    auto json_init = [nested_ptr](const detail::dynamic_field_def& fd) {
         fd.to_json_fn = [](const std::any& a) -> std::any {
             const auto& instance = *std::any_cast<type_instance>(&a);
             return std::any(instance.to_json());

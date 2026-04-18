@@ -14,7 +14,7 @@ If a function is callable by a user of this library, **you do not get to decide 
 
 - [ ] **Hybrid without field<> members — JSON**: Plain structs registered via `type_def<PlainDog>().field(&PlainDog::name, "name")` can't use `from_json<PlainDog>()` because the template requires `reflected_struct` (which needs `field<>` members). Needs a `from_json` / `to_json` overload that takes a `type_def<T>` alongside the struct.
 
-- [ ] **`const_cast` in `field_json.cpp`**: `to_json()` and `load_json()` use `const_cast` on `dynamic_field_def` to lazily init the JSON codec. Works in practice (type_defs are always mutable) but is technically UB if a `type_def` were declared `const`. Consider eagerly initializing the codec or making the codec fields `mutable`.
+- [x] ~~**`const_cast` in `field_json.cpp`**~~ → codec fields are now `mutable`, zero `const_cast` remaining in src/
 
 ---
 
