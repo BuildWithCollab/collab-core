@@ -527,6 +527,27 @@ TEST_CASE("spike: parse() — validation does NOT run by default", "[validation]
 // Typed path — validators on field<T>
 // ═════════════════════════════════════════════════════════════════════════
 
+struct ValidatedDog;
+struct ParseableDog;
+struct HybridValidatedDog;
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<ValidatedDog>() {
+    return collab::model::field_info<ValidatedDog>("name", "age", "breed");
+}
+
+template <>
+constexpr auto collab::model::struct_info<ParseableDog>() {
+    return collab::model::field_info<ParseableDog>("name", "age", "breed");
+}
+
+template <>
+constexpr auto collab::model::struct_info<HybridValidatedDog>() {
+    return collab::model::field_info<HybridValidatedDog>("name", "age", "breed");
+}
+#endif
+
 struct ValidatedDog {
     field<std::string> name {
         .value = "",
