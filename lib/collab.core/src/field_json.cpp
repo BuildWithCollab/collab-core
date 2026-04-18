@@ -65,6 +65,49 @@ collab::model::type_def<collab::model::detail::dynamic_tag>::create(
     return obj;
 }
 
+// ── type_def<dynamic_tag>::parse(json) ────────────────────────────────────
+
+collab::model::parse_result<collab::model::type_instance>
+collab::model::type_def<collab::model::detail::dynamic_tag>::parse(
+        const nlohmann::json& j) const {
+    if (!j.is_object())
+        throw std::logic_error("parse: expected JSON object");
+
+    parse_result<type_instance> result{.value = create()};
+
+    // Collect JSON keys present, load them into the instance
+    std::vector<std::string> json_keys;
+    for (auto& [key, val] : j.items())
+        json_keys.push_back(key);
+
+    // Load JSON into instance (handles field matching + codecs)
+    result.value.load_json(j);
+
+    // Find extra keys (in JSON but not in schema)
+    for (auto& key : json_keys) {
+        if (!has_field(key))
+            result.extra_keys_.push_back(key);
+    }
+
+    // Find missing fields (in schema but not in JSON)
+    for (auto& field_name : field_names()) {
+        bool found = false;
+        for (auto& key : json_keys) {
+            if (key == field_name) { found = true; break; }
+        }
+        if (!found)
+            result.missing_fields_.push_back(field_name);
+    }
+
+    // Run validation
+    auto validation = result.value.validate();
+    for (auto& error : validation.errors())
+        result.validation_errors_.push_back(
+            validation_error{error.path, error.message, error.constraint});
+
+    return result;
+}
+
 // ── type_def<dynamic_tag>::field(name, nested_type_def) ──────────────────
 
 collab::model::type_def<collab::model::detail::dynamic_tag>&

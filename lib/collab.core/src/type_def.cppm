@@ -52,6 +52,51 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════
+// parse_result — deserialization result with reporting
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Always contains the object AND the report. Not std::expected.
+// extra_keys and missing_fields are informational — only validation
+// errors affect valid().
+
+template <typename T>
+struct parse_result {
+    T value;
+
+    // --- Error checks ---
+    bool valid() const { return validation_errors_.empty(); }
+    bool has_extra_keys() const { return !extra_keys_.empty(); }
+    bool has_missing_fields() const { return !missing_fields_.empty(); }
+
+    // --- Data access ---
+    const std::vector<std::string>& extra_keys() const { return extra_keys_; }
+    const std::vector<std::string>& missing_fields() const { return missing_fields_; }
+    const std::vector<validation_error>& validation_errors() const { return validation_errors_; }
+
+    // --- Value access ---
+    T& operator*() { return value; }
+    const T& operator*() const { return value; }
+    T* operator->() { return &value; }
+    const T* operator->() const { return &value; }
+
+    T& checked_value() {
+        if (!valid())
+            throw std::logic_error("parse_result: validation errors exist");
+        return value;
+    }
+    const T& checked_value() const {
+        if (!valid())
+            throw std::logic_error("parse_result: validation errors exist");
+        return value;
+    }
+
+    // --- Builder (internal) ---
+    std::vector<std::string> extra_keys_;
+    std::vector<std::string> missing_fields_;
+    std::vector<validation_error> validation_errors_;
+};
+
+// ═══════════════════════════════════════════════════════════════════════
 // Validator infrastructure
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1119,6 +1164,13 @@ public:
     // Defined in field_json.cpp (module implementation unit).
 
     type_instance create(const nlohmann::json& j) const;
+
+    // ── Parse JSON with reporting ───────────────────────────────────
+    // Returns parse_result<type_instance> — always contains the object
+    // plus extra_keys, missing_fields, and validation_errors.
+    // Defined in field_json.cpp (module implementation unit).
+
+    parse_result<type_instance> parse(const nlohmann::json& j) const;
 };
 
 // ── CTAD: type_def("Event") deduces to type_def<detail::dynamic_tag> ─────────────

@@ -8,6 +8,7 @@ import collab.core;
 
 using namespace collab::model;
 using namespace collab::model::validations;
+using json = nlohmann::json;
 
 // ═════════════════════════════════════════════════════════════════════════
 // Spike Test 1: single validator on dynamic field, valid() returns false
@@ -383,4 +384,141 @@ TEST_CASE("spike: nested validation — fixing nested value clears errors", "[va
 
     REQUIRE(person.valid());
     REQUIRE(person.validate().ok());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// parse_result — from_json with reporting
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("spike: parse() returns object and no issues on clean JSON", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age");
+
+    auto result = dog_type.parse(json{{"name", "Rex"}, {"age", 3}});
+
+    REQUIRE(result.valid());
+    REQUIRE(!result.has_extra_keys());
+    REQUIRE(!result.has_missing_fields());
+    REQUIRE(result->get<std::string>("name") == "Rex");
+    REQUIRE(result->get<int>("age") == 3);
+}
+
+TEST_CASE("spike: parse() detects extra keys", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age");
+
+    auto result = dog_type.parse(json{
+        {"name", "Rex"}, {"age", 3},
+        {"color", "brown"}, {"weight", 25}
+    });
+
+    // Extra keys are informational — valid() still true
+    REQUIRE(result.valid());
+    REQUIRE(result.has_extra_keys());
+    REQUIRE(result.extra_keys().size() == 2);
+
+    // Object is still fully populated
+    REQUIRE(result->get<std::string>("name") == "Rex");
+}
+
+TEST_CASE("spike: parse() detects missing fields", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age", 5)
+        .field<std::string>("breed");
+
+    auto result = dog_type.parse(json{{"name", "Rex"}});
+
+    // Missing fields are informational — valid() still true
+    REQUIRE(result.valid());
+    REQUIRE(result.has_missing_fields());
+    REQUIRE(result.missing_fields().size() == 2);  // age and breed
+
+    // Missing fields get defaults
+    REQUIRE(result->get<int>("age") == 5);
+    REQUIRE(result->get<std::string>("breed").empty());
+}
+
+TEST_CASE("spike: parse() reports validation errors", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}))
+        .field<int>("age", 0,
+            validators(positive{}));
+
+    auto result = dog_type.parse(json{{"name", ""}, {"age", -5}});
+
+    // Validation errors make valid() false
+    REQUIRE(!result.valid());
+    REQUIRE(result.validation_errors().size() == 2);
+
+    // But the object is still fully populated with the parsed values
+    REQUIRE(result->get<std::string>("name") == "");
+    REQUIRE(result->get<int>("age") == -5);
+}
+
+TEST_CASE("spike: parse() — all three categories at once", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}))
+        .field<int>("age")
+        .field<std::string>("breed");
+
+    auto result = dog_type.parse(json{
+        {"name", ""},        // present but fails validation
+        {"age", 3},          // present, no validator
+        {"unknown", "wat"}   // extra key
+        // breed is missing
+    });
+
+    REQUIRE(!result.valid());                    // validation error
+    REQUIRE(result.has_extra_keys());            // "unknown"
+    REQUIRE(result.has_missing_fields());         // "breed"
+    REQUIRE(result.validation_errors().size() == 1);
+    REQUIRE(result.extra_keys().size() == 1);
+    REQUIRE(result.missing_fields().size() == 1);
+}
+
+TEST_CASE("spike: parse() — operator* and operator-> access", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age");
+
+    auto result = dog_type.parse(json{{"name", "Rex"}, {"age", 3}});
+
+    // operator-> for field access
+    REQUIRE(result->get<std::string>("name") == "Rex");
+
+    // operator* for the instance itself
+    type_instance& instance = *result;
+    REQUIRE(instance.get<int>("age") == 3);
+}
+
+TEST_CASE("spike: parse() — checked_value() throws on validation errors", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}));
+
+    auto result = dog_type.parse(json{{"name", ""}});
+    REQUIRE_THROWS(result.checked_value());
+
+    auto good_result = dog_type.parse(json{{"name", "Rex"}});
+    REQUIRE_NOTHROW(good_result.checked_value());
+}
+
+TEST_CASE("spike: parse() — validation does NOT run by default", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}));
+
+    // parse() should still populate validation_errors — it runs validation
+    // But it doesn't THROW. The data is always returned.
+    auto result = dog_type.parse(json{{"name", ""}});
+
+    // valid() reflects the validation state
+    REQUIRE(!result.valid());
+    // But we got the object
+    REQUIRE(result->get<std::string>("name") == "");
 }
