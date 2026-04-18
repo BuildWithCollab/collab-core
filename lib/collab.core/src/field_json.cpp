@@ -4,9 +4,12 @@ module;
 
 #include <any>
 #include <cstddef>
+#include <functional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <typeindex>
+#include <typeinfo>
 
 module collab.core;
 
@@ -60,4 +63,50 @@ collab::model::type_def<collab::model::detail::dynamic_tag>::create(
     auto obj = create();
     obj.load_json(j);
     return obj;
+}
+
+// ── type_def<dynamic_tag>::field(name, nested_type_def) ──────────────────
+
+collab::model::type_def<collab::model::detail::dynamic_tag>&
+collab::model::type_def<collab::model::detail::dynamic_tag>::field(
+        std::string_view fname,
+        const type_def& nested_type) {
+    const auto* nested_ptr = &nested_type;
+
+    auto setter = [](std::any& target, std::any&& incoming) -> bool {
+        if (auto* p = std::any_cast<type_instance>(&incoming)) {
+            target = std::move(*p);
+            return true;
+        }
+        return false;
+    };
+    auto factory = [nested_ptr]() -> std::any {
+        return std::any(nested_ptr->create());
+    };
+
+    // JSON codec — to_json calls type_instance::to_json(),
+    // from_json creates a fresh instance and calls load_json().
+    auto json_init = [nested_ptr](detail::dynamic_field_def& fd) {
+        fd.to_json_fn = [](const std::any& a) -> std::any {
+            const auto& instance = *std::any_cast<type_instance>(&a);
+            return std::any(instance.to_json());
+        };
+        fd.from_json_fn = [nested_ptr](std::any& a, const std::any& j_any) {
+            const auto& j = *std::any_cast<nlohmann::json>(&j_any);
+            auto instance = nested_ptr->create();
+            instance.load_json(j);
+            a = std::move(instance);
+        };
+    };
+
+    detail::dynamic_field_def fd{};
+    fd.name = std::string(fname);
+    fd.type = typeid(type_instance);
+    fd.default_value = nested_type.create();
+    fd.has_default = true;
+    fd.setter = std::move(setter);
+    fd.make_default = std::move(factory);
+    fd._json_init = std::move(json_init);
+    fields_.push_back(std::move(fd));
+    return *this;
 }

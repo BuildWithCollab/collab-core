@@ -865,6 +865,15 @@ public:
         return *this;
     }
 
+    // ── Nested type_def field builder ───────────────────────────────
+    //
+    // .field("address", address_type) — nests a dynamic type_def.
+    // The field stores type_instance values backed by nested_type.
+    // Defined in field_json.cpp because it needs type_instance to be complete.
+
+    type_def& field(std::string_view fname,
+                    const type_def& nested_type);
+
     // ── Meta builder (type-level) ────────────────────────────────────
 
     template <typename M>
@@ -1073,5 +1082,6 @@ public:
 inline type_instance type_def<detail::dynamic_tag>::create() const {
     return type_instance(*this);
 }
+
 
 }  // namespace collab::model
