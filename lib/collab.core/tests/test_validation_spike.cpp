@@ -281,3 +281,106 @@ TEST_CASE("spike: custom validators mixed with built-ins", "[validation][dynamic
     dog.set("age", 5);
     REQUIRE(dog.valid());
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Nested validation — dotted paths
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("spike: nested validation — inner field fails", "[validation][dynamic][nested]") {
+    auto address_type = type_def("Address")
+        .field<std::string>("street", std::string(""),
+            validators(not_empty{}))
+        .field<std::string>("zip", std::string(""),
+            validators(not_empty{}));
+
+    auto person_type = type_def("Person")
+        .field<std::string>("name", std::string("Alice"))
+        .field("address", address_type);
+
+    auto person = person_type.create();
+    // name is valid, but address.street and address.zip are both ""
+
+    auto result = person.validate();
+    REQUIRE(!result);
+    REQUIRE(result.error_count() == 2);
+    REQUIRE(result.errors()[0].path == "address.street");
+    REQUIRE(result.errors()[1].path == "address.zip");
+}
+
+TEST_CASE("spike: nested validation — outer and inner both fail", "[validation][dynamic][nested]") {
+    auto address_type = type_def("Address")
+        .field<std::string>("zip", std::string(""),
+            validators(not_empty{}));
+
+    auto person_type = type_def("Person")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}))
+        .field("address", address_type);
+
+    auto person = person_type.create();
+
+    auto result = person.validate();
+    REQUIRE(result.error_count() == 2);
+
+    // Outer field reported without prefix
+    REQUIRE(result.errors()[0].path == "name");
+    // Inner field reported with dotted prefix
+    REQUIRE(result.errors()[1].path == "address.zip");
+}
+
+TEST_CASE("spike: nested validation — valid() short-circuits across nesting", "[validation][dynamic][nested]") {
+    auto inner_type = type_def("Inner")
+        .field<int>("value", 0, validators(positive{}));
+
+    auto outer_type = type_def("Outer")
+        .field<std::string>("label", std::string("ok"))
+        .field("child", inner_type);
+
+    auto outer = outer_type.create();
+    REQUIRE(!outer.valid());  // child.value is 0, fails positive
+
+    auto child = outer.get<type_instance>("child");
+    child.set("value", 5);
+    outer.set("child", child);
+    REQUIRE(outer.valid());
+}
+
+TEST_CASE("spike: nested validation — 3-level deep dotted paths", "[validation][dynamic][nested]") {
+    auto leaf_type = type_def("Leaf")
+        .field<std::string>("tag", std::string(""),
+            validators(not_empty{}));
+
+    auto middle_type = type_def("Middle")
+        .field<std::string>("label", std::string("ok"))
+        .field("leaf", leaf_type);
+
+    auto root_type = type_def("Root")
+        .field<std::string>("name", std::string("root"))
+        .field("middle", middle_type);
+
+    auto root = root_type.create();
+
+    auto result = root.validate();
+    REQUIRE(result.error_count() == 1);
+    REQUIRE(result.errors()[0].path == "middle.leaf.tag");
+}
+
+TEST_CASE("spike: nested validation — fixing nested value clears errors", "[validation][dynamic][nested]") {
+    auto address_type = type_def("Address")
+        .field<std::string>("street", std::string(""),
+            validators(not_empty{}));
+
+    auto person_type = type_def("Person")
+        .field<std::string>("name", std::string("Alice"))
+        .field("address", address_type);
+
+    auto person = person_type.create();
+    REQUIRE(!person.valid());
+
+    auto address = person.get<type_instance>("address");
+    address.set("street", std::string("123 Main St"));
+    person.set("address", address);
+
+    REQUIRE(person.valid());
+    REQUIRE(person.validate().ok());
+}

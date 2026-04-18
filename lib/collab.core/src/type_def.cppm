@@ -1213,22 +1213,47 @@ public:
                 auto errors = fields[i].validate_fn(values_[i], fields[i].name);
                 if (!errors.empty()) return false;
             }
+            // Recurse into nested type_instances
+            if (fields[i].type == typeid(type_instance)) {
+                if (const auto* nested = std::any_cast<type_instance>(&values_[i])) {
+                    if (!nested->valid()) return false;
+                }
+            }
         }
         return true;
     }
 
     validation_result validate() const {
+        return validate_with_prefix("");
+    }
+
+  private:
+    validation_result validate_with_prefix(std::string_view prefix) const {
         validation_result result;
         auto& fields = type_->fields_;
         for (std::size_t i = 0; i < fields.size(); ++i) {
+            auto full_path = prefix.empty()
+                ? fields[i].name
+                : std::string(prefix) + "." + fields[i].name;
+
             if (fields[i].validate_fn) {
-                auto errors = fields[i].validate_fn(values_[i], fields[i].name);
+                auto errors = fields[i].validate_fn(values_[i], full_path);
                 for (auto& error : errors)
                     result.add(std::move(error));
+            }
+            // Recurse into nested type_instances
+            if (fields[i].type == typeid(type_instance)) {
+                if (const auto* nested = std::any_cast<type_instance>(&values_[i])) {
+                    auto nested_result = nested->validate_with_prefix(full_path);
+                    for (auto& error : nested_result.errors())
+                        result.add(validation_error{error.path, error.message, error.constraint});
+                }
             }
         }
         return result;
     }
+
+  public:
 
     // ── Field iteration ─────────────────────────────────────────────
     //
