@@ -1,8 +1,6 @@
 # def_type — Remaining Gaps & Test Plan
 
-> Updated 2026-04-18 (evening). Reflects state after hybrid nested validation DSL and ODR fix.
->
-> **790 test cases, 1972 assertions, all passing.**
+> Updated 2026-04-18 (evening). **806 test cases, 2019 assertions, all passing.**
 
 ---
 
@@ -24,57 +22,28 @@ Commit `a478d1b`. Two `enum class Color` definitions with different values acros
 
 ---
 
-## Validation test coverage gaps (capability × path)
+## ✅ Done — from_json test gaps closed
+
+Commit `c79a86f`. 16 new tests covering all previously uncovered from_json scenarios:
+
+- `vector<vector<Address>>` — typed + dynamic + round-trip
+- `map<string, vector<Address>>` — typed + dynamic + round-trip
+- Empty containers of structs (empty vector + empty map)
+- Hybrid from_json with enum fields + round-trip
+- Hybrid from_json with vector/map of structs + round-trips
+
+All from_json paths (typed, dynamic, hybrid) now have comprehensive coverage for all supported type combinations.
+
+---
+
+## Remaining — cosmetic only
+
+### Validation test coverage (capability × path)
 
 - [ ] Custom validators — only tested on dynamic, no typed or hybrid tests
-- [x] `checked_value()` — tested on all three paths (typed, dynamic, hybrid)
-- [x] `operator*` / `operator->` — tested on all three paths
 - [ ] "validators don't interfere with set/get/to_json" — only tested on dynamic
 
----
-
-## `from_json` test gaps
-
-Most from_json scenarios are well-tested on typed + dynamic paths. The audit below reflects actual test file contents, not assumptions.
-
-### ✅ Confirmed tested (typed + dynamic)
-
-- Simple types (string, int, bool, double, float, int64_t, uint64_t)
-- Single enum field (string name + int fallback)
-- Multiple enum fields in one struct
-- Vector of enums
-- Map of enums
-- Nested structs (`field<Struct>`)
-- Vector of structs
-- Map of structs
-- Optional of struct (present + absent)
-- `vector<vector<T>>` (primitives)
-- `map<string, vector<T>>` (primitives)
-- `optional<vector<T>>` (present + absent)
-- `vector<optional<T>>`
-- 3-level deep nested structs
-- `ankerl::unordered_dense::map` (primitives + structs)
-- Sets (std::set, unordered_set) with deduplication
-- Round-trip tests for all of the above
-
-### Remaining gaps — nested containers of structs
-
-These combinations work for primitives but have no tests with reflected structs as the inner type:
-
-- [ ] `vector<vector<struct>>` — no test at all
-- [ ] `map<string, vector<struct>>` — no test at all
-- [ ] Empty containers of structs (empty `vector<struct>`, empty `map<string, struct>`)
-
-### Remaining gaps — hybrid path from_json
-
-Hybrid from_json only covers basic primitives + missing/extra keys. Not tested:
-
-- [ ] Hybrid from_json with enum fields
-- [ ] Hybrid from_json with complex collections (vector/map of structs)
-
----
-
-## Validation test file quality
+### Validation test file quality
 
 `test_validation.cpp` was written as a spike. It works and covers a lot, but:
 
