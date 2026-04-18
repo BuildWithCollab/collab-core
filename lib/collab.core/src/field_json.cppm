@@ -136,6 +136,8 @@ namespace detail {
                 j[std::string(name)] = value_to_json(value);
             });
             return j;
+        } else if constexpr (std::is_same_v<T, type_instance>) {
+            return v.to_json();
         } else if constexpr (std::is_enum_v<T>) {
             std::string_view name = magic_enum::enum_name(v);
             if (name.empty())
@@ -174,6 +176,9 @@ namespace detail {
                 std::string key(name);
                 if (j.contains(key)) value_from_json(j[key], value);
             });
+        } else if constexpr (std::is_same_v<T, type_instance>) {
+            if (!j.is_object()) throw std::logic_error("from_json: expected object for type_instance");
+            out.load_json(j);
         } else if constexpr (std::is_enum_v<T>) {
             if (j.is_string()) {
                 auto str = j.get<std::string>();

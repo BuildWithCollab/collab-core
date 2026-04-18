@@ -46,6 +46,6 @@ struct Container {
 - [x] ~~Move the `field<type_def<>>` specialization from `test_field_type_def.cpp` into the module~~ → lives in `type_def.cppm` after `type_instance`
 - [x] ~~Remove `[prototype]` tag from tests, use proper tags matching other test files~~
 - [x] ~~Use shared meta types from `test_model_types.hpp` instead of local `cli_info`/`help_info` redefinitions~~
-- [ ] Add `struct_info` / PFR fallback so reflection works on structs containing `field<type_def<>>`
-- [ ] Wire up `value_to_json` / `value_from_json` so `to_json(container)` works on structs with `field<type_def<>>` members (currently only `container.details.value.to_json()` works)
+- [x] ~~Add `struct_info` / PFR fallback so reflection works on structs containing `field<type_def<>>`~~
+- [x] ~~Wire up `value_to_json` / `value_from_json` so `to_json(container)` works on structs with `field<type_def<>>` members~~
 - [x] ~~Weak `to_json_string` test~~ → now checks actual compact JSON content

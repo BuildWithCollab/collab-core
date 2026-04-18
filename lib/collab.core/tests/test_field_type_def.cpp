@@ -15,6 +15,13 @@ struct FieldTypeDefContainer {
     field<type_def<>>   details {field_typedef_details};
 };
 
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<FieldTypeDefContainer>() {
+    return collab::model::field_info<FieldTypeDefContainer>("name", "details");
+}
+#endif
+
 // ── Construction and access ─────────────────────────────────────────────
 
 TEST_CASE("field<type_def<>>: struct is constructible", "[field][type_def][dynamic]") {
@@ -125,3 +132,4 @@ TEST_CASE("field<type_def<>>: 3-level deep nesting in structs", "[field][type_de
     auto leaf = holder.middle->get<type_instance>("leaf");
     REQUIRE(leaf.get<std::string>("value") == "deep");
 }
+
