@@ -600,3 +600,93 @@ TEST_CASE("typed: fixing values makes validation pass", "[validation][typed]") {
     auto result = dog_type.validate(dog);
     REQUIRE(result.ok());
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Hybrid path — validators on .field(&T::member, "name", validators(...))
+// ═════════════════════════════════════════════════════════════════════════
+
+struct HybridValidatedDog {
+    std::string name;
+    int         age = 0;
+    std::string breed;
+};
+
+TEST_CASE("hybrid: valid() returns false when validators fail", "[validation][hybrid]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name",
+            validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age",
+            validators(positive{}))
+        .field(&HybridValidatedDog::breed, "breed");
+
+    HybridValidatedDog dog;
+    REQUIRE(!dog_type.valid(dog));
+}
+
+TEST_CASE("hybrid: valid() returns true when all pass", "[validation][hybrid]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name",
+            validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age",
+            validators(positive{}));
+
+    HybridValidatedDog dog;
+    dog.name = "Rex";
+    dog.age = 3;
+    REQUIRE(dog_type.valid(dog));
+}
+
+TEST_CASE("hybrid: validate() collects all errors", "[validation][hybrid]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name",
+            validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age",
+            validators(positive{}));
+
+    HybridValidatedDog dog;
+    auto result = dog_type.validate(dog);
+
+    REQUIRE(!result);
+    REQUIRE(result.error_count() == 2);
+    REQUIRE(result.errors()[0].path == "name");
+    REQUIRE(result.errors()[0].constraint == "not_empty");
+    REQUIRE(result.errors()[1].path == "age");
+    REQUIRE(result.errors()[1].constraint == "positive");
+}
+
+TEST_CASE("hybrid: validators mixed with with<> metas", "[validation][hybrid]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name",
+            validators(not_empty{}),
+            with<spike_help_info>({.summary = "Dog's name"}))
+        .field(&HybridValidatedDog::age, "age",
+            with<spike_cli_meta>({.cli = {.short_flag = 'a'}}),
+            validators(positive{}));
+
+    HybridValidatedDog dog;
+    REQUIRE(!dog_type.valid(dog));
+
+    // Metas still accessible
+    REQUIRE(dog_type.field("name").has_meta<spike_help_info>());
+    REQUIRE(dog_type.field("age").has_meta<spike_cli_meta>());
+
+    dog.name = "Rex";
+    dog.age = 3;
+    REQUIRE(dog_type.valid(dog));
+}
+
+TEST_CASE("hybrid: fixing values makes validation pass", "[validation][hybrid]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name",
+            validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age",
+            validators(positive{}));
+
+    HybridValidatedDog dog;
+    REQUIRE(!dog_type.valid(dog));
+
+    dog.name = "Rex";
+    dog.age = 5;
+    REQUIRE(dog_type.valid(dog));
+    REQUIRE(dog_type.validate(dog).ok());
+}

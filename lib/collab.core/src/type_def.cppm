@@ -475,13 +475,27 @@ namespace detail {
         MemT T::*               member;
         std::string             name;
         std::vector<meta_entry> metas;
+        field_validator_fn<MemT> validate_fn;
     };
 
-    template <typename T, typename MemT, typename... Withs>
+    // Process a single arg in the hybrid .field() builder:
+    // either a with<> (extract metas) or a validator_pack (store validate_fn)
+    template <typename T, typename MemT, typename Arg>
+    void process_hybrid_field_arg(typed_field_reg<T, MemT>& reg, const Arg& arg) {
+        using ArgType = std::remove_cvref_t<Arg>;
+        if constexpr (is_validator_pack_v<ArgType>) {
+            // Convert validator_pack to field_validator_fn<MemT>
+            reg.validate_fn = static_cast<field_validator_fn<MemT>>(arg);
+        } else {
+            extract_with_metas(reg.metas, arg);
+        }
+    }
+
+    template <typename T, typename MemT, typename... Args>
     typed_field_reg<T, MemT> make_typed_reg(
-            MemT T::* member, std::string_view fname, Withs... withs) {
-        typed_field_reg<T, MemT> reg{member, std::string(fname), {}};
-        (extract_with_metas(reg.metas, withs), ...);
+            MemT T::* member, std::string_view fname, Args... args) {
+        typed_field_reg<T, MemT> reg{member, std::string(fname), {}, {}};
+        (process_hybrid_field_arg(reg, args), ...);
         return reg;
     }
 
@@ -970,6 +984,7 @@ public:
 
     bool valid(const T& obj) const {
         bool is_valid = true;
+        // Check auto-discovered field<T> members
         detail::for_each_raw_field(obj, [&](std::string_view name, const auto& raw_field) {
             if (!is_valid) return;
             if (raw_field.validators) {
@@ -977,11 +992,23 @@ public:
                 if (!errors.empty()) is_valid = false;
             }
         }, indices_{});
+        if (!is_valid) return false;
+        // Check hybrid-registered members
+        std::apply([&](const auto&... regs) {
+            (([&] {
+                if (!is_valid) return;
+                if (regs.validate_fn) {
+                    auto errors = regs.validate_fn(obj.*(regs.member), regs.name);
+                    if (!errors.empty()) is_valid = false;
+                }
+            }()), ...);
+        }, typed_regs_);
         return is_valid;
     }
 
     validation_result validate(const T& obj) const {
         validation_result result;
+        // Check auto-discovered field<T> members
         detail::for_each_raw_field(obj, [&](std::string_view name, const auto& raw_field) {
             if (raw_field.validators) {
                 auto errors = raw_field.validators(raw_field.value, name);
@@ -989,6 +1016,16 @@ public:
                     result.add(std::move(error));
             }
         }, indices_{});
+        // Check hybrid-registered members
+        std::apply([&](const auto&... regs) {
+            (([&] {
+                if (regs.validate_fn) {
+                    auto errors = regs.validate_fn(obj.*(regs.member), regs.name);
+                    for (auto& error : errors)
+                        result.add(std::move(error));
+                }
+            }()), ...);
+        }, typed_regs_);
         return result;
     }
 
