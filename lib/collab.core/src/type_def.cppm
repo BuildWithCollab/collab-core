@@ -382,16 +382,18 @@ namespace detail {
     // ── Extract short name from a fully-qualified NAMEOF_TYPE string ──
     //
     // MSVC:  "struct collab::model::validations::not_empty[collab.core]"
-    // GCC:   "collab::model::validations::not_empty"
+    // GCC:   "collab::model::validations::not_empty@collab.core"
     // Clang: "collab::model::validations::not_empty"
     //
-    // Returns the last component before any '[' suffix, after the last '::'.
+    // Returns the last component before any module suffix, after the last '::'.
     // e.g. "not_empty" in all cases above.
 
     constexpr std::string extract_short_validator_name(std::string_view full_name) {
-        // Strip MSVC module suffix like "[collab.core]"
+        // Strip MSVC module suffix "[collab.core]" or GCC module suffix "@collab.core"
         if (auto bracket = full_name.rfind('['); bracket != std::string_view::npos)
             full_name = full_name.substr(0, bracket);
+        if (auto at_sign = full_name.rfind('@'); at_sign != std::string_view::npos)
+            full_name = full_name.substr(0, at_sign);
 
         // Strip "struct " / "class " prefix MSVC adds
         if (full_name.starts_with("struct "))
