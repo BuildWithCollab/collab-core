@@ -1131,7 +1131,7 @@ public:
                     }
                 } else {
                     try {
-                        raw_field.value = j[key].get<InnerType>();
+                        raw_field.value = j[key].template get<InnerType>();
                     } catch (...) {
                         // Type mismatch — keep default
                     }
@@ -1146,7 +1146,7 @@ public:
                     using MemT = std::remove_cvref_t<
                         decltype(result.value.*(regs.member))>;
                     try {
-                        result.value.*(regs.member) = j[regs.name].get<MemT>();
+                        result.value.*(regs.member) = j[regs.name].template get<MemT>();
                     } catch (...) {}
                 }
             }()), ...);
