@@ -1192,3 +1192,166 @@ TEST_CASE("typed parse: 3-level deep entirely missing nested", "[validation][typ
     REQUIRE(result->middle.value.label.value == "mid");  // default
     REQUIRE(result->middle.value.leaf.value.tag.value == "");  // default
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// parse_options on typed path
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("typed parse_options: reject_extra_keys throws", "[validation][typed][parse_options]") {
+    REQUIRE_THROWS_AS(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}, {"color", "brown"}},
+            {.reject_extra_keys = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("typed parse_options: reject_extra_keys does not throw when no extras", "[validation][typed][parse_options]") {
+    REQUIRE_NOTHROW(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}},
+            {.reject_extra_keys = true}));
+}
+
+TEST_CASE("typed parse_options: require_all_fields throws on missing", "[validation][typed][parse_options]") {
+    REQUIRE_THROWS_AS(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", "Rex"}},
+            {.require_all_fields = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("typed parse_options: require_all_fields does not throw when all present", "[validation][typed][parse_options]") {
+    REQUIRE_NOTHROW(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}},
+            {.require_all_fields = true}));
+}
+
+TEST_CASE("typed parse_options: require_valid throws on validation errors", "[validation][typed][parse_options]") {
+    REQUIRE_THROWS_AS(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", ""}, {"age", -5}, {"breed", "Husky"}},
+            {.require_valid = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("typed parse_options: require_valid does not throw when valid", "[validation][typed][parse_options]") {
+    REQUIRE_NOTHROW(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}},
+            {.require_valid = true}));
+}
+
+TEST_CASE("typed parse_options: strict sets all three", "[validation][typed][parse_options]") {
+    REQUIRE_THROWS_AS(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", ""}, {"unknown", true}},
+            {.strict = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("typed parse_options: strict does not throw on clean input", "[validation][typed][parse_options]") {
+    REQUIRE_NOTHROW(
+        type_def<ParseableDog>{}.parse(
+            json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}},
+            {.strict = true}));
+}
+
+TEST_CASE("typed parse_options: parse_error carries structured data", "[validation][typed][parse_options]") {
+    try {
+        type_def<ParseableDog>{}.parse(
+            json{{"name", ""}, {"unknown", true}},
+            {.strict = true});
+        REQUIRE(false);
+    } catch (const collab::model::parse_error& error) {
+        REQUIRE(error.extra_keys().size() == 1);
+        REQUIRE(error.extra_keys()[0] == "unknown");
+        REQUIRE(error.missing_fields().size() == 2);  // age and breed
+        REQUIRE(error.validation_errors().size() >= 1);  // name not_empty
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// parse_options on hybrid path
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid parse_options: reject_extra_keys throws", "[validation][hybrid][parse_options]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name")
+        .field(&HybridValidatedDog::age, "age");
+
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", "Rex"}, {"age", 3}, {"unknown", true}},
+            {.reject_extra_keys = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("hybrid parse_options: reject_extra_keys does not throw when no extras", "[validation][hybrid][parse_options]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name")
+        .field(&HybridValidatedDog::age, "age");
+
+    REQUIRE_NOTHROW(
+        dog_type.parse(json{{"name", "Rex"}, {"age", 3}},
+            {.reject_extra_keys = true}));
+}
+
+TEST_CASE("hybrid parse_options: require_all_fields throws on missing", "[validation][hybrid][parse_options]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name")
+        .field(&HybridValidatedDog::age, "age")
+        .field(&HybridValidatedDog::breed, "breed");
+
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", "Rex"}},
+            {.require_all_fields = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("hybrid parse_options: require_valid throws on validation errors", "[validation][hybrid][parse_options]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age");
+
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", ""}, {"age", 3}},
+            {.require_valid = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("hybrid parse_options: strict throws on any issue", "[validation][hybrid][parse_options]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age");
+
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", ""}, {"unknown", 1}},
+            {.strict = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("hybrid parse_options: strict does not throw on clean input", "[validation][hybrid][parse_options]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age");
+
+    REQUIRE_NOTHROW(
+        dog_type.parse(json{{"name", "Rex"}, {"age", 3}},
+            {.strict = true}));
+}
+
+TEST_CASE("hybrid parse_options: parse_error carries structured data", "[validation][hybrid][parse_options]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age");
+
+    try {
+        dog_type.parse(json{{"name", ""}, {"unknown", true}},
+            {.strict = true});
+        REQUIRE(false);
+    } catch (const collab::model::parse_error& error) {
+        REQUIRE(error.extra_keys().size() == 1);
+        REQUIRE(error.missing_fields().size() == 1);  // age
+        REQUIRE(error.validation_errors().size() == 1);  // name not_empty
+    }
+}
