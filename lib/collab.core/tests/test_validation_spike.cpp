@@ -690,3 +690,137 @@ TEST_CASE("hybrid: fixing values makes validation pass", "[validation][hybrid]")
     REQUIRE(dog_type.valid(dog));
     REQUIRE(dog_type.validate(dog).ok());
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// parse_result on typed path — parse<T>(json)
+// ═════════════════════════════════════════════════════════════════════════
+
+struct ParseableDog {
+    field<std::string> name {
+        .value = "",
+        .validators = validators(not_empty{})
+    };
+    field<int> age {
+        .value = 0,
+        .validators = validators(positive{})
+    };
+    field<std::string> breed;
+};
+
+TEST_CASE("typed parse: clean JSON returns valid result", "[validation][typed][parse]") {
+    auto result = parse<ParseableDog>(json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}});
+
+    REQUIRE(result.valid());
+    REQUIRE(!result.has_extra_keys());
+    REQUIRE(!result.has_missing_fields());
+    REQUIRE(result->name.value == "Rex");
+    REQUIRE(result->age.value == 3);
+}
+
+TEST_CASE("typed parse: detects extra keys", "[validation][typed][parse]") {
+    auto result = parse<ParseableDog>(json{
+        {"name", "Rex"}, {"age", 3}, {"breed", "Husky"},
+        {"color", "brown"}
+    });
+
+    REQUIRE(result.valid());
+    REQUIRE(result.has_extra_keys());
+    REQUIRE(result.extra_keys().size() == 1);
+    REQUIRE(result.extra_keys()[0] == "color");
+}
+
+TEST_CASE("typed parse: detects missing fields", "[validation][typed][parse]") {
+    auto result = parse<ParseableDog>(json{{"name", "Rex"}});
+
+    // age defaults to 0, which fails positive{} — so valid() is false
+    REQUIRE(!result.valid());
+    REQUIRE(result.has_missing_fields());
+    REQUIRE(result.missing_fields().size() == 2);  // age and breed
+}
+
+TEST_CASE("typed parse: reports validation errors", "[validation][typed][parse]") {
+    auto result = parse<ParseableDog>(json{{"name", ""}, {"age", -5}, {"breed", "Husky"}});
+
+    REQUIRE(!result.valid());
+    REQUIRE(result.validation_errors().size() == 2);
+    REQUIRE(result->name.value == "");   // value preserved
+    REQUIRE(result->age.value == -5);    // value preserved
+}
+
+TEST_CASE("typed parse: all three categories at once", "[validation][typed][parse]") {
+    auto result = parse<ParseableDog>(json{
+        {"name", ""},          // fails not_empty
+        {"unknown", "wat"}     // extra key
+        // age and breed missing
+    });
+
+    REQUIRE(!result.valid());
+    REQUIRE(result.has_extra_keys());
+    REQUIRE(result.has_missing_fields());
+    REQUIRE(result.validation_errors().size() >= 1);
+}
+
+TEST_CASE("typed parse: checked_value throws on invalid", "[validation][typed][parse]") {
+    auto result = parse<ParseableDog>(json{{"name", ""}, {"age", 0}});
+    REQUIRE_THROWS(result.checked_value());
+
+    auto good = parse<ParseableDog>(json{{"name", "Rex"}, {"age", 3}});
+    REQUIRE_NOTHROW(good.checked_value());
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// parse_result on hybrid path — dog_t.parse(json)
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("hybrid parse: clean JSON returns valid result", "[validation][hybrid][parse]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age", validators(positive{}))
+        .field(&HybridValidatedDog::breed, "breed");
+
+    auto result = parse(json{{"name", "Rex"}, {"age", 3}, {"breed", "Husky"}}, dog_type);
+
+    REQUIRE(result.valid());
+    REQUIRE(!result.has_extra_keys());
+    REQUIRE(!result.has_missing_fields());
+    REQUIRE(result->name == "Rex");
+    REQUIRE(result->age == 3);
+}
+
+TEST_CASE("hybrid parse: detects extra keys", "[validation][hybrid][parse]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name")
+        .field(&HybridValidatedDog::age, "age");
+
+    auto result = parse(json{{"name", "Rex"}, {"age", 3}, {"unknown", true}}, dog_type);
+
+    REQUIRE(result.valid());
+    REQUIRE(result.has_extra_keys());
+    REQUIRE(result.extra_keys().size() == 1);
+}
+
+TEST_CASE("hybrid parse: detects missing fields", "[validation][hybrid][parse]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age")
+        .field(&HybridValidatedDog::breed, "breed");
+
+    auto result = parse(json{{"name", "Rex"}}, dog_type);
+
+    REQUIRE(result.valid());
+    REQUIRE(result.has_missing_fields());
+    REQUIRE(result.missing_fields().size() == 2);
+}
+
+TEST_CASE("hybrid parse: reports validation errors", "[validation][hybrid][parse]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
+        .field(&HybridValidatedDog::age, "age", validators(positive{}));
+
+    auto result = parse(json{{"name", ""}, {"age", -1}}, dog_type);
+
+    REQUIRE(!result.valid());
+    REQUIRE(result.validation_errors().size() == 2);
+    REQUIRE(result->name == "");
+    REQUIRE(result->age == -1);
+}

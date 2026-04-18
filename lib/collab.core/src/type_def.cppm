@@ -1032,6 +1032,9 @@ public:
     // ── Create instance ──────────────────────────────────────────────
 
     T create() const { return T{}; }
+
+    // ── Parse JSON with reporting ───────────────────────────────────
+    // Free function: parse(json, type_def) — defined in field_json.cppm.
 };
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -296,4 +296,80 @@ T from_json(const nlohmann::json& j, const type_def<T, Regs...>& typedef_schema)
     return result;
 }
 
+// ── parse<T>(json) — typed path with reporting ──────────────────────────
+
+template <detail::reflected_struct T>
+parse_result<T> parse(const nlohmann::json& j) {
+    if (!j.is_object()) throw std::logic_error("parse: expected JSON object");
+
+    parse_result<T> result{.value = T{}};
+    auto schema_names = type_def<T>{}.field_names();
+
+    // Populate fields from JSON
+    detail::value_from_json(j, result.value);
+
+    // Extra keys
+    for (auto& [key, val] : j.items()) {
+        bool found = false;
+        for (auto& schema_name : schema_names)
+            if (key == schema_name) { found = true; break; }
+        if (!found)
+            result.extra_keys_.push_back(key);
+    }
+
+    // Missing fields
+    for (auto& schema_name : schema_names) {
+        if (!j.contains(schema_name))
+            result.missing_fields_.push_back(schema_name);
+    }
+
+    // Validation
+    auto validation = type_def<T>{}.validate(result.value);
+    for (auto& error : validation.errors())
+        result.validation_errors_.push_back(
+            validation_error{error.path, error.message, error.constraint});
+
+    return result;
+}
+
+// ── parse(json, type_def) — hybrid parse with reporting ──────────────────
+
+template <typename T, typename... Regs>
+parse_result<T> parse(const nlohmann::json& j, const type_def<T, Regs...>& schema) {
+    if (!j.is_object()) throw std::logic_error("parse: expected JSON object");
+
+    parse_result<T> result{.value = T{}};
+
+    // Populate fields
+    schema.for_each_field(result.value, [&](std::string_view name, auto& value) {
+        std::string key(name);
+        if (j.contains(key))
+            detail::value_from_json(j[key], value);
+    });
+
+    // Extra keys
+    auto schema_names_vec = schema.field_names();
+    for (auto& [key, val] : j.items()) {
+        bool found = false;
+        for (auto& schema_name : schema_names_vec)
+            if (key == schema_name) { found = true; break; }
+        if (!found)
+            result.extra_keys_.push_back(key);
+    }
+
+    // Missing fields
+    for (auto& schema_name : schema_names_vec) {
+        if (!j.contains(schema_name))
+            result.missing_fields_.push_back(schema_name);
+    }
+
+    // Validation
+    auto validation_check = schema.validate(result.value);
+    for (auto& error : validation_check.errors())
+        result.validation_errors_.push_back(
+            validation_error{error.path, error.message, error.constraint});
+
+    return result;
+}
+
 }  // namespace collab::model
