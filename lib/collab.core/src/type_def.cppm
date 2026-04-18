@@ -444,7 +444,7 @@ namespace detail {
                         errors.push_back({
                             std::string(field_name),
                             std::move(*result),
-                            extract_short_validator_name(NAMEOF_TYPE(validator_type))
+                            detail::extract_short_validator_name(NAMEOF_TYPE(validator_type))
                         });
                     }
                 }()), ...);
@@ -475,7 +475,7 @@ namespace detail {
         MemT T::*               member;
         std::string             name;
         std::vector<meta_entry> metas;
-        field_validator_fn<MemT> validate_fn;
+        detail::field_validator_fn<MemT> validate_fn;
     };
 
     // Process a single arg in the hybrid .field() builder:
@@ -484,8 +484,8 @@ namespace detail {
     void process_hybrid_field_arg(typed_field_reg<T, MemT>& reg, const Arg& arg) {
         using ArgType = std::remove_cvref_t<Arg>;
         if constexpr (is_validator_pack_v<ArgType>) {
-            // Convert validator_pack to field_validator_fn<MemT>
-            reg.validate_fn = static_cast<field_validator_fn<MemT>>(arg);
+            // Convert validator_pack to detail::field_validator_fn<MemT>
+            reg.validate_fn = static_cast<detail::field_validator_fn<MemT>>(arg);
         } else {
             extract_with_metas(reg.metas, arg);
         }
