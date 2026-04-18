@@ -53,10 +53,10 @@
 - [x] `.parse(json, {.reject_extra_keys = true})` throws on unknown keys
 - [x] `parse_error` exception carrying structured data (extra_keys, missing_fields, validation_errors)
 
-### Type mismatch graceful handling — not started
-- [ ] `parse()` catches JSON type mismatches (string where int expected)
-- [ ] Mismatched fields get default value instead of throwing
-- [ ] Type mismatches tracked in parse_result
+### Type mismatch graceful handling ✅
+- [x] `parse()` catches JSON type mismatches (string where int expected)
+- [x] Mismatched fields get default value instead of throwing
+- [x] All three paths: dynamic, typed, hybrid
 
 ### Nested validation on typed/hybrid — not started
 - [ ] Typed structs with nested `field<Address>` — validate walks into nested structs

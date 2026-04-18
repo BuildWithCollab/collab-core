@@ -1328,6 +1328,8 @@ type_def(std::string_view) -> type_def<detail::dynamic_tag>;
 // ═══════════════════════════════════════════════════════════════════════
 
 class type_instance {
+    friend class type_def<detail::dynamic_tag>;
+
     const type_def<detail::dynamic_tag>* type_;
     std::vector<std::any>        values_;
 

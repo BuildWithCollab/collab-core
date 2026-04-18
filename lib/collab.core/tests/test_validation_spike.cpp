@@ -932,3 +932,52 @@ TEST_CASE("dynamic parse_options: default options don't throw", "[validation][dy
     // Default parse_options — no throwing, even with validation errors
     REQUIRE_NOTHROW(dog_type.parse(json{{"name", ""}, {"extra", 1}}));
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Type mismatch graceful handling — parse() defaults on bad types
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic parse: type mismatch defaults the field", "[validation][dynamic][parse][mismatch]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string("default_name"))
+        .field<int>("age", 42);
+
+    // "age" is a string in JSON but int in schema
+    auto result = dog_type.parse(json{{"name", "Rex"}, {"age", "not a number"}});
+
+    REQUIRE(result->get<std::string>("name") == "Rex");
+    REQUIRE(result->get<int>("age") == 42);  // kept default
+}
+
+TEST_CASE("dynamic parse: type mismatch does not throw", "[validation][dynamic][parse][mismatch]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age");
+
+    REQUIRE_NOTHROW(dog_type.parse(json{{"name", 999}, {"age", "nope"}}));
+}
+
+TEST_CASE("typed parse: type mismatch defaults the field", "[validation][typed][parse][mismatch]") {
+    auto result = type_def<ParseableDog>{}.parse(json{
+        {"name", "Rex"}, {"age", "not a number"}, {"breed", "Husky"}
+    });
+
+    REQUIRE(result->name.value == "Rex");
+    REQUIRE(result->age.value == 0);  // default
+    REQUIRE(result->breed.value == "Husky");
+}
+
+TEST_CASE("hybrid parse: type mismatch defaults the field", "[validation][hybrid][parse][mismatch]") {
+    auto dog_type = type_def<HybridValidatedDog>()
+        .field(&HybridValidatedDog::name, "name")
+        .field(&HybridValidatedDog::age, "age")
+        .field(&HybridValidatedDog::breed, "breed");
+
+    auto result = dog_type.parse(json{
+        {"name", "Rex"}, {"age", "not a number"}, {"breed", "Husky"}
+    });
+
+    REQUIRE(result->name == "Rex");
+    REQUIRE(result->age == 0);  // default
+    REQUIRE(result->breed == "Husky");
+}

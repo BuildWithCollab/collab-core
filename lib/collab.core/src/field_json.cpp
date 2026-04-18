@@ -75,13 +75,20 @@ collab::model::type_def<collab::model::detail::dynamic_tag>::parse(
 
     parse_result<type_instance> result{.value = create()};
 
-    // Collect JSON keys present, load them into the instance
+    // Load fields one at a time, catching type mismatches gracefully
     std::vector<std::string> json_keys;
-    for (auto& [key, val] : j.items())
+    for (auto& [key, val] : j.items()) {
         json_keys.push_back(key);
-
-    // Load JSON into instance (handles field matching + codecs)
-    result.value.load_json(j);
+        int idx = result.value.find_field_index(key);
+        if (idx < 0) continue;
+        auto& fd = fields_[idx];
+        ensure_codec(fd);
+        try {
+            fd.from_json_fn(result.value.values_[idx], std::any(val));
+        } catch (...) {
+            // Type mismatch — keep default value
+        }
+    }
 
     // Find extra keys (in JSON but not in schema)
     for (auto& key : json_keys) {
