@@ -8,28 +8,25 @@ import collab.core;
 using namespace collab::model;
 
 // ═════════════════════════════════════════════════════════════════════════
-// Prototype: field<type_def> as a struct member
+// Prototype: field<type_def<>> as a struct member
 // ═════════════════════════════════════════════════════════════════════════
-
-// The dynamic type_def's actual C++ type:
-using dynamic_type_def = type_def<detail::dynamic_tag>;
 
 // Specialization of field<> for the dynamic type_def.
 // Internally stores a type_instance. Takes a type_def to construct.
 // Supports with<Exts...> just like the base field<T, WithPack>.
 template <typename WithPack>
-struct collab::model::field<dynamic_type_def, WithPack> {
+struct collab::model::field<type_def<>, WithPack> {
     using value_type = type_instance;
 
     WithPack      with{};
     type_instance value;
 
     // Construct from a type_def — creates a default instance
-    field(const dynamic_type_def& typedef_schema)
+    field(const type_def<>& typedef_schema)
         : value(typedef_schema.create()) {}
 
     // Aggregate-style construction (for with<> + type_def)
-    field(WithPack with_pack, const dynamic_type_def& typedef_schema)
+    field(WithPack with_pack, const type_def<>& typedef_schema)
         : with(std::move(with_pack)), value(typedef_schema.create()) {}
 
     // Access the instance
@@ -48,18 +45,18 @@ inline auto details_type = type_def("Details")
 
 struct Container {
     field<std::string>       name;
-    field<dynamic_type_def>  details {details_type};
+    field<type_def<>>  details {details_type};
 };
 
 // ── Tests ───────────────────────────────────────────────────────────────
 
-TEST_CASE("field<type_def>: struct is constructible", "[prototype][field_type_def]") {
+TEST_CASE("field<type_def<>>: struct is constructible", "[prototype][field_type_def]") {
     Container container;
     REQUIRE(container.name.value.empty());
     REQUIRE(container.details.value.get<int>("priority") == 5);
 }
 
-TEST_CASE("field<type_def>: access nested fields via operator->", "[prototype][field_type_def]") {
+TEST_CASE("field<type_def<>>: access nested fields via operator->", "[prototype][field_type_def]") {
     Container container;
     container.name = "parent";
     container.details->set("note", std::string("hello"));
@@ -70,13 +67,13 @@ TEST_CASE("field<type_def>: access nested fields via operator->", "[prototype][f
     REQUIRE(container.details->get<int>("priority") == 10);
 }
 
-TEST_CASE("field<type_def>: defaults from nested type_def", "[prototype][field_type_def]") {
+TEST_CASE("field<type_def<>>: defaults from nested type_def", "[prototype][field_type_def]") {
     Container container;
     REQUIRE(container.details->get<std::string>("note") == "");
     REQUIRE(container.details->get<int>("priority") == 5);
 }
 
-TEST_CASE("field<type_def>: multiple instances are independent", "[prototype][field_type_def]") {
+TEST_CASE("field<type_def<>>: multiple instances are independent", "[prototype][field_type_def]") {
     Container a;
     Container b;
 
@@ -87,7 +84,7 @@ TEST_CASE("field<type_def>: multiple instances are independent", "[prototype][fi
     REQUIRE(b.details->get<std::string>("note") == "B");
 }
 
-TEST_CASE("field<type_def>: nested to_json_string via instance", "[prototype][field_type_def]") {
+TEST_CASE("field<type_def<>>: nested to_json_string via instance", "[prototype][field_type_def]") {
     Container container;
     container.details->set("note", std::string("hello"));
     container.details->set("priority", 10);
@@ -97,15 +94,15 @@ TEST_CASE("field<type_def>: nested to_json_string via instance", "[prototype][fi
     REQUIRE(json_string.find("10") != std::string::npos);
 }
 
-// ── with<> on field<type_def> ────────────────────────────────────────────
+// ── with<> on field<type_def<>> ────────────────────────────────────────────
 
 struct cli_info { char short_flag = '\0'; };
 struct help_info { const char* summary = ""; };
 
-TEST_CASE("field<type_def> with with<> — single extension", "[prototype][field_type_def][with]") {
+TEST_CASE("field<type_def<>> with with<> — single extension", "[prototype][field_type_def][with]") {
     struct WithContainer {
         field<std::string> name;
-        field<dynamic_type_def, with<cli_info>> details {
+        field<type_def<>, with<cli_info>> details {
             with<cli_info>{{.short_flag = 'd'}},
             details_type
         };
@@ -118,10 +115,10 @@ TEST_CASE("field<type_def> with with<> — single extension", "[prototype][field
     REQUIRE(wc.details->get<std::string>("note") == "with works");
 }
 
-TEST_CASE("field<type_def> with with<> — multiple extensions", "[prototype][field_type_def][with]") {
+TEST_CASE("field<type_def<>> with with<> — multiple extensions", "[prototype][field_type_def][with]") {
     struct MultiWithContainer {
         field<std::string> name;
-        field<dynamic_type_def, with<cli_info, help_info>> details {
+        field<type_def<>, with<cli_info, help_info>> details {
             with<cli_info, help_info>{{.short_flag = 'd'}, {.summary = "details field"}},
             details_type
         };
@@ -135,7 +132,7 @@ TEST_CASE("field<type_def> with with<> — multiple extensions", "[prototype][fi
 
 // ── 3-level deep ────────────────────────────────────────────────────────
 
-TEST_CASE("field<type_def>: 3-level deep nesting in structs", "[prototype][field_type_def]") {
+TEST_CASE("field<type_def<>>: 3-level deep nesting in structs", "[prototype][field_type_def]") {
     auto leaf_type = type_def("Leaf")
         .field<std::string>("value", std::string("deep"));
 
@@ -145,9 +142,9 @@ TEST_CASE("field<type_def>: 3-level deep nesting in structs", "[prototype][field
 
     struct MiddleHolder {
         field<std::string>       name;
-        field<dynamic_type_def>  middle;
+        field<type_def<>>  middle;
 
-        MiddleHolder(const dynamic_type_def& middle_typedef) : middle(middle_typedef) {}
+        MiddleHolder(const type_def<>& middle_typedef) : middle(middle_typedef) {}
     };
 
     MiddleHolder holder(middle_type);
