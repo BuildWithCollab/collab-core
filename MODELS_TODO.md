@@ -43,7 +43,7 @@ struct Container {
 - ✅ `to_json_string()` via the instance
 
 **Needs doing:**
-- [ ] Move the `field<type_def<>>` specialization from `test_field_type_def.cpp` into the module (probably `field.cppm` or a new partition)
+- [x] ~~Move the `field<type_def<>>` specialization from `test_field_type_def.cpp` into the module~~ → lives in `type_def.cppm` after `type_instance`
 - [ ] Remove `[prototype]` tag from tests, use proper tags matching other test files
 - [ ] Use shared meta types from `test_model_types.hpp` instead of local `cli_info`/`help_info` redefinitions
 - [ ] Add `struct_info` / PFR fallback so reflection works on structs containing `field<type_def<>>`

@@ -1083,5 +1083,40 @@ inline type_instance type_def<detail::dynamic_tag>::create() const {
     return type_instance(*this);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// field<type_def<>> — nests a runtime-defined type inside a struct
+//
+//   auto details = type_def("Details").field<int>("x");
+//   struct Container {
+//       field<std::string>  name;
+//       field<type_def<>>   details {details_type};
+//   };
+//
+// Internally stores a type_instance. The type_def is passed at
+// construction time and used to create the default instance.
+// ═══════════════════════════════════════════════════════════════════════
+
+template <typename WithPack>
+struct field<type_def<detail::dynamic_tag>, WithPack> {
+    using value_type = type_instance;
+
+    WithPack      with{};
+    type_instance value;
+
+    // Construct from a type_def — creates a default instance
+    field(const type_def<detail::dynamic_tag>& typedef_schema)
+        : value(typedef_schema.create()) {}
+
+    // Construct with extensions + type_def
+    field(WithPack with_pack, const type_def<detail::dynamic_tag>& typedef_schema)
+        : with(std::move(with_pack)), value(typedef_schema.create()) {}
+
+    // Access the instance
+    type_instance* operator->() { return &value; }
+    const type_instance* operator->() const { return &value; }
+
+    operator type_instance&() { return value; }
+    operator const type_instance&() const { return value; }
+};
 
 }  // namespace collab::model

@@ -8,34 +8,8 @@ import collab.core;
 using namespace collab::model;
 
 // ═════════════════════════════════════════════════════════════════════════
-// Prototype: field<type_def<>> as a struct member
+// field<type_def<>> — nesting a runtime-defined type inside a struct
 // ═════════════════════════════════════════════════════════════════════════
-
-// Specialization of field<> for the dynamic type_def.
-// Internally stores a type_instance. Takes a type_def to construct.
-// Supports with<Exts...> just like the base field<T, WithPack>.
-template <typename WithPack>
-struct collab::model::field<type_def<>, WithPack> {
-    using value_type = type_instance;
-
-    WithPack      with{};
-    type_instance value;
-
-    // Construct from a type_def — creates a default instance
-    field(const type_def<>& typedef_schema)
-        : value(typedef_schema.create()) {}
-
-    // Aggregate-style construction (for with<> + type_def)
-    field(WithPack with_pack, const type_def<>& typedef_schema)
-        : with(std::move(with_pack)), value(typedef_schema.create()) {}
-
-    // Access the instance
-    type_instance* operator->() { return &value; }
-    const type_instance* operator->() const { return &value; }
-
-    operator type_instance&() { return value; }
-    operator const type_instance&() const { return value; }
-};
 
 // ── Test types ──────────────────────────────────────────────────────────
 
