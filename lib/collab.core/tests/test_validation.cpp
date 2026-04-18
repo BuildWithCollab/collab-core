@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_predicate.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -913,15 +914,16 @@ TEST_CASE("dynamic parse_options: parse_error carries structured data", "[valida
             validators(not_empty{}))
         .field<int>("age");
 
-    try {
-        dog_type.parse(json{{"name", ""}, {"unknown", true}},
-            {.strict = true});
-        REQUIRE(false);  // should have thrown
-    } catch (const collab::model::parse_error& error) {
-        REQUIRE(error.extra_keys().size() == 1);
-        REQUIRE(error.missing_fields().size() == 1);
-        REQUIRE(error.validation_errors().size() == 1);
-    }
+    REQUIRE_THROWS_MATCHES(
+        dog_type.parse(json{{"name", ""}, {"unknown", true}}, {.strict = true}),
+        collab::model::parse_error,
+        Catch::Matchers::Predicate<collab::model::parse_error>(
+            [](const auto& error) {
+                return error.extra_keys().size() == 1
+                    && error.missing_fields().size() == 1
+                    && error.validation_errors().size() == 1;
+            },
+            "has 1 extra key, 1 missing field, 1 validation error"));
 }
 
 TEST_CASE("dynamic parse_options: default options don't throw", "[validation][dynamic][parse_options]") {
@@ -1258,17 +1260,18 @@ TEST_CASE("typed parse_options: strict does not throw on clean input", "[validat
 }
 
 TEST_CASE("typed parse_options: parse_error carries structured data", "[validation][typed][parse_options]") {
-    try {
+    REQUIRE_THROWS_MATCHES(
         type_def<ParseableDog>{}.parse(
-            json{{"name", ""}, {"unknown", true}},
-            {.strict = true});
-        REQUIRE(false);
-    } catch (const collab::model::parse_error& error) {
-        REQUIRE(error.extra_keys().size() == 1);
-        REQUIRE(error.extra_keys()[0] == "unknown");
-        REQUIRE(error.missing_fields().size() == 2);  // age and breed
-        REQUIRE(error.validation_errors().size() >= 1);  // name not_empty
-    }
+            json{{"name", ""}, {"unknown", true}}, {.strict = true}),
+        collab::model::parse_error,
+        Catch::Matchers::Predicate<collab::model::parse_error>(
+            [](const auto& error) {
+                return error.extra_keys().size() == 1
+                    && error.extra_keys()[0] == "unknown"
+                    && error.missing_fields().size() == 2
+                    && error.validation_errors().size() >= 1;
+            },
+            "has 1 extra key 'unknown', 2 missing fields, >=1 validation error"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1345,13 +1348,131 @@ TEST_CASE("hybrid parse_options: parse_error carries structured data", "[validat
         .field(&HybridValidatedDog::name, "name", validators(not_empty{}))
         .field(&HybridValidatedDog::age, "age");
 
-    try {
-        dog_type.parse(json{{"name", ""}, {"unknown", true}},
-            {.strict = true});
-        REQUIRE(false);
-    } catch (const collab::model::parse_error& error) {
-        REQUIRE(error.extra_keys().size() == 1);
-        REQUIRE(error.missing_fields().size() == 1);  // age
-        REQUIRE(error.validation_errors().size() == 1);  // name not_empty
-    }
+    REQUIRE_THROWS_MATCHES(
+        dog_type.parse(json{{"name", ""}, {"unknown", true}}, {.strict = true}),
+        collab::model::parse_error,
+        Catch::Matchers::Predicate<collab::model::parse_error>(
+            [](const auto& error) {
+                return error.extra_keys().size() == 1
+                    && error.missing_fields().size() == 1
+                    && error.validation_errors().size() == 1;
+            },
+            "has 1 extra key, 1 missing field, 1 validation error"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Dynamic builder: validators without default value
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic: validators without default — compiles and validates", "[validation][dynamic]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name",
+            validators(not_empty{}))
+        .field<int>("age",
+            validators(positive{}));
+
+    auto dog = dog_type.create();
+    REQUIRE(!dog.valid());
+
+    dog.set("name", std::string("Rex"));
+    dog.set("age", 3);
+    REQUIRE(dog.valid());
+}
+
+TEST_CASE("dynamic: validators without default — validate returns errors", "[validation][dynamic]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name",
+            validators(not_empty{}));
+
+    auto dog = dog_type.create();
+    auto result = dog.validate();
+    REQUIRE(result.error_count() == 1);
+    REQUIRE(result.errors()[0].path == "name");
+    REQUIRE(result.errors()[0].constraint == "not_empty");
+}
+
+TEST_CASE("dynamic: validators without default — parse works", "[validation][dynamic][parse]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name",
+            validators(not_empty{}));
+
+    auto result = dog_type.parse(json{{"name", "Rex"}});
+    REQUIRE(result.valid());
+    REQUIRE(result->get<std::string>("name") == "Rex");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed path: validators + metas mixed on same field<T>
+// ═════════════════════════════════════════════════════════════════════════
+
+struct typed_validation_help {
+    const char* summary = "";
+};
+
+struct typed_validation_cli {
+    struct { char short_flag = '\0'; } cli;
+};
+
+struct TypedMixedDog {
+    field<std::string, with<typed_validation_help>> name {
+        .with = {{.summary = "Dog's name"}},
+        .value = "",
+        .validators = validators(not_empty{})
+    };
+    field<int, with<typed_validation_cli, typed_validation_help>> age {
+        .with = {{.cli = {.short_flag = 'a'}}, {.summary = "Age in years"}},
+        .value = 0,
+        .validators = validators(positive{})
+    };
+    field<std::string> breed;
+};
+
+#ifndef COLLAB_FIELD_HAS_PFR
+template <>
+constexpr auto collab::model::struct_info<TypedMixedDog>() {
+    return collab::model::field_info<TypedMixedDog>("name", "age", "breed");
+}
+#endif
+
+TEST_CASE("typed: validators + metas on same field — validators work", "[validation][typed]") {
+    TypedMixedDog dog;
+    type_def<TypedMixedDog> dog_type;
+
+    REQUIRE(!dog_type.valid(dog));
+
+    dog.name = "Rex";
+    dog.age = 3;
+    REQUIRE(dog_type.valid(dog));
+}
+
+TEST_CASE("typed: validators + metas on same field — validate collects errors", "[validation][typed]") {
+    TypedMixedDog dog;
+    type_def<TypedMixedDog> dog_type;
+
+    auto result = dog_type.validate(dog);
+    REQUIRE(result.error_count() == 2);
+    REQUIRE(result.errors()[0].path == "name");
+    REQUIRE(result.errors()[1].path == "age");
+}
+
+TEST_CASE("typed: validators + metas on same field — metas accessible", "[validation][typed]") {
+    type_def<TypedMixedDog> dog_type;
+
+    // Use field() query API which is type-erased and safe
+    REQUIRE(dog_type.field("name").has_meta<typed_validation_help>());
+    REQUIRE(std::string_view{dog_type.field("name").meta<typed_validation_help>().summary} == "Dog's name");
+    REQUIRE(dog_type.field("age").has_meta<typed_validation_cli>());
+    REQUIRE(dog_type.field("age").meta<typed_validation_cli>().cli.short_flag == 'a');
+    REQUIRE(dog_type.field("age").has_meta<typed_validation_help>());
+    REQUIRE(std::string_view{dog_type.field("age").meta<typed_validation_help>().summary} == "Age in years");
+}
+
+TEST_CASE("typed: validators + metas on same field — parse works", "[validation][typed][parse]") {
+    auto result = type_def<TypedMixedDog>{}.parse(
+        json{{"name", ""}, {"age", -1}, {"breed", "Husky"}});
+
+    REQUIRE(!result.valid());
+    REQUIRE(result.validation_errors().size() == 2);
+    REQUIRE(result->name.value == "");
+    REQUIRE(result->age.value == -1);
 }

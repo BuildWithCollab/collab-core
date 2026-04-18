@@ -598,6 +598,9 @@ struct field_descriptor {
     constexpr M meta() const {
         using member_t = detail::member_type<I, T>;
         static_assert(is_field<member_t>, "meta<M>() requires a field<> member");
+        using with_type = std::remove_cvref_t<decltype(std::declval<member_t>().with)>;
+        static_assert(std::is_base_of_v<M, with_type>,
+            "meta<M>() called with a meta type not present on this field's with<>");
         T instance{};
         return static_cast<const M&>(detail::dispatch_get_member<I>(instance).with);
     }

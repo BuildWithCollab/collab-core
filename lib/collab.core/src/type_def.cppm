@@ -147,6 +147,12 @@ namespace detail {
     template <typename... Vs>
     inline constexpr bool is_validator_pack_v<validator_pack<Vs...>> = true;
 
+    template <typename T>
+    inline constexpr bool is_with_v = false;
+
+    template <typename... Exts>
+    inline constexpr bool is_with_v<with<Exts...>> = true;
+
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1245,6 +1251,34 @@ public:
         fields_.push_back({std::string(fname), typeid(V), {}, false, {},
                            std::move(setter), std::move(factory),
                            std::move(json_init), {}, {}});
+        return *this;
+    }
+
+    // .field<V>("name", validators(...)) or .field<V>("name", with<>(...))
+    // No default value — just name + validators/metas.
+    template <typename V, typename First, typename... Rest>
+        requires (detail::is_validator_pack_v<std::remove_cvref_t<First>>
+              || detail::is_with_v<std::remove_cvref_t<First>>)
+    type_def& field(std::string_view fname, First first, Rest... rest) {
+        auto setter = [](std::any& target, std::any&& incoming) -> bool {
+            if (auto* p = std::any_cast<V>(&incoming)) {
+                target = std::move(*p);
+                return true;
+            }
+            return false;
+        };
+        auto factory = []() -> std::any { return std::any(V{}); };
+        auto json_init = [](const detail::dynamic_field_def& fd) {
+            detail::init_json_codec<V>(fd);
+        };
+        detail::dynamic_field_def fd{
+            std::string(fname), typeid(V),
+            {}, false, {},
+            std::move(setter), std::move(factory),
+            std::move(json_init), {}, {}};
+        detail::process_field_arg<V>(fd, first);
+        (detail::process_field_arg<V>(fd, rest), ...);
+        fields_.push_back(std::move(fd));
         return *this;
     }
 
