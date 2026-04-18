@@ -3,18 +3,98 @@ module;
 #include <array>
 #include <cstddef>
 #include <concepts>
+#include <functional>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
+
+#include <nameof.hpp>
 
 export module collab.core:field;
 
 export namespace collab::model {
 
+// ── validation_error — shared across all paths ──────────────────────────
+
+struct validation_error {
+    std::string path;
+    std::string message;
+    std::string constraint;
+};
+
 // ── with<Exts...> ───────────────────────────────────────────────────────
 
 template <typename... Exts>
 struct with : Exts... {};
+
+// ── field_validator_fn — type-erased validator storage for field<T> ─────
+
+template <typename T>
+using field_validator_fn = std::function<
+    std::vector<validation_error>(const T& value, std::string_view field_name)>;
+
+// ── Extract short name from a fully-qualified NAMEOF_TYPE string ─────
+//
+// MSVC:  "struct collab::model::validations::not_empty[collab.core]"
+// GCC:   "collab::model::validations::not_empty@collab.core"
+// Clang: "collab::model::validations::not_empty"
+
+inline std::string extract_short_validator_name(std::string_view full_name) {
+    if (auto bracket = full_name.rfind('['); bracket != std::string_view::npos)
+        full_name = full_name.substr(0, bracket);
+    if (auto at_sign = full_name.rfind('@'); at_sign != std::string_view::npos)
+        full_name = full_name.substr(0, at_sign);
+    if (full_name.starts_with("struct "))
+        full_name.remove_prefix(7);
+    else if (full_name.starts_with("class "))
+        full_name.remove_prefix(6);
+    if (auto last_colon = full_name.rfind("::"); last_colon != std::string_view::npos)
+        full_name = full_name.substr(last_colon + 2);
+    return std::string(full_name);
+}
+
+// ── validator_pack — wrapper returned by validators() ───────────────────
+
+template <typename... Vs>
+struct validator_pack {
+    std::tuple<Vs...> packed;
+
+    // Implicit conversion to field_validator_fn<T> for use in field<T>.validators
+    template <typename T>
+    operator field_validator_fn<T>() const {
+        auto captured = packed;
+        return [captured](const T& value, std::string_view field_name)
+            -> std::vector<validation_error>
+        {
+            std::vector<validation_error> errors;
+            std::apply([&](const auto&... each_validator) {
+                (([&] {
+                    auto result = each_validator(value);
+                    if (result.has_value()) {
+                        using validator_type = std::remove_cvref_t<decltype(each_validator)>;
+                        errors.push_back({
+                            std::string(field_name),
+                            std::move(*result),
+                            extract_short_validator_name(NAMEOF_TYPE(validator_type))
+                        });
+                    }
+                }()), ...);
+            }, captured);
+            return errors;
+        };
+    }
+};
+
+// ── validators() — composes validators into a pack ──────────────────────
+
+template <typename... Vs>
+validator_pack<Vs...> validators(Vs... vs) {
+    return {std::tuple<Vs...>{std::move(vs)...}};
+}
 
 // ── field<T, WithPack> ─────────────────────────────────────────────────
 
@@ -22,8 +102,9 @@ template <typename T, typename WithPack = with<>>
 struct field {
     using value_type = T;
 
-    WithPack    with{};
-    T           value{};
+    WithPack              with{};
+    T                     value{};
+    field_validator_fn<T> validators{};
 
     constexpr operator const T&() const& noexcept { return value; }
     constexpr operator       T&()       & noexcept { return value; }

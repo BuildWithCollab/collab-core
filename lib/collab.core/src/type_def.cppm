@@ -27,12 +27,9 @@ export namespace collab::model {
 // ═══════════════════════════════════════════════════════════════════════
 // Validation types
 // ═══════════════════════════════════════════════════════════════════════
-
-struct validation_error {
-    std::string path;
-    std::string message;
-    std::string constraint;
-};
+//
+// validation_error and validator_pack are defined in field.cppm.
+// validation_result and parse_result live here.
 
 struct validation_result {
     explicit operator bool() const { return errors_.empty(); }
@@ -97,15 +94,8 @@ struct parse_result {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-// Validator infrastructure
+// Validator infrastructure (continued from field.cppm)
 // ═══════════════════════════════════════════════════════════════════════
-
-// ── validator_pack — wrapper returned by validators() ────────────────
-
-template <typename... Vs>
-struct validator_pack {
-    std::tuple<Vs...> packed;
-};
 
 namespace detail {
     template <typename T>
@@ -114,13 +104,6 @@ namespace detail {
     template <typename... Vs>
     inline constexpr bool is_validator_pack_v<validator_pack<Vs...>> = true;
 
-}
-
-// ── validators() — composes validators into a pack ──────────────────
-
-template <typename... Vs>
-validator_pack<Vs...> validators(Vs... vs) {
-    return {std::tuple<Vs...>{std::move(vs)...}};
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -290,6 +273,23 @@ namespace detail {
         (visit_field_value<Is>(obj, fn), ...);
     }
 
+    // ── Raw field iteration (passes field<T> wrapper, not unwrapped value) ──
+
+    template <std::size_t I, typename Obj, typename F>
+    constexpr void visit_raw_field(Obj& obj, F&& fn) {
+        using T = std::remove_cvref_t<Obj>;
+        using member_t = collab::model::detail::member_type<I, T>;
+        if constexpr (collab::model::is_field<member_t>) {
+            auto& member = collab::model::detail::dispatch_get_member<I>(obj);
+            fn(collab::model::detail::dispatch_field_name_rt<I, T>(), member);
+        }
+    }
+
+    template <typename Obj, typename F, std::size_t... Is>
+    constexpr void for_each_raw_field(Obj& obj, F&& fn, std::index_sequence<Is...>) {
+        (visit_raw_field<Is>(obj, fn), ...);
+    }
+
     // ── Schema-only field iteration ──────────────────────────────────
 
     template <typename T, std::size_t I, typename F>
@@ -424,36 +424,9 @@ namespace detail {
             {typeid(Exts), std::any(static_cast<const Exts&>(w))}), ...);
     }
 
-    // ── Extract short name from a fully-qualified NAMEOF_TYPE string ──
-    //
-    // MSVC:  "struct collab::model::validations::not_empty[collab.core]"
-    // GCC:   "collab::model::validations::not_empty@collab.core"
-    // Clang: "collab::model::validations::not_empty"
-    //
-    // Returns the last component before any module suffix, after the last '::'.
-    // e.g. "not_empty" in all cases above.
-
-    constexpr std::string extract_short_validator_name(std::string_view full_name) {
-        // Strip MSVC module suffix "[collab.core]" or GCC module suffix "@collab.core"
-        if (auto bracket = full_name.rfind('['); bracket != std::string_view::npos)
-            full_name = full_name.substr(0, bracket);
-        if (auto at_sign = full_name.rfind('@'); at_sign != std::string_view::npos)
-            full_name = full_name.substr(0, at_sign);
-
-        // Strip "struct " / "class " prefix MSVC adds
-        if (full_name.starts_with("struct "))
-            full_name.remove_prefix(7);
-        else if (full_name.starts_with("class "))
-            full_name.remove_prefix(6);
-
-        // Take everything after the last "::"
-        if (auto last_colon = full_name.rfind("::"); last_colon != std::string_view::npos)
-            full_name = full_name.substr(last_colon + 2);
-
-        return std::string(full_name);
-    }
-
     // ── Build type-erased validate_fn from a validator_pack ──────────
+    //
+    // extract_short_validator_name is defined in field.cppm.
 
     template <typename FieldType, typename... Validators>
     auto make_validate_fn(const validator_pack<Validators...>& pack) {
@@ -988,6 +961,35 @@ public:
         throw std::logic_error(
             "type_def '" + std::string(name()) + "': no field named '" +
             std::string(fname) + "'");
+    }
+
+    // ── Validation ────────────────────────────────────────────────────
+    //
+    // valid(instance) — fast bool, short-circuits on first failure.
+    // validate(instance) — collects all errors.
+
+    bool valid(const T& obj) const {
+        bool is_valid = true;
+        detail::for_each_raw_field(obj, [&](std::string_view name, const auto& raw_field) {
+            if (!is_valid) return;
+            if (raw_field.validators) {
+                auto errors = raw_field.validators(raw_field.value, name);
+                if (!errors.empty()) is_valid = false;
+            }
+        }, indices_{});
+        return is_valid;
+    }
+
+    validation_result validate(const T& obj) const {
+        validation_result result;
+        detail::for_each_raw_field(obj, [&](std::string_view name, const auto& raw_field) {
+            if (raw_field.validators) {
+                auto errors = raw_field.validators(raw_field.value, name);
+                for (auto& error : errors)
+                    result.add(std::move(error));
+            }
+        }, indices_{});
+        return result;
     }
 
     // ── Create instance ──────────────────────────────────────────────

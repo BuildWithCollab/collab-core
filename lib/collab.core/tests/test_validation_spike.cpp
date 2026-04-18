@@ -522,3 +522,81 @@ TEST_CASE("spike: parse() — validation does NOT run by default", "[validation]
     // But we got the object
     REQUIRE(result->get<std::string>("name") == "");
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Typed path — validators on field<T>
+// ═════════════════════════════════════════════════════════════════════════
+
+struct ValidatedDog {
+    field<std::string> name {
+        .value = "",
+        .validators = validators(not_empty{})
+    };
+    field<int> age {
+        .value = 0,
+        .validators = validators(positive{})
+    };
+    field<std::string> breed;  // no validators
+};
+
+TEST_CASE("typed: valid() returns false when validators fail", "[validation][typed]") {
+    ValidatedDog dog;
+    type_def<ValidatedDog> dog_type;
+
+    REQUIRE(!dog_type.valid(dog));
+}
+
+TEST_CASE("typed: valid() returns true when all pass", "[validation][typed]") {
+    ValidatedDog dog;
+    dog.name = "Rex";
+    dog.age = 3;
+
+    type_def<ValidatedDog> dog_type;
+    REQUIRE(dog_type.valid(dog));
+}
+
+TEST_CASE("typed: validate() collects all errors", "[validation][typed]") {
+    ValidatedDog dog;
+    type_def<ValidatedDog> dog_type;
+
+    auto result = dog_type.validate(dog);
+    REQUIRE(!result);
+    REQUIRE(result.error_count() == 2);  // name: not_empty, age: positive
+    REQUIRE(result.errors()[0].path == "name");
+    REQUIRE(result.errors()[1].path == "age");
+}
+
+TEST_CASE("typed: validate() reports constraint names", "[validation][typed]") {
+    ValidatedDog dog;
+    type_def<ValidatedDog> dog_type;
+
+    auto result = dog_type.validate(dog);
+    REQUIRE(result.errors()[0].constraint == "not_empty");
+    REQUIRE(result.errors()[1].constraint == "positive");
+}
+
+TEST_CASE("typed: fields without validators always pass", "[validation][typed]") {
+    ValidatedDog dog;
+    dog.name = "Rex";
+    dog.age = 3;
+    // breed has no validators — doesn't affect valid()
+
+    type_def<ValidatedDog> dog_type;
+    REQUIRE(dog_type.valid(dog));
+}
+
+TEST_CASE("typed: fixing values makes validation pass", "[validation][typed]") {
+    ValidatedDog dog;
+    type_def<ValidatedDog> dog_type;
+
+    REQUIRE(!dog_type.valid(dog));
+
+    dog.name = "Rex";
+    REQUIRE(!dog_type.valid(dog));  // age still 0
+
+    dog.age = 5;
+    REQUIRE(dog_type.valid(dog));
+
+    auto result = dog_type.validate(dog);
+    REQUIRE(result.ok());
+}
