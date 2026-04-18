@@ -94,6 +94,42 @@ struct parse_result {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
+// parse_options — configurable strictness for parse()
+// ═══════════════════════════════════════════════════════════════════════
+
+struct parse_options {
+    bool reject_extra_keys  = false;
+    bool require_all_fields = false;
+    bool require_valid      = false;
+    bool strict             = false;  // sets all three to true
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// parse_error — structured exception from strict parsing
+// ═══════════════════════════════════════════════════════════════════════
+
+class parse_error : public std::logic_error {
+public:
+    parse_error(std::string message,
+                std::vector<std::string> extra_keys,
+                std::vector<std::string> missing_fields,
+                std::vector<validation_error> validation_errors)
+        : std::logic_error(std::move(message))
+        , extra_keys_(std::move(extra_keys))
+        , missing_fields_(std::move(missing_fields))
+        , validation_errors_(std::move(validation_errors)) {}
+
+    const std::vector<std::string>& extra_keys() const { return extra_keys_; }
+    const std::vector<std::string>& missing_fields() const { return missing_fields_; }
+    const std::vector<validation_error>& validation_errors() const { return validation_errors_; }
+
+private:
+    std::vector<std::string> extra_keys_;
+    std::vector<std::string> missing_fields_;
+    std::vector<validation_error> validation_errors_;
+};
+
+// ═══════════════════════════════════════════════════════════════════════
 // Validator infrastructure (continued from field.cppm)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1079,6 +1115,28 @@ public:
 
         return result;
     }
+
+    parse_result<T> parse(const nlohmann::json& j, parse_options options) const {
+        if (options.strict) {
+            options.reject_extra_keys = true;
+            options.require_all_fields = true;
+            options.require_valid = true;
+        }
+
+        auto result = parse(j);
+
+        if (options.reject_extra_keys && result.has_extra_keys())
+            throw parse_error("parse: extra keys in JSON",
+                result.extra_keys_, result.missing_fields_, result.validation_errors_);
+        if (options.require_all_fields && result.has_missing_fields())
+            throw parse_error("parse: missing fields in JSON",
+                result.extra_keys_, result.missing_fields_, result.validation_errors_);
+        if (options.require_valid && !result.valid())
+            throw parse_error("parse: validation errors",
+                result.extra_keys_, result.missing_fields_, result.validation_errors_);
+
+        return result;
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1257,6 +1315,7 @@ public:
     // Defined in field_json.cpp (module implementation unit).
 
     parse_result<type_instance> parse(const nlohmann::json& j) const;
+    parse_result<type_instance> parse(const nlohmann::json& j, parse_options options) const;
 };
 
 // ── CTAD: type_def("Event") deduces to type_def<detail::dynamic_tag> ─────────────

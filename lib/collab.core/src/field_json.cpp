@@ -108,6 +108,32 @@ collab::model::type_def<collab::model::detail::dynamic_tag>::parse(
     return result;
 }
 
+// ── type_def<dynamic_tag>::parse(json, options) ──────────────────────────
+
+collab::model::parse_result<collab::model::type_instance>
+collab::model::type_def<collab::model::detail::dynamic_tag>::parse(
+        const nlohmann::json& j, parse_options options) const {
+    if (options.strict) {
+        options.reject_extra_keys = true;
+        options.require_all_fields = true;
+        options.require_valid = true;
+    }
+
+    auto result = parse(j);
+
+    if (options.reject_extra_keys && result.has_extra_keys())
+        throw parse_error("parse: extra keys in JSON",
+            result.extra_keys_, result.missing_fields_, result.validation_errors_);
+    if (options.require_all_fields && result.has_missing_fields())
+        throw parse_error("parse: missing fields in JSON",
+            result.extra_keys_, result.missing_fields_, result.validation_errors_);
+    if (options.require_valid && !result.valid())
+        throw parse_error("parse: validation errors",
+            result.extra_keys_, result.missing_fields_, result.validation_errors_);
+
+    return result;
+}
+
 // ── type_def<dynamic_tag>::field(name, nested_type_def) ──────────────────
 
 collab::model::type_def<collab::model::detail::dynamic_tag>&

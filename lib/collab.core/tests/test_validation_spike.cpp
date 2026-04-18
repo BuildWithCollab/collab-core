@@ -845,3 +845,90 @@ TEST_CASE("hybrid parse: reports validation errors", "[validation][hybrid][parse
     REQUIRE(result->name == "");
     REQUIRE(result->age == -1);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// parse_options — configurable strictness
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("dynamic parse_options: reject_extra_keys throws", "[validation][dynamic][parse_options]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age");
+
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", "Rex"}, {"age", 3}, {"color", "brown"}},
+            {.reject_extra_keys = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("dynamic parse_options: reject_extra_keys does not throw when no extras", "[validation][dynamic][parse_options]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age");
+
+    REQUIRE_NOTHROW(
+        dog_type.parse(json{{"name", "Rex"}, {"age", 3}},
+            {.reject_extra_keys = true}));
+}
+
+TEST_CASE("dynamic parse_options: require_all_fields throws on missing", "[validation][dynamic][parse_options]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name")
+        .field<int>("age")
+        .field<std::string>("breed");
+
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", "Rex"}},
+            {.require_all_fields = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("dynamic parse_options: require_valid throws on validation errors", "[validation][dynamic][parse_options]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}));
+
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", ""}},
+            {.require_valid = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("dynamic parse_options: strict sets all three", "[validation][dynamic][parse_options]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}))
+        .field<int>("age");
+
+    // Extra key + missing field + validation error
+    REQUIRE_THROWS_AS(
+        dog_type.parse(json{{"name", ""}, {"unknown", true}},
+            {.strict = true}),
+        collab::model::parse_error);
+}
+
+TEST_CASE("dynamic parse_options: parse_error carries structured data", "[validation][dynamic][parse_options]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}))
+        .field<int>("age");
+
+    try {
+        dog_type.parse(json{{"name", ""}, {"unknown", true}},
+            {.strict = true});
+        REQUIRE(false);  // should have thrown
+    } catch (const collab::model::parse_error& error) {
+        REQUIRE(error.extra_keys().size() == 1);
+        REQUIRE(error.missing_fields().size() == 1);
+        REQUIRE(error.validation_errors().size() == 1);
+    }
+}
+
+TEST_CASE("dynamic parse_options: default options don't throw", "[validation][dynamic][parse_options]") {
+    auto dog_type = type_def("Dog")
+        .field<std::string>("name", std::string(""),
+            validators(not_empty{}));
+
+    // Default parse_options — no throwing, even with validation errors
+    REQUIRE_NOTHROW(dog_type.parse(json{{"name", ""}, {"extra", 1}}));
+}

@@ -37,8 +37,8 @@
 ### parse_result — all 3 paths
 - [x] `parse_result<T>` struct — value + extra_keys + missing_fields + validation_errors
 - [x] **dynamic** — `dog_t.parse(json)` → `parse_result<type_instance>`
-- [x] **typed** — `parse<Dog>(json)` → `parse_result<Dog>`
-- [x] **hybrid** — `parse(json, dog_t)` → `parse_result<PlainDog>`
+- [x] **typed** — `type_def<Dog>{}.parse(json)` → `parse_result<Dog>`
+- [x] **hybrid** — `dog_t.parse(json)` → `parse_result<PlainDog>`
 - [x] `operator*` / `operator->` for value access
 - [x] `checked_value()` throws if validation errors exist
 - [x] Extra keys and missing fields are informational (don't affect `valid()`)
@@ -47,11 +47,11 @@
 
 ## ❌ Not done
 
-### parse_options — not started
-- [ ] `parse_options` struct: `reject_extra_keys`, `require_all_fields`, `require_valid`, `strict`
-- [ ] `parse(json, {.strict = true})` throws on any issue
-- [ ] `parse(json, {.reject_extra_keys = true})` throws on unknown keys
-- [ ] `parse_error` exception carrying structured data
+### parse_options ✅
+- [x] `parse_options` struct: `reject_extra_keys`, `require_all_fields`, `require_valid`, `strict`
+- [x] `.parse(json, {.strict = true})` throws on any issue
+- [x] `.parse(json, {.reject_extra_keys = true})` throws on unknown keys
+- [x] `parse_error` exception carrying structured data (extra_keys, missing_fields, validation_errors)
 
 ### Type mismatch graceful handling — not started
 - [ ] `parse()` catches JSON type mismatches (string where int expected)
