@@ -1,43 +1,67 @@
-# Validation Spike
+# Validation — Implementation Status
 
-> Tracking doc for tonight's work. Spike first, then go wide.
-
----
-
-## Potential Post-Spike Plan (Steps 1-5)
-
-These were our initial ideas — may change after the spike teaches us things.
-
-1. **Validator contract + `validators()` helper** — built-in validators under `collab::model::validators` namespace, `validators()` helper stays in `collab::model`
-2. **Attach validators to fields** — dynamic builder, hybrid builder, typed `field<T>` `.validators` member
-3. **`validation_result` + `validation_error`** — stateless result types
-4. **`valid()` / `validate()` across all 4 paths** — typed, hybrid, dynamic, type_instance
-5. **`parse_result<T>` + `parse_options`** — wraps `from_json`, gives object + report
+> Tracking doc. See `validation.md` for the full design spec.
 
 ---
 
-## Spike: Dynamic Path Only
+## ✅ Done
 
-Goal: prove the full validation pipe end-to-end before going wide.
+### Core infrastructure
+- [x] `validation_error` struct (path, message, constraint)
+- [x] `validation_result` struct (ok(), error_count(), errors(), operator bool, iterable)
+- [x] `validator_pack<Vs...>` wrapper type
+- [x] `validators()` free function creates packs
+- [x] Built-in validators: `not_empty`, `max_length`, `positive` (in `collab::model::validations`)
+- [x] `extract_short_validator_name()` — cross-compiler constraint name extraction (MSVC `[]`, GCC `@`, Clang clean)
+- [x] `nameof-module-support` package (fork with MSVC module fix)
 
-- [ ] **Test 1** — single validator on dynamic field, `valid()` returns false
-- [ ] **Test 2** — `validate()` returns `validation_result` with error details (path, message)
-- [ ] **Test 3** — multiple validators on one field, both can fail
-- [ ] **Test 4** — mix of validated and unvalidated fields
-- [ ] **Test 5** — fixing values makes `valid()` become true, `validate().ok()`
-- [ ] **Test 6** — validators don't interfere with set/get/to_json/schema queries
+### valid() / validate() — all 4 paths
+- [x] **type_instance** — `obj.valid()`, `obj.validate()`
+- [x] **typed** — `t.valid(instance)`, `t.validate(instance)`
+- [x] **hybrid** — `dog_t.valid(instance)`, `dog_t.validate(instance)`
+- [x] **dynamic** — via type_instance
 
-### What the spike builds (just enough to pass)
+### Validators on fields — all 4 paths
+- [x] **dynamic** — `.field<T>("name", default, validators(...))`
+- [x] **typed** — `field<T> name { .validators = validators(...) }`
+- [x] **hybrid** — `.field(&T::member, "name", validators(...))`
+- [x] Validators + `with<>` metas mixable in any order (dynamic + hybrid tested)
 
-- `collab::model::validators` namespace — `not_empty{}`, `max_length{N}`, `positive{}`
-- `validators()` helper in `collab::model`
-- `dynamic_field_def` gets type-erased validator storage
-- `validation_error` and `validation_result` structs
-- `type_instance::valid()` and `type_instance::validate()`
-- Dynamic `.field<V>()` builder gains overload accepting `validators(...)` alongside `with<>()`
+### Nested validation
+- [x] `validate()` recurses into nested type_instances
+- [x] Dotted paths: `"address.street"`, `"middle.leaf.tag"` (3-level deep)
+- [x] `valid()` short-circuits through nesting
 
-### What the spike does NOT touch
+### parse_result (dynamic path only)
+- [x] `parse_result<T>` struct — value + extra_keys + missing_fields + validation_errors
+- [x] `type_def::parse(json)` returns `parse_result<type_instance>`
+- [x] `operator*` / `operator->` for value access
+- [x] `checked_value()` throws if validation errors exist
+- [x] Extra keys and missing fields are informational (don't affect `valid()`)
 
-- `field<T>` struct (typed path)
-- Hybrid path builder
-- `parse_result<T>` / `from_json` changes
+### Custom validators
+- [x] User-defined validators work with zero registration (just implement the contract)
+- [x] Constraint names auto-derived via `nameof`
+
+---
+
+## ❌ Not done
+
+### parse_result on typed + hybrid paths
+- [ ] `parse<Dog>(json)` → `parse_result<Dog>` (free function, typed path)
+- [ ] `dog_t.parse(json)` → `parse_result<PlainDog>` (hybrid path)
+
+### parse_options
+- [ ] `parse_options` struct: `reject_extra_keys`, `require_all_fields`, `require_valid`, `strict`
+- [ ] `parse(json, {.strict = true})` — throws on any issue
+- [ ] `parse(json, {.reject_extra_keys = true})` — throws on unknown keys
+- [ ] `parse_error` exception carrying structured data (extra_keys, missing_fields, validation_errors)
+
+### Type mismatch graceful handling
+- [ ] `parse()` catches JSON type mismatches (e.g. string where int expected)
+- [ ] Mismatched fields get their default value instead of throwing
+- [ ] Type mismatches tracked in parse_result (how? TBD)
+
+### Nested validation on typed/hybrid
+- [ ] Typed structs with nested `field<Address>` — validate walks into nested structs
+- [ ] Hybrid structs with nested registered members
