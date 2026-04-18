@@ -7,11 +7,13 @@ module;
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <typeindex>
 #include <utility>
 #include <vector>
 
+#include <nameof.hpp>
 #include <nlohmann/json_fwd.hpp>
 
 export module collab.core:type_def;
@@ -21,6 +23,92 @@ import :field_reflect;
 import :meta;
 
 export namespace collab::model {
+
+// ═══════════════════════════════════════════════════════════════════════
+// Validation types
+// ═══════════════════════════════════════════════════════════════════════
+
+struct validation_error {
+    std::string path;
+    std::string message;
+    std::string constraint;
+};
+
+struct validation_result {
+    explicit operator bool() const { return errors_.empty(); }
+    bool ok() const { return errors_.empty(); }
+
+    const std::vector<validation_error>& errors() const { return errors_; }
+    std::size_t error_count() const { return errors_.size(); }
+
+    auto begin() const { return errors_.begin(); }
+    auto end() const { return errors_.end(); }
+
+    // Builder — used internally by validate()
+    void add(validation_error error) { errors_.push_back(std::move(error)); }
+
+private:
+    std::vector<validation_error> errors_;
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// Validator infrastructure
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── validator_pack — wrapper returned by validators() ────────────────
+
+template <typename... Vs>
+struct validator_pack {
+    std::tuple<Vs...> packed;
+};
+
+namespace detail {
+    template <typename T>
+    inline constexpr bool is_validator_pack_v = false;
+
+    template <typename... Vs>
+    inline constexpr bool is_validator_pack_v<validator_pack<Vs...>> = true;
+
+}
+
+// ── validators() — composes validators into a pack ──────────────────
+
+template <typename... Vs>
+validator_pack<Vs...> validators(Vs... vs) {
+    return {std::tuple<Vs...>{std::move(vs)...}};
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Built-in validators (collab::model::validations)
+// ═══════════════════════════════════════════════════════════════════════
+
+namespace validations {
+
+    struct not_empty {
+        std::optional<std::string> operator()(const std::string& value) const {
+            if (!value.empty()) return std::nullopt;
+            return "must not be empty";
+        }
+    };
+
+    struct max_length {
+        std::size_t limit;
+        std::optional<std::string> operator()(const std::string& value) const {
+            if (value.size() <= limit) return std::nullopt;
+            return "length " + std::to_string(value.size()) +
+                   " exceeds maximum of " + std::to_string(limit);
+        }
+    };
+
+    struct positive {
+        template <typename T>
+        std::optional<std::string> operator()(const T& value) const {
+            if (value > 0) return std::nullopt;
+            return std::to_string(value) + " must be positive";
+        }
+    };
+
+}  // namespace validations
 
 namespace detail {
     // Sentinel type for the non-templated type_def. Users never see this —
@@ -276,6 +364,11 @@ namespace detail {
         mutable std::function<void(const dynamic_field_def&)> _json_init;
         mutable std::function<std::any(const std::any&)>        to_json_fn;
         mutable std::function<void(std::any&, const std::any&)> from_json_fn;
+
+        // Validation — type-erased function that runs all attached validators.
+        // Returns validation errors for this field (empty if all pass).
+        std::function<std::vector<validation_error>(
+            const std::any& value, std::string_view field_name)> validate_fn;
     };
 
     // ── Extract metas from a with<Exts...> ───────────────────────────
@@ -284,6 +377,72 @@ namespace detail {
     void extract_with_metas(std::vector<meta_entry>& out, const with<Exts...>& w) {
         (out.push_back(
             {typeid(Exts), std::any(static_cast<const Exts&>(w))}), ...);
+    }
+
+    // ── Extract short name from a fully-qualified NAMEOF_TYPE string ──
+    //
+    // MSVC:  "struct collab::model::validations::not_empty[collab.core]"
+    // GCC:   "collab::model::validations::not_empty"
+    // Clang: "collab::model::validations::not_empty"
+    //
+    // Returns the last component before any '[' suffix, after the last '::'.
+    // e.g. "not_empty" in all cases above.
+
+    constexpr std::string extract_short_validator_name(std::string_view full_name) {
+        // Strip MSVC module suffix like "[collab.core]"
+        if (auto bracket = full_name.rfind('['); bracket != std::string_view::npos)
+            full_name = full_name.substr(0, bracket);
+
+        // Strip "struct " / "class " prefix MSVC adds
+        if (full_name.starts_with("struct "))
+            full_name.remove_prefix(7);
+        else if (full_name.starts_with("class "))
+            full_name.remove_prefix(6);
+
+        // Take everything after the last "::"
+        if (auto last_colon = full_name.rfind("::"); last_colon != std::string_view::npos)
+            full_name = full_name.substr(last_colon + 2);
+
+        return std::string(full_name);
+    }
+
+    // ── Build type-erased validate_fn from a validator_pack ──────────
+
+    template <typename FieldType, typename... Validators>
+    auto make_validate_fn(const validator_pack<Validators...>& pack) {
+        return [captured_validators = pack.packed](
+                const std::any& value, std::string_view field_name)
+            -> std::vector<validation_error>
+        {
+            std::vector<validation_error> errors;
+            const auto& typed_value = *std::any_cast<FieldType>(&value);
+            std::apply([&](const auto&... each_validator) {
+                (([&] {
+                    auto result = each_validator(typed_value);
+                    if (result.has_value()) {
+                        using validator_type = std::remove_cvref_t<decltype(each_validator)>;
+                        errors.push_back({
+                            std::string(field_name),
+                            std::move(*result),
+                            extract_short_validator_name(NAMEOF_TYPE(validator_type))
+                        });
+                    }
+                }()), ...);
+            }, captured_validators);
+            return errors;
+        };
+    }
+
+    // ── Process variadic args: extract metas OR validators ───────────
+
+    template <typename FieldType, typename Arg>
+    void process_field_arg(dynamic_field_def& fd, const Arg& arg) {
+        using ArgType = std::remove_cvref_t<Arg>;
+        if constexpr (is_validator_pack_v<ArgType>) {
+            fd.validate_fn = make_validate_fn<FieldType>(arg);
+        } else {
+            extract_with_metas(fd.metas, arg);
+        }
     }
 
     // ── Typed hybrid field registration (for type_def<T, Regs...>) ───
@@ -861,7 +1020,7 @@ public:
             std::any(std::move(default_value)), true, {},
             std::move(setter), std::move(factory),
             std::move(json_init), {}, {}};
-        (detail::extract_with_metas(fd.metas, withs), ...);
+        (detail::process_field_arg<V>(fd, withs), ...);
         fields_.push_back(std::move(fd));
         return *this;
     }
@@ -1039,6 +1198,35 @@ public:
     // ── Type access ──────────────────────────────────────────────────
 
     const type_def<detail::dynamic_tag>& type() const { return *type_; }
+
+    // ── Validation ──────────────────────────────────────────────────
+    //
+    // Stateless — results computed on demand, never cached.
+    // valid() short-circuits on first failure. validate() collects all.
+
+    bool valid() const {
+        auto& fields = type_->fields_;
+        for (std::size_t i = 0; i < fields.size(); ++i) {
+            if (fields[i].validate_fn) {
+                auto errors = fields[i].validate_fn(values_[i], fields[i].name);
+                if (!errors.empty()) return false;
+            }
+        }
+        return true;
+    }
+
+    validation_result validate() const {
+        validation_result result;
+        auto& fields = type_->fields_;
+        for (std::size_t i = 0; i < fields.size(); ++i) {
+            if (fields[i].validate_fn) {
+                auto errors = fields[i].validate_fn(values_[i], fields[i].name);
+                for (auto& error : errors)
+                    result.add(std::move(error));
+            }
+        }
+        return result;
+    }
 
     // ── Field iteration ─────────────────────────────────────────────
     //

@@ -8,6 +8,7 @@ target("collab.core")
     add_packages("nlohmann_json-module-support", { public = true })
     add_packages("unordered_dense", { public = true })
     add_packages("magic_enum", { public = true })
+    add_packages("nameof-module-support", { public = true })
 
     if get_config("enable_pfr") then
         add_packages("pfr_non_boost", { public = true })
