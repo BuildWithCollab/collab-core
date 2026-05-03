@@ -24,7 +24,7 @@ jobs:
         include:
           - os: windows-latest
           - os: ubuntu-latest
-            toolchain: gcc-14
+            toolchain: gcc-15
           - os: macos-latest
             toolchain: llvm
 
@@ -47,13 +47,14 @@ jobs:
           restore-keys: |
             xmake-${{ runner.os }}-
 
-      - name: Install GCC 14 (Linux)
-        if: matrix.toolchain == 'gcc-14'
+      - name: Install GCC 15 (Linux)
+        if: matrix.toolchain == 'gcc-15'
         run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get update
-          sudo apt-get install -y gcc-14 g++-14
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+          sudo apt-get install -y gcc-15 g++-15
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100
 
       - name: Install LLVM/Clang (macOS)
         if: matrix.toolchain == 'llvm'
@@ -61,8 +62,8 @@ jobs:
           brew install llvm
           echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
 
-      - name: Configure (Linux GCC 14)
-        if: matrix.toolchain == 'gcc-14'
+      - name: Configure (Linux GCC 15)
+        if: matrix.toolchain == 'gcc-15'
         run: xmake config --toolchain=gcc -y
 
       - name: Configure (macOS LLVM)
