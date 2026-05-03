@@ -25,12 +25,20 @@ jobs:
           - os: windows-latest
           - os: ubuntu-latest
             toolchain: gcc-15
+            container: gcc:15
           - os: macos-latest
             toolchain: llvm
 
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
 
     steps:
+      - name: Install container deps (Linux GCC 15)
+        if: matrix.toolchain == 'gcc-15'
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git curl ca-certificates unzip xz-utils
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -46,12 +54,6 @@ jobs:
           key: xmake-${{ runner.os }}-${{ hashFiles('**/xmake.lua') }}
           restore-keys: |
             xmake-${{ runner.os }}-
-
-      - name: Install GCC 15 (Linux)
-        if: matrix.toolchain == 'gcc-15'
-        uses: aminya/setup-cpp@1f17f92d6a52bfcb1a25348e2c526c2e5cbb1134 # v1.8.0
-        with:
-          compiler: gcc-15
 
       - name: Install LLVM/Clang (macOS)
         if: matrix.toolchain == 'llvm'
