@@ -1,3 +1,5 @@
+-- Linux/GCC xmake f -c -y --cc=gcc-15 --cxx=g++-15 --ld=g++-15 --sh=g++-15 -m release
+
 add_rules("mode.release")
 set_defaultmode("release")
 
