@@ -78,7 +78,7 @@ jobs:
         run: xmake build -a
 
       - name: Run tests
-        run: xmake run tests-collab.core
+        run: xmake test -v
 
       - name: Notify Slack on Failure
         if: failure()

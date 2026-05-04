@@ -12,4 +12,5 @@ if get_config("build_tests") then
         add_files("tests/**.cpp")
         add_deps("collab.core")
         add_packages("catch2")
+        add_tests("default", {runargs = {"--durations", "yes"}})
 end
