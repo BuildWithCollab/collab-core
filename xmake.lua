@@ -1,4 +1,30 @@
--- Linux/GCC xmake f -c -y --cc=gcc-15 --cxx=g++-15 --ld=g++-15 --sh=g++-15 -m release
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Reference config commands (run once per session; -y is mandatory)
+--
+-- Linux / GCC 15 (release):
+--   xmake f -c -y --cc=gcc-15 --cxx=g++-15 --ld=g++-15 --sh=g++-15 -m release
+--
+-- Linux / Clang + libc++ (release):
+--   xmake f -c -y --cc=clang --cxx=clang++ --ld=clang++ --sh=clang++ \
+--     --cxxflags="-stdlib=libc++" --ldflags="-stdlib=libc++"
+--
+-- Linux / Clang + libc++ + TSan:
+--   xmake f -c -y --cc=clang --cxx=clang++ --ld=clang++ --sh=clang++ \
+--     --cxxflags="-stdlib=libc++ -fsanitize=thread -g" \
+--     --ldflags="-stdlib=libc++ -fsanitize=thread"
+--
+-- macOS / brew LLVM (release):
+--   xmake f -c -y --toolchain=llvm --sdk="$(brew --prefix llvm)"
+--
+-- macOS / brew LLVM + TSan:
+--   xmake f -c -y --toolchain=llvm --sdk="$(brew --prefix llvm)" \
+--     --cxxflags="-stdlib=libc++ -fsanitize=thread -g" \
+--     --ldflags="-stdlib=libc++ -fsanitize=thread"
+--
+-- TSan note: GCC + libstdc++ + C++20 modules + TSan is currently broken
+-- (libstdc++ exposes TU-local TSan helpers from exported templates).
+-- Use Clang + libc++ for TSan runs on Linux and macOS.
+-- ─────────────────────────────────────────────────────────────────────────────
 
 add_rules("mode.release")
 set_defaultmode("release")

@@ -1,0 +1,179 @@
+module;
+
+#include <algorithm>
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <shared_mutex>
+#include <utility>
+#include <vector>
+
+export module collab.core:signal;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 📡 collab::core::Signal — multi-subscriber, thread-safe signal/slot.
+//
+// Threading contract
+// ──────────────────
+//   • connect(), emit(), disconnect(), and subscriber_count() are all safe
+//     to call concurrently from any thread on the same Signal.
+//   • emit() does not hold the internal lock while invoking handlers. It
+//     snapshots the slot list under a shared lock, releases the lock, then
+//     iterates. Reentrancy and recursive emit are deadlock-free.
+//   • A handler invoked from emit() may freely call connect(), disconnect(),
+//     or emit() (including on the same Signal).
+//   • Disconnect during an in-flight emit affects subsequent emits, not the
+//     current one. Handlers already captured in the current snapshot still
+//     fire — their slots are kept alive by the snapshot's shared_ptrs.
+//   • A Subscription may safely outlive its Signal. Disconnect becomes a
+//     no-op once the Signal is destroyed. No use-after-free is possible.
+//
+// Convention
+// ──────────
+//   Only the class that owns the Signal calls emit(). The type system does
+//   not enforce this — code review and discipline do. Same convention as
+//   Qt 5+, Boost.Signals2, sigc++.
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace collab::core {
+
+namespace detail {
+
+struct slot_base {
+    virtual ~slot_base() = default;
+};
+
+template <typename... Args>
+struct slot final : slot_base {
+    std::function<void(Args...)> handler;
+    explicit slot(std::function<void(Args...)> h) : handler(std::move(h)) {}
+};
+
+struct signal_control_block {
+    std::shared_mutex                       mutex;
+    std::vector<std::shared_ptr<slot_base>> slots;
+};
+
+}  // namespace detail
+
+// 🎟 RAII subscription token. Move-only. Auto-disconnects on destruction.
+// Safe to outlive its Signal — disconnect becomes a no-op then.
+export class Subscription {
+public:
+    Subscription() noexcept = default;
+
+    Subscription(std::function<void()> disconnect_fn,
+                 std::function<bool()> connected_fn) noexcept
+        : disconnect_fn_{std::move(disconnect_fn)},
+          connected_fn_{std::move(connected_fn)} {}
+
+    Subscription(Subscription&& other) noexcept
+        : disconnect_fn_{std::move(other.disconnect_fn_)},
+          connected_fn_{std::move(other.connected_fn_)} {
+        other.disconnect_fn_ = nullptr;
+        other.connected_fn_  = nullptr;
+    }
+
+    Subscription& operator=(Subscription&& other) noexcept {
+        if (this != &other) {
+            disconnect();
+            disconnect_fn_       = std::move(other.disconnect_fn_);
+            connected_fn_        = std::move(other.connected_fn_);
+            other.disconnect_fn_ = nullptr;
+            other.connected_fn_  = nullptr;
+        }
+        return *this;
+    }
+
+    Subscription(const Subscription&)            = delete;
+    Subscription& operator=(const Subscription&) = delete;
+
+    ~Subscription() { disconnect(); }
+
+    void disconnect() noexcept {
+        if (disconnect_fn_) {
+            disconnect_fn_();
+            disconnect_fn_ = nullptr;
+            connected_fn_  = nullptr;
+        }
+    }
+
+    bool connected() const noexcept {
+        return static_cast<bool>(connected_fn_) && connected_fn_();
+    }
+
+private:
+    std::function<void()> disconnect_fn_;
+    std::function<bool()> connected_fn_;
+};
+
+// 📡 Multi-subscriber signal. See top-of-file contract for semantics.
+export template <typename... Args>
+class Signal {
+public:
+    using Handler = std::function<void(Args...)>;
+
+    Signal() : control_{std::make_shared<detail::signal_control_block>()} {}
+
+    Signal(const Signal&)            = delete;
+    Signal& operator=(const Signal&) = delete;
+    Signal(Signal&&)                 = delete;
+    Signal& operator=(Signal&&)      = delete;
+
+    [[nodiscard]] Subscription connect(Handler handler) {
+        auto slot_ptr =
+            std::make_shared<detail::slot<Args...>>(std::move(handler));
+        {
+            std::unique_lock lock{control_->mutex};
+            control_->slots.push_back(slot_ptr);
+        }
+
+        std::weak_ptr<detail::signal_control_block> weak_ctrl = control_;
+        std::weak_ptr<detail::slot_base>            weak_slot = slot_ptr;
+
+        return Subscription{
+            [weak_ctrl, weak_slot]() {
+                auto ctrl = weak_ctrl.lock();
+                if (!ctrl) return;
+                auto sp = weak_slot.lock();
+                if (!sp) return;
+                std::unique_lock lock{ctrl->mutex};
+                auto&            v  = ctrl->slots;
+                auto             it = std::find(v.begin(), v.end(), sp);
+                if (it != v.end()) v.erase(it);
+            },
+            [weak_ctrl, weak_slot]() -> bool {
+                auto ctrl = weak_ctrl.lock();
+                if (!ctrl) return false;
+                auto sp = weak_slot.lock();
+                if (!sp) return false;
+                std::shared_lock lock{ctrl->mutex};
+                const auto&      v = ctrl->slots;
+                return std::find(v.begin(), v.end(), sp) != v.end();
+            }};
+    }
+
+    void emit(Args... args) {
+        std::vector<std::shared_ptr<detail::slot_base>> snapshot;
+        {
+            std::shared_lock lock{control_->mutex};
+            snapshot = control_->slots;
+        }
+        for (auto& base : snapshot) {
+            // Every slot in our control_ is slot<Args...> by construction.
+            auto* typed = static_cast<detail::slot<Args...>*>(base.get());
+            typed->handler(args...);
+        }
+    }
+
+    std::size_t subscriber_count() const {
+        std::shared_lock lock{control_->mutex};
+        return control_->slots.size();
+    }
+
+private:
+    std::shared_ptr<detail::signal_control_block> control_;
+};
+
+}  // namespace collab::core
