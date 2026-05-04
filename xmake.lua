@@ -21,6 +21,13 @@
 --     --cxxflags="-stdlib=libc++ -fsanitize=thread -g" \
 --     --ldflags="-stdlib=libc++ -fsanitize=thread"
 --
+-- macOS / brew LLVM + TSan — running:
+--   Homebrew's TSan runtime may segfault on newer macOS before the bottle
+--   is rebuilt. Work around by loading Apple's runtime at execution time:
+--
+--   DYLD_LIBRARY_PATH="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/21/lib/darwin" \
+--     xmake r tests-collab.core
+--
 -- TSan note: GCC + libstdc++ + C++20 modules + TSan is currently broken
 -- (libstdc++ exposes TU-local TSan helpers from exported templates).
 -- Use Clang + libc++ for TSan runs on Linux and macOS.
