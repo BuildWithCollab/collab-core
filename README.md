@@ -2,7 +2,7 @@
 
 Foundational C++23 library for the **Collab** stack. Provides errors, semantic versioning, structured logging, terminal styling, and a thread-safe signal/slot primitive.
 
-Built with [xmake](https://xmake.io). C++23 with module support required.
+Requires a C++23 toolchain with module support.
 
 ```cpp
 import collab.core;
@@ -24,8 +24,6 @@ int main() {
 - [`collab::log` — logging](#collablog--logging)
 - [`collab::term` — terminal styling](#collabterm--terminal-styling)
 - [`collab::core::Signal` — signal/slot](#collabcoresignal--signalslot)
-- [Building](#building)
-- [Testing](#testing)
 - [License](#license)
 
 ---
@@ -275,34 +273,6 @@ changed.emit(42, "ready");
 
 // Disconnect explicitly, or just let `sub` go out of scope.
 sub.disconnect();
-```
-
----
-
-## Building
-
-C++23 with module support is required. See the comment block at the top of [`xmake.lua`](xmake.lua) for the canonical per-toolchain config commands (GCC 15, Clang + libc++, macOS LLVM, with optional ThreadSanitizer).
-
-Quick start:
-
-```sh
-xmake f -y                # configure (defaults: release mode, build_tests=on)
-xmake                     # build everything
-xmake run tests-collab.core   # run the test binary directly
-```
-
-Disable tests:
-
-```sh
-xmake f -y --build_tests=n
-```
-
----
-
-## Testing
-
-```sh
-xmake test
 ```
 
 ---
