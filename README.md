@@ -17,42 +17,35 @@ int main() {
 
 ## Table of contents
 
-- [Module layout](#module-layout)
-- [`collab::core` — top-level](#collabcore--top-level)
-- [`collab::core` — errors](#collabcore--errors)
-- [`collab::core` — semver](#collabcore--semver)
-- [`collab::log` — logging](#collablog--logging)
-- [`collab::term` — terminal styling](#collabterm--terminal-styling)
-- [`collab::core::Signal` — signal/slot](#collabcoresignal--signalslot)
+- [Getting started](#getting-started)
+- [Errors](#errors)
+- [Semantic versioning](#semantic-versioning)
+- [Logging](#logging)
+- [Terminal styling](#terminal-styling)
+- [Signals](#signals)
 - [License](#license)
 
 ---
 
-## Module layout
+## Getting started
 
-One importable module: `collab.core`. One `import` brings in everything documented below across the `collab::core`, `collab::log`, and `collab::term` namespaces.
+One import brings in everything:
 
 ```cpp
 import collab.core;
 ```
 
-Public dependency: [`fmt`](https://github.com/fmtlib/fmt) is re-exported, so `fmt::format_string` shows up in the logging API.
+[`fmt`](https://github.com/fmtlib/fmt) is re-exported, so `fmt::format_string` appears in the logging API.
 
----
-
-## `collab::core` — top-level
+The library's own version is exposed as a `semver` constant:
 
 ```cpp
-namespace collab::core {
-    inline constexpr semver version{1, 0, 0};
-}
+collab::core::version  // semver{1, 0, 0}
 ```
-
-The library version itself, as a `semver` (see below).
 
 ---
 
-## `collab::core` — errors
+## Errors
 
 Tagged value-type for representing failures without throwing. Pair it with `std::expected<T, collab::core::Error>` (or your own `Result` alias) at API boundaries.
 
@@ -86,7 +79,7 @@ return Error{"config.yaml does not exist", std::string{error_category::not_found
 
 ---
 
-## `collab::core` — semver
+## Semantic versioning
 
 Semantic version per [SemVer 2.0](https://semver.org). Comparison ignores the `build` field (per §10).
 
@@ -113,7 +106,7 @@ assert(v.to_string() == "1.2.0-rc.1");
 
 ---
 
-## `collab::log` — logging
+## Logging
 
 Sink-based logging with both plain-string and `fmt`-style variadic overloads. Level filtering happens *before* `fmt::format` runs, so filtered messages don't pay formatting cost.
 
@@ -174,7 +167,7 @@ See [`docs/logging.md`](docs/logging.md) for additional notes.
 
 ---
 
-## `collab::term` — terminal styling
+## Terminal styling
 
 Streaming manipulators for ANSI colors and styles. Output is automatically suppressed when stdout/stderr is not a TTY, when `NO_COLOR` is set, or when piped.
 
@@ -212,7 +205,7 @@ std::cout << bold << fg::green << "ok " << reset_style << reset_color
 
 ---
 
-## `collab::core::Signal` — signal/slot
+## Signals
 
 Multi-subscriber, thread-safe signal. Subscriptions are RAII tokens that auto-disconnect on destruction. Convention (not enforced): only the owning class calls `emit()` — same rule as Qt, Boost.Signals2, sigc++.
 
