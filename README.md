@@ -1,8 +1,8 @@
 # collab-core 🏴‍☠️
 
-Foundational C++23 library for the **Collab** stack. Ships as a single static library (`collab.core`) exposing one C++20 module (`collab.core`) with several partitions: errors, semantic versioning, structured logging, terminal styling, and a thread-safe signal/slot primitive.
+Foundational C++23 library for the **Collab** stack. Provides errors, semantic versioning, structured logging, terminal styling, and a thread-safe signal/slot primitive.
 
-Built with [xmake](https://xmake.io). Tested with [Catch2](https://github.com/catchorg/Catch2). C++23 modules required.
+Built with [xmake](https://xmake.io). C++23 with module support required.
 
 ```cpp
 import collab.core;
@@ -38,7 +38,7 @@ One importable module: `collab.core`. One `import` brings in everything document
 import collab.core;
 ```
 
-Public dependencies: [`fmt`](https://github.com/fmtlib/fmt) (re-exported as a package). Internal: [`spdlog`](https://github.com/gabime/spdlog), [`rang`](https://github.com/agauniyal/rang).
+Public dependency: [`fmt`](https://github.com/fmtlib/fmt) is re-exported, so `fmt::format_string` shows up in the logging API.
 
 ---
 
@@ -117,7 +117,7 @@ assert(v.to_string() == "1.2.0-rc.1");
 
 ## `collab::log` — logging
 
-Thin sink-routing layer over `spdlog` with both plain-string and `fmt`-style variadic overloads. Level filtering happens *before* `fmt::format` runs, so filtered messages cost nothing beyond an atomic load.
+Sink-based logging with both plain-string and `fmt`-style variadic overloads. Level filtering happens *before* `fmt::format` runs, so filtered messages don't pay formatting cost.
 
 ### Levels
 
@@ -178,7 +178,7 @@ See [`docs/logging.md`](docs/logging.md) for additional notes.
 
 ## `collab::term` — terminal styling
 
-Streaming manipulators for ANSI colors and styles. Output is automatically suppressed when stdout/stderr is not a TTY, when `NO_COLOR` is set, or when piped — handled internally by [`rang`](https://github.com/agauniyal/rang).
+Streaming manipulators for ANSI colors and styles. Output is automatically suppressed when stdout/stderr is not a TTY, when `NO_COLOR` is set, or when piped.
 
 ### Enums
 
@@ -258,9 +258,8 @@ public:
 ### Threading contract
 
 - `connect()`, `emit()`, `disconnect()`, and `subscriber_count()` are all safe to call concurrently from any thread on the same `Signal`.
-- `emit()` does **not** hold the internal lock while invoking handlers — it snapshots the slot list under a shared lock, releases, then iterates. Reentrant and recursive `emit()` are deadlock-free.
-- A handler may freely `connect()`, `disconnect()`, or `emit()` (including on the same `Signal`).
-- Disconnects during an in-flight `emit()` affect *subsequent* emits, not the current one. Handlers already snapshotted still fire.
+- Handlers run *outside* the signal's lock. Reentrant and recursive `emit()` are deadlock-free — a handler may freely `connect()`, `disconnect()`, or `emit()` (including on the same `Signal`).
+- Disconnects during an in-flight `emit()` affect *subsequent* emits, not the current one.
 - A `Subscription` may safely outlive its `Signal`. Disconnect becomes a no-op.
 
 ### Example
@@ -301,8 +300,6 @@ xmake f -y --build_tests=n
 ---
 
 ## Testing
-
-Tests live under `lib/collab.core/tests/` and run via `xmake test` (Catch2, `--durations yes`).
 
 ```sh
 xmake test
