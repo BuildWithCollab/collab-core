@@ -32,16 +32,11 @@ int main() {
 
 ## Module layout
 
-Everything lives in one importable module — `collab.core` — composed of partitions that you can also import individually.
+One importable module: `collab.core`. One `import` brings in everything documented below across the `collab::core`, `collab::log`, and `collab::term` namespaces.
 
-| Import                 | Brings in                                              |
-| ---------------------- | ------------------------------------------------------ |
-| `collab.core`          | Everything below, plus `collab::core::version`         |
-| `collab.core:error`    | `Error`, `error_category::*`                           |
-| `collab.core:semver`   | `semver`                                               |
-| `collab.core:log`      | `collab::log::*`                                       |
-| `collab.core:term`     | `collab::term::*`                                      |
-| `collab.core:signal`   | `collab::core::Signal`, `collab::core::Subscription`   |
+```cpp
+import collab.core;
+```
 
 Public dependencies: [`fmt`](https://github.com/fmtlib/fmt) (re-exported as a package). Internal: [`spdlog`](https://github.com/gabime/spdlog), [`rang`](https://github.com/agauniyal/rang).
 
@@ -312,8 +307,6 @@ Tests live under `lib/collab.core/tests/` and run via `xmake test` (Catch2, `--d
 ```sh
 xmake test
 ```
-
-There is one test file per module partition: `test_error.cpp`, `test_semver.cpp`, `test_log.cpp`, `test_term.cpp`, `test_signal.cpp`.
 
 ---
 
