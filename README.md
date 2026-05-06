@@ -47,34 +47,30 @@ collab::core::version  // semver{1, 0, 0}
 
 ## Errors
 
-Tagged value-type for representing failures without throwing. Pair it with `std::expected<T, collab::core::Error>` (or your own `Result` alias) at API boundaries.
+Value-typed error for use with `std::expected<T, Error>` or as a return type. Both fields are required at the type level — no default construction.
 
 ```cpp
-struct Error {
-    std::string message;
-    std::string category = "general";
+enum class Category {
+    other, usage, not_found, permission, unauthenticated,
+    network, timeout, cancelled, conflict, unavailable,
 };
-```
 
-Predefined category tags (you can use any string, but these are the standard ones):
+struct Error {
+    Category    category;
+    std::string message;
 
-```cpp
-namespace collab::core::error_category {
-    general      // catch-all
-    usage        // bad arguments / misuse
-    not_found    // missing resource
-    permission   // access denied
-    network      // I/O over the wire
-    timeout
-    conflict     // version / state mismatch
-    unavailable  // service down, retry-friendly
-    internal     // invariant violation
-}
+    Error(Category, std::string_view);
+};
+
+template <typename... Args>
+Error make_error(Category, fmt::format_string<Args...>, Args&&...);
 ```
 
 ```cpp
-using namespace collab::core;
-return Error{"config.yaml does not exist", std::string{error_category::not_found}};
+using collab::core::Category;
+using collab::core::make_error;
+
+return make_error(Category::not_found, "config '{}' missing", path);
 ```
 
 ---

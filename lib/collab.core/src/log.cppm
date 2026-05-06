@@ -3,9 +3,26 @@ module;
 #include <filesystem>
 #include <memory>
 #include <string_view>
+#include <utility>
 #include <fmt/format.h>
 
 export module collab.core:log;
+
+// MSVC C++20 modules quirk: including <fmt/format.h> in more than one partition's
+// GMF causes ambiguous-specialization errors in any TU that imports collab.core
+// AND directly includes spdlog (which itself pulls in fmt). To avoid that, every
+// fmt-using template in this library lives in this partition — including the
+// otherwise unrelated make_error helper, which is why we import :error here.
+import :error;
+
+export namespace collab::core {
+
+template <typename... Args>
+Error make_error(Category cat, fmt::format_string<Args...> fs, Args&&... args) {
+    return Error{cat, fmt::format(fs, std::forward<Args>(args)...)};
+}
+
+}  // namespace collab::core
 
 export namespace collab::log {
 
