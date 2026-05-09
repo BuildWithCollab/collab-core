@@ -10,6 +10,8 @@ module;
 
 module collab.core;
 
+import :semver;
+
 namespace collab::core {
 
 namespace {

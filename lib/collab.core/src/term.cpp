@@ -5,6 +5,8 @@ module;
 
 module collab.core;
 
+import :term;
+
 namespace collab::term {
 
 std::ostream& operator<<(std::ostream& os, color c) {

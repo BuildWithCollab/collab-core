@@ -15,6 +15,8 @@ module;
 
 module collab.core;
 
+import :log;
+
 namespace collab::log {
 
 namespace {
