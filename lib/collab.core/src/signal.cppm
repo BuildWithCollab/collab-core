@@ -155,10 +155,14 @@ public:
     }
 
     void emit(Args... args) {
+        // Local strong ref keeps the control block alive if `*this` is
+        // destroyed on another thread mid-emit. Without it, the lock and
+        // snapshot lines below would access a freed control block.
+        auto ctrl = control_;
         std::vector<std::shared_ptr<detail::slot_base>> snapshot;
         {
-            std::shared_lock lock{control_->mutex};
-            snapshot = control_->slots;
+            std::shared_lock lock{ctrl->mutex};
+            snapshot = ctrl->slots;
         }
         for (auto& base : snapshot) {
             // Every slot in our control_ is slot<Args...> by construction.

@@ -218,6 +218,14 @@ public:
 - Disconnects during an in-flight `emit()` affect *subsequent* emits, not the current one.
 - A `Subscription` may safely outlive its `Signal`. Disconnect becomes a no-op.
 
+### Caveats
+
+⚠️ **Handlers run on the emitting thread.** "Thread-safe `Signal`" means the *signal* object is safe under concurrent use — it does **not** mean your handlers are. If two threads call `emit()` simultaneously, the same handler may run on both threads at the same time. Handlers that touch shared state must synchronize themselves.
+
+⚠️ **Qt thread affinity.** If a worker thread emits and a handler touches a `QObject` / `QWidget`, you'll trip Qt's thread-affinity rules (assertion, crash, or scrambled UI). The `Signal` does no marshalling. If you need GUI-thread dispatch, do it inside the handler — e.g. `QMetaObject::invokeMethod(target, fn, Qt::QueuedConnection)`.
+
+⚠️ **Move-only argument types are not supported.** `Signal<std::unique_ptr<T>>` and similar will not compile. Multi-broadcast requires passing each handler its own copy of the arguments, which move-only types can't satisfy. Pass by `const T&` or `std::shared_ptr<T>` instead.
+
 ### Example
 
 ```cpp
