@@ -1,6 +1,6 @@
 # collab-core 🏴‍☠️
 
-Foundational C++23 library for the **Collab** stack. Provides errors, semantic versioning, structured logging, terminal styling, and a thread-safe signal/slot primitive.
+Foundational C++23 library for the **Collab** stack. Provides semantic versioning, structured logging, terminal styling, and a thread-safe signal/slot primitive.
 
 Requires a C++23 toolchain with module support.
 
@@ -18,7 +18,6 @@ int main() {
 ## Table of contents
 
 - [Getting started](#getting-started)
-- [Errors](#errors)
 - [Semantic versioning](#semantic-versioning)
 - [Logging](#logging)
 - [Terminal styling](#terminal-styling)
@@ -41,36 +40,6 @@ The library's own version is exposed as a `semver` constant:
 
 ```cpp
 collab::core::version  // semver{1, 0, 0}
-```
-
----
-
-## Errors
-
-Value-typed error for use with `std::expected<T, Error>` or as a return type. Both fields are required at the type level — no default construction.
-
-```cpp
-enum class Category {
-    other, usage, not_found, permission, unauthenticated,
-    network, timeout, cancelled, conflict, unavailable,
-};
-
-struct Error {
-    Category    category;
-    std::string message;
-
-    Error(Category, std::string_view);
-};
-
-template <typename... Args>
-Error make_error(Category, fmt::format_string<Args...>, Args&&...);
-```
-
-```cpp
-using collab::core::Category;
-using collab::core::make_error;
-
-return make_error(Category::not_found, "config '{}' missing", path);
 ```
 
 ---
