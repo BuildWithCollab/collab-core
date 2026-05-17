@@ -12,7 +12,7 @@ module;
 export module collab.core:signal;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 📡 collab::core::Signal — multi-subscriber, thread-safe signal/slot.
+// 📡 collab::core::signal — multi-subscriber, thread-safe signal/slot.
 //
 // Emission is `operator()`, not `emit()`. Qt's qtmetamacros.h defines `emit`
 // as an empty preprocessor macro, which silently mangles any `sig.emit(args)`
@@ -22,21 +22,21 @@ export module collab.core:signal;
 // Threading contract
 // ──────────────────
 //   • connect(), operator(), disconnect(), and subscriber_count() are all
-//     safe to call concurrently from any thread on the same Signal.
+//     safe to call concurrently from any thread on the same signal.
 //   • operator() does not hold the internal lock while invoking handlers. It
 //     snapshots the slot list under a shared lock, releases the lock, then
 //     iterates. Reentrancy and recursive emission are deadlock-free.
 //   • A handler invoked from operator() may freely call connect(),
-//     disconnect(), or operator() (including on the same Signal).
+//     disconnect(), or operator() (including on the same signal).
 //   • Disconnect during an in-flight emission affects subsequent emissions,
 //     not the current one. Handlers already captured in the current snapshot
 //     still fire — their slots are kept alive by the snapshot's shared_ptrs.
-//   • A Subscription may safely outlive its Signal. Disconnect becomes a
-//     no-op once the Signal is destroyed. No use-after-free is possible.
+//   • A subscription may safely outlive its signal. Disconnect becomes a
+//     no-op once the signal is destroyed. No use-after-free is possible.
 //
 // Convention
 // ──────────
-//   Only the class that owns the Signal invokes it. The type system does
+//   Only the class that owns the signal invokes it. The type system does
 //   not enforce this — code review and discipline do. Same convention as
 //   Qt 5+, Boost.Signals2, sigc++.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,24 +63,24 @@ struct signal_control_block {
 }  // namespace detail
 
 // 🎟 RAII subscription token. Move-only. Auto-disconnects on destruction.
-// Safe to outlive its Signal — disconnect becomes a no-op then.
-export class Subscription {
+// Safe to outlive its signal — disconnect becomes a no-op then.
+export class subscription {
 public:
-    Subscription() noexcept = default;
+    subscription() noexcept = default;
 
-    Subscription(std::function<void()> disconnect_fn,
+    subscription(std::function<void()> disconnect_fn,
                  std::function<bool()> connected_fn) noexcept
         : disconnect_fn_{std::move(disconnect_fn)},
           connected_fn_{std::move(connected_fn)} {}
 
-    Subscription(Subscription&& other) noexcept
+    subscription(subscription&& other) noexcept
         : disconnect_fn_{std::move(other.disconnect_fn_)},
           connected_fn_{std::move(other.connected_fn_)} {
         other.disconnect_fn_ = nullptr;
         other.connected_fn_  = nullptr;
     }
 
-    Subscription& operator=(Subscription&& other) noexcept {
+    subscription& operator=(subscription&& other) noexcept {
         if (this != &other) {
             disconnect();
             disconnect_fn_       = std::move(other.disconnect_fn_);
@@ -91,10 +91,10 @@ public:
         return *this;
     }
 
-    Subscription(const Subscription&)            = delete;
-    Subscription& operator=(const Subscription&) = delete;
+    subscription(const subscription&)            = delete;
+    subscription& operator=(const subscription&) = delete;
 
-    ~Subscription() { disconnect(); }
+    ~subscription() { disconnect(); }
 
     void disconnect() noexcept {
         if (disconnect_fn_) {
@@ -115,20 +115,20 @@ private:
 
 // 📡 Multi-subscriber signal. See top-of-file contract for semantics.
 export template <typename... Args>
-class Signal {
+class signal {
 public:
-    using Handler = std::function<void(Args...)>;
+    using handler = std::function<void(Args...)>;
 
-    Signal() : control_{std::make_shared<detail::signal_control_block>()} {}
+    signal() : control_{std::make_shared<detail::signal_control_block>()} {}
 
-    Signal(const Signal&)            = delete;
-    Signal& operator=(const Signal&) = delete;
-    Signal(Signal&&)                 = delete;
-    Signal& operator=(Signal&&)      = delete;
+    signal(const signal&)            = delete;
+    signal& operator=(const signal&) = delete;
+    signal(signal&&)                 = delete;
+    signal& operator=(signal&&)      = delete;
 
-    [[nodiscard]] Subscription connect(Handler handler) {
+    [[nodiscard]] subscription connect(handler fn) {
         auto slot_ptr =
-            std::make_shared<detail::slot<Args...>>(std::move(handler));
+            std::make_shared<detail::slot<Args...>>(std::move(fn));
         {
             std::unique_lock lock{control_->mutex};
             control_->slots.push_back(slot_ptr);
@@ -137,7 +137,7 @@ public:
         std::weak_ptr<detail::signal_control_block> weak_ctrl = control_;
         std::weak_ptr<detail::slot_base>            weak_slot = slot_ptr;
 
-        return Subscription{
+        return subscription{
             [weak_ctrl, weak_slot]() {
                 auto ctrl = weak_ctrl.lock();
                 if (!ctrl) return;

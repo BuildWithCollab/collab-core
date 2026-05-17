@@ -10,15 +10,15 @@
 
 import collab.core;
 
-using collab::core::Signal;
-using collab::core::Subscription;
+using collab::core::signal;
+using collab::core::subscription;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1–4: Basic connect / emit / disconnect
 // ─────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("Signal<int>: single subscriber receives an emit", "[signal][basic]") {
-    Signal<int> sig;
+TEST_CASE("signal<int>: single subscriber receives an emit", "[signal][basic]") {
+    signal<int> sig;
     int         received = 0;
     auto        sub      = sig.connect([&](int x) { received = x; });
 
@@ -27,9 +27,9 @@ TEST_CASE("Signal<int>: single subscriber receives an emit", "[signal][basic]") 
     REQUIRE(received == 42);
 }
 
-TEST_CASE("Signal<>: multiple subscribers all fire in connection order",
+TEST_CASE("signal<>: multiple subscribers all fire in connection order",
           "[signal][basic]") {
-    Signal<>         sig;
+    signal<>         sig;
     std::vector<int> order;
 
     auto s1 = sig.connect([&] { order.push_back(1); });
@@ -41,15 +41,15 @@ TEST_CASE("Signal<>: multiple subscribers all fire in connection order",
     REQUIRE(order == std::vector<int>{1, 2, 3});
 }
 
-TEST_CASE("Signal<>: emit with zero subscribers is a no-op", "[signal][basic]") {
-    Signal<int> sig;
+TEST_CASE("signal<>: emit with zero subscribers is a no-op", "[signal][basic]") {
+    signal<int> sig;
     REQUIRE_NOTHROW(sig(7));
     REQUIRE(sig.subscriber_count() == 0);
 }
 
 TEST_CASE("subscriber_count() reflects connect and disconnect",
           "[signal][basic]") {
-    Signal<> sig;
+    signal<> sig;
     REQUIRE(sig.subscriber_count() == 0);
 
     auto s1 = sig.connect([] {});
@@ -67,11 +67,11 @@ TEST_CASE("subscriber_count() reflects connect and disconnect",
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5–8: Subscription lifetime
+// 5–8: subscription lifetime
 // ─────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("Subscription destructor disconnects", "[signal][lifetime]") {
-    Signal<> sig;
+TEST_CASE("subscription destructor disconnects", "[signal][lifetime]") {
+    signal<> sig;
     int      calls = 0;
     {
         auto sub = sig.connect([&] { ++calls; });
@@ -84,7 +84,7 @@ TEST_CASE("Subscription destructor disconnects", "[signal][lifetime]") {
 }
 
 TEST_CASE("Explicit disconnect() removes the handler", "[signal][lifetime]") {
-    Signal<> sig;
+    signal<> sig;
     int      calls = 0;
     auto     sub   = sig.connect([&] { ++calls; });
 
@@ -98,7 +98,7 @@ TEST_CASE("Explicit disconnect() removes the handler", "[signal][lifetime]") {
 }
 
 TEST_CASE("disconnect() is idempotent", "[signal][lifetime]") {
-    Signal<> sig;
+    signal<> sig;
     auto     sub = sig.connect([] {});
 
     REQUIRE_NOTHROW(sub.disconnect());
@@ -107,14 +107,14 @@ TEST_CASE("disconnect() is idempotent", "[signal][lifetime]") {
     REQUIRE(sig.subscriber_count() == 0);
 }
 
-TEST_CASE("Subscription safely outlives its Signal", "[signal][lifetime]") {
-    Subscription sub;
+TEST_CASE("subscription safely outlives its signal", "[signal][lifetime]") {
+    subscription sub;
     {
-        Signal<int> sig;
+        signal<int> sig;
         sub = sig.connect([](int) {});
         REQUIRE(sub.connected());
     }
-    // Signal is destroyed; subscription is now orphaned.
+    // signal is destroyed; subscription is now orphaned.
     REQUIRE_FALSE(sub.connected());
     REQUIRE_NOTHROW(sub.disconnect());
 }  // sub destroyed here — its destructor must not crash
@@ -124,12 +124,12 @@ TEST_CASE("Subscription safely outlives its Signal", "[signal][lifetime]") {
 // ─────────────────────────────────────────────────────────────────────────────
 
 TEST_CASE("Handler self-disconnects mid-emit", "[signal][reentrancy]") {
-    Signal<> sig;
+    signal<> sig;
     int      calls_a = 0;
     int      calls_b = 0;
     int      calls_c = 0;
 
-    Subscription sub_b;
+    subscription sub_b;
 
     auto sub_a = sig.connect([&] { ++calls_a; });
     sub_b      = sig.connect([&] {
@@ -154,10 +154,10 @@ TEST_CASE("Handler self-disconnects mid-emit", "[signal][reentrancy]") {
 }
 
 TEST_CASE("Handler connects new handler mid-emit", "[signal][reentrancy]") {
-    Signal<>     sig;
+    signal<>     sig;
     int          outer_calls = 0;
     int          inner_calls = 0;
-    Subscription inner_sub;
+    subscription inner_sub;
 
     auto outer_sub = sig.connect([&] {
         ++outer_calls;
@@ -178,7 +178,7 @@ TEST_CASE("Handler connects new handler mid-emit", "[signal][reentrancy]") {
 
 TEST_CASE("Recursive emit on the same signal does not deadlock",
           "[signal][reentrancy]") {
-    Signal<int> sig;
+    signal<int> sig;
     int         total_calls = 0;
 
     auto sub = sig.connect([&](int depth) {
@@ -195,8 +195,8 @@ TEST_CASE("Recursive emit on the same signal does not deadlock",
 // 12–16: Type-erased payloads
 // ─────────────────────────────────────────────────────────────────────────────
 
-TEST_CASE("Signal<>: void signature", "[signal][payload]") {
-    Signal<> sig;
+TEST_CASE("signal<>: void signature", "[signal][payload]") {
+    signal<> sig;
     int      calls = 0;
     auto     sub   = sig.connect([&] { ++calls; });
     sig();
@@ -204,16 +204,16 @@ TEST_CASE("Signal<>: void signature", "[signal][payload]") {
     REQUIRE(calls == 2);
 }
 
-TEST_CASE("Signal<int>: primitive arg", "[signal][payload]") {
-    Signal<int> sig;
+TEST_CASE("signal<int>: primitive arg", "[signal][payload]") {
+    signal<int> sig;
     int         received = 0;
     auto        sub      = sig.connect([&](int x) { received = x; });
     sig(123);
     REQUIRE(received == 123);
 }
 
-TEST_CASE("Signal<const std::string&>: by-const-ref arg", "[signal][payload]") {
-    Signal<const std::string&> sig;
+TEST_CASE("signal<const std::string&>: by-const-ref arg", "[signal][payload]") {
+    signal<const std::string&> sig;
     std::string                received;
     const void*                seen_address = nullptr;
 
@@ -229,9 +229,9 @@ TEST_CASE("Signal<const std::string&>: by-const-ref arg", "[signal][payload]") {
     REQUIRE(seen_address != nullptr);
 }
 
-TEST_CASE("Signal<int, double, const std::string&>: multi-arg",
+TEST_CASE("signal<int, double, const std::string&>: multi-arg",
           "[signal][payload]") {
-    Signal<int, double, const std::string&> sig;
+    signal<int, double, const std::string&> sig;
     int                                     i = 0;
     double                                  d = 0.0;
     std::string                             s;
@@ -257,8 +257,8 @@ struct payload {
 };
 }  // namespace
 
-TEST_CASE("Signal<MyStruct>: user-defined type by value", "[signal][payload]") {
-    Signal<payload> sig;
+TEST_CASE("signal<MyStruct>: user-defined type by value", "[signal][payload]") {
+    signal<payload> sig;
     payload         received{};
 
     auto sub = sig.connect([&](payload p) { received = std::move(p); });
@@ -274,7 +274,7 @@ TEST_CASE("Signal<MyStruct>: user-defined type by value", "[signal][payload]") {
 
 TEST_CASE("Concurrent connect / emit / subscriber_count under thrash",
           "[signal][concurrency]") {
-    Signal<int>       sig;
+    signal<int>       sig;
     std::atomic<bool> stop{false};
 
     // Keep one always-on subscriber so emit always has work to do.
@@ -314,7 +314,7 @@ TEST_CASE("Concurrent connect / emit / subscriber_count under thrash",
 }
 
 TEST_CASE("Concurrent emit() from multiple threads", "[signal][concurrency]") {
-    Signal<int>      sig;
+    signal<int>      sig;
     std::atomic<int> calls{0};
 
     auto sub = sig.connect([&](int) { calls.fetch_add(1); });
@@ -344,19 +344,19 @@ TEST_CASE("connect() is [[nodiscard]] (signature check)",
     // signature so any silent change to the return type is caught, and
     // documents the contract: discarding connect()'s return value MUST
     // produce a compiler diagnostic.
-    Signal<int> sig;
+    signal<int> sig;
     using ReturnT = decltype(sig.connect([](int) {}));
-    STATIC_REQUIRE(std::is_same_v<ReturnT, Subscription>);
+    STATIC_REQUIRE(std::is_same_v<ReturnT, subscription>);
 
-    // Sanity: Subscription is move-only.
-    STATIC_REQUIRE(std::is_move_constructible_v<Subscription>);
-    STATIC_REQUIRE(std::is_move_assignable_v<Subscription>);
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<Subscription>);
-    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<Subscription>);
+    // Sanity: subscription is move-only.
+    STATIC_REQUIRE(std::is_move_constructible_v<subscription>);
+    STATIC_REQUIRE(std::is_move_assignable_v<subscription>);
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<subscription>);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<subscription>);
 
-    // Signal is pinned (neither copyable nor movable).
-    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<Signal<int>>);
-    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<Signal<int>>);
-    STATIC_REQUIRE_FALSE(std::is_move_constructible_v<Signal<int>>);
-    STATIC_REQUIRE_FALSE(std::is_move_assignable_v<Signal<int>>);
+    // signal is pinned (neither copyable nor movable).
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<signal<int>>);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<signal<int>>);
+    STATIC_REQUIRE_FALSE(std::is_move_constructible_v<signal<int>>);
+    STATIC_REQUIRE_FALSE(std::is_move_assignable_v<signal<int>>);
 }
