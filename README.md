@@ -1,6 +1,6 @@
 # collab-core 🏴‍☠️
 
-Foundational C++23 library for the **Collab** stack. Provides identity and manifest types for libraries, semantic versioning, structured logging with per-library attribution, a thread-safe multicast event emitter, and ANSI terminal styling.
+Foundational C++23 library for the **Collab** stack. Provides identity and manifest types for libraries, semantic versioning, structured logging with per-library attribution, a thread-safe event primitive, and ANSI terminal styling.
 
 Requires a C++23 toolchain with module support.
 
@@ -13,7 +13,7 @@ Requires a C++23 toolchain with module support.
 - [Identity and manifest](#identity-and-manifest)
 - [Semantic versioning](#semantic-versioning)
 - [Logging](#logging)
-- [Emitters](#emitters)
+- [Events](#events)
 - [Terminal styling](#terminal-styling)
 - [License](#license)
 
@@ -144,51 +144,41 @@ See [`docs/logging.md`](docs/logging.md) for additional notes.
 
 ---
 
-## Emitters
+## Events
 
-`emitter<Args...>` is a multicast event source: the object the owning class fires when something happens, and the handle subscribers attach to when they want to be notified. Each invocation fans one event out to every currently-connected handler. Same role as Qt's signals, Boost.Signals2's `signal`, or sigc++'s `signal` — just named for what the object *is* (the emitter) rather than what it emits.
+Multi-subscriber, thread-safe event. RAII subscriptions auto-disconnect on destruction.
 
 ```cpp
-class connection {
-public:
-    collab::core::emitter<int, std::string> on_state_changed;
-    collab::core::emitter<>                 on_closed;
+collab::core::event<int, std::string> changed;
 
-    void handle_packet(/* ... */) {
-        // ...
-        on_state_changed(new_code, "ready");   // fan out to all subscribers
-    }
-};
-
-connection c;
-auto sub = c.on_state_changed.connect([](int code, std::string_view msg) {
-    collab::log::info("state: {} ({})", msg, code);
+auto sub = changed.connect([](int code, std::string_view msg) {
+    collab::log::info("changed: {} ({})", msg, code);
 });
-// sub auto-disconnects when it falls out of scope
+
+changed(42, "ready");        // invoke — handlers run on this thread
+sub.disconnect();            // or just let `sub` fall out of scope
 ```
 
-`emitter<Args...>` is non-copyable and non-movable — pin it as a member of the type that owns the event. `connect(fn)` takes any callable matching `void(Args...)` and returns a `subscription`; the handler stays alive until that subscription is dropped or `disconnect()`-ed. Fire the emitter via `operator()` — not `emit`, since Qt's `qtmetamacros.h` defines `emit` as an empty preprocessor macro that would silently mangle the call. `subscriber_count()` reports the current handler count.
+`event<Args...>` is non-copyable and non-movable — pin it as a member of the type that owns it. `connect(fn)` takes any callable matching `void(Args...)` and returns a `subscription`; the handler stays alive until that subscription is dropped or `disconnect()`-ed. Invoke via `operator()` (not `emit` — Qt steals that name as a preprocessor macro). `subscriber_count()` reports the current handler count.
 
-`subscription` is move-only and may safely outlive its `emitter` — disconnect becomes a no-op once the emitter is destroyed. `disconnect()` is idempotent; `connected()` reports current state.
+`subscription` is move-only and may safely outlive its `event` — disconnect becomes a no-op once the event is destroyed. `disconnect()` is idempotent; `connected()` reports current state.
 
-Convention (not enforced): only the class that owns the emitter invokes it — same rule Qt's signals/slots, Boost.Signals2, and sigc++ rely on.
-
-Member naming: prefer `on_<verb>` (`on_closed`, `on_state_changed`, `on_error`) so the member reads as "the emitter for the *closed* event," not as the event itself.
+Convention (not enforced): only the owning class invokes the event.
 
 ### Threading contract
 
-- `connect()`, `operator()`, `disconnect()`, and `subscriber_count()` are all safe to call concurrently from any thread on the same `emitter`.
-- Handlers run *outside* the emitter's lock. Reentrant and recursive emission is deadlock-free — a handler may freely `connect()`, `disconnect()`, or re-fire the emitter (including the same one).
-- Disconnects during an in-flight emission affect *subsequent* emissions, not the current one. Handlers already captured in the in-flight snapshot still fire.
-- A `subscription` may safely outlive its `emitter`. Disconnect becomes a no-op once the emitter is destroyed.
+- `connect()`, `operator()`, `disconnect()`, and `subscriber_count()` are all safe to call concurrently from any thread on the same `event`.
+- Handlers run *outside* the event's lock. Reentrant and recursive emission is deadlock-free — a handler may freely `connect()`, `disconnect()`, or re-invoke the event (including the same `event`).
+- Disconnects during an in-flight emission affect *subsequent* emissions, not the current one.
+- A `subscription` may safely outlive its `event`. Disconnect becomes a no-op.
 
 ### Caveats
 
-⚠️ **Handlers run on the invoking thread.** "Thread-safe `emitter`" means the *emitter* object is safe under concurrent use — it does **not** mean your handlers are. If two threads fire the same emitter simultaneously, the same handler may run on both threads at the same time. Handlers that touch shared state must synchronize themselves. (Qt's signals/slots dodges this via thread-affinity; we don't.)
+⚠️ **Handlers run on the invoking thread.** "Thread-safe `event`" means the *event* object is safe under concurrent use — it does **not** mean your handlers are. If two threads invoke the event simultaneously, the same handler may run on both threads at the same time. Handlers that touch shared state must synchronize themselves.
 
-⚠️ **Qt thread affinity.** If a worker thread fires the emitter and a handler touches a `QObject` / `QWidget`, you'll trip Qt's thread-affinity rules (assertion, crash, or scrambled UI). The `emitter` does no marshalling. If you need GUI-thread dispatch, do it inside the handler — e.g. `QMetaObject::invokeMethod(target, fn, Qt::QueuedConnection)`.
+⚠️ **Qt thread affinity.** If a worker thread invokes the event and a handler touches a `QObject` / `QWidget`, you'll trip Qt's thread-affinity rules (assertion, crash, or scrambled UI). The `event` does no marshalling. If you need GUI-thread dispatch, do it inside the handler — e.g. `QMetaObject::invokeMethod(target, fn, Qt::QueuedConnection)`.
 
-⚠️ **Move-only argument types are not supported.** `emitter<std::unique_ptr<T>>` and similar won't compile. Multicasting requires giving each handler its own copy of the arguments, which move-only types can't satisfy. Pass by `const T&` or `std::shared_ptr<T>` instead.
+⚠️ **Move-only argument types are not supported.** `event<std::unique_ptr<T>>` and similar will not compile. Multi-broadcast requires passing each handler its own copy of the arguments, which move-only types can't satisfy. Pass by `const T&` or `std::shared_ptr<T>` instead.
 
 ---
 
