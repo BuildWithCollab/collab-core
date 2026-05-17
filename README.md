@@ -172,9 +172,7 @@ std::cout << bold << fg::green << "ok " << reset_style << reset_color
 
 ## Signals
 
-Multi-subscriber, thread-safe signal. Subscriptions are RAII tokens that auto-disconnect on destruction. Convention (not enforced): only the owning class invokes the signal — same rule as Qt, Boost.Signals2, sigc++.
-
-Emission is `operator()`, not a member named `emit`. Qt defines `emit` as an empty preprocessor macro (`qtmetamacros.h`), so a member function called `emit` would silently break for any consumer that also pulls in a Qt header. Call syntax sidesteps the collision entirely — `sig(args)` works whether Qt is present or not.
+Multi-subscriber, thread-safe signal. Invoke it with `sig(args...)`. Subscriptions are RAII tokens that auto-disconnect on destruction. Convention (not enforced): only the owning class invokes the signal — same rule as Qt, Boost.Signals2, sigc++.
 
 ### `signal<Args...>`
 
@@ -222,9 +220,9 @@ public:
 
 ### Caveats
 
-⚠️ **Handlers run on the emitting thread.** "Thread-safe `signal`" means the *signal* object is safe under concurrent use — it does **not** mean your handlers are. If two threads invoke the signal simultaneously, the same handler may run on both threads at the same time. Handlers that touch shared state must synchronize themselves.
+⚠️ **Handlers run on the invoking thread.** "Thread-safe `signal`" means the *signal* object is safe under concurrent use — it does **not** mean your handlers are. If two threads invoke the signal simultaneously, the same handler may run on both threads at the same time. Handlers that touch shared state must synchronize themselves.
 
-⚠️ **Qt thread affinity.** If a worker thread emits and a handler touches a `QObject` / `QWidget`, you'll trip Qt's thread-affinity rules (assertion, crash, or scrambled UI). The `signal` does no marshalling. If you need GUI-thread dispatch, do it inside the handler — e.g. `QMetaObject::invokeMethod(target, fn, Qt::QueuedConnection)`.
+⚠️ **Qt thread affinity.** If a worker thread invokes the signal and a handler touches a `QObject` / `QWidget`, you'll trip Qt's thread-affinity rules (assertion, crash, or scrambled UI). The `signal` does no marshalling. If you need GUI-thread dispatch, do it inside the handler — e.g. `QMetaObject::invokeMethod(target, fn, Qt::QueuedConnection)`.
 
 ⚠️ **Move-only argument types are not supported.** `signal<std::unique_ptr<T>>` and similar will not compile. Multi-broadcast requires passing each handler its own copy of the arguments, which move-only types can't satisfy. Pass by `const T&` or `std::shared_ptr<T>` instead.
 
