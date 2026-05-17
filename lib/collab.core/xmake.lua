@@ -1,16 +1,17 @@
-target("collab.core")
-    set_kind("static")
-    add_files("src/**.cpp")
-    add_files("src/**.cppm", { public = true })
-    add_packages("fmt", { public = true })
-    add_packages("spdlog")
-    add_packages("rang")
-
 target("collab.core.hpp")
     set_kind("headeronly")
     add_includedirs("$(projectdir)/include", { public = true })
     add_headerfiles("$(projectdir)/include/(collab/**.hpp)")
     add_packages("fmt", { public = true })
+
+target("collab.core")
+    set_kind("static")
+    add_deps("collab.core.hpp", { public = true })
+    add_files("src/**.cpp")
+    add_files("src/**.cppm", { public = true })
+    add_packages("fmt", { public = true })
+    add_packages("spdlog")
+    add_packages("rang")
 
 if get_config("build_tests") then
     target("tests-collab.core")

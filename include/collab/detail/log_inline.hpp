@@ -1,61 +1,39 @@
-module;
+// Inline template definitions for the collab log API and the logger<I>
+// class template. Included by:
+//
+//   - <collab/core.hpp>          (header-only consumers — entities attach to
+//                                 the global module)
+//   - lib/collab.core/src/
+//     collab.core.cppm purview   (module consumers — entities attach to the
+//                                 named module collab.core)
+//
+// In both contexts the template bodies are identical, and in both contexts
+// the non-template overloads they recurse into (`trace(std::string_view)`,
+// etc.) are already declared/defined in the enclosing namespace before this
+// header is included, so unqualified name lookup resolves correctly.
+//
+// Wrap the include in `export { ... }` from the module side to mark the
+// templates exported; from the header-only side just include it normally.
 
-#include <filesystem>
-#include <memory>
-#include <string_view>
-#include <utility>
-#include <fmt/format.h>
+// IMPORTANT: this header has no #include directives by design. It is included
+// from both <collab/core.hpp> (header-only path, attached to global module)
+// and from lib/collab.core/src/collab.core.cppm's purview (module path,
+// attached to module collab.core). Putting #include directives here would
+// drag <fmt/format.h>, <string_view>, etc. into module attachment when the
+// cppm includes this file in its purview — MSVC rejects that, and other
+// compilers should too. Each consumer must arrange for `fmt::format_string`,
+// `std::string_view`, `std::forward`, and the collab::log non-template
+// declarations to be visible before including this file.
 
-export module collab.core:log;
+#pragma once
 
-import :manifest;
+namespace collab::log {
 
-// MSVC C++20 modules quirk: including <fmt/format.h> in more than one partition's
-// GMF causes ambiguous-specialization errors in any TU that imports collab.core
-// AND directly includes spdlog (which itself pulls in fmt). To avoid that, every
-// fmt-using template in this library lives in this partition.
+// fmt-style variadic overloads. The level check here avoids paying fmt::format
+// cost for filtered messages. A TOCTOU exists (level could change between the
+// check and log_message), but that's benign for logging — a message may slip
+// through or be dropped during a concurrent level change, which is acceptable.
 
-export namespace collab::log {
-
-enum class level { trace, debug, info, warn, error, critical, off };
-
-class sink {
-public:
-    virtual ~sink() = default;
-    virtual void write(level lvl,
-                       const collab::core::identity* id,
-                       std::string_view msg) = 0;
-};
-
-void set_level(level l);
-level get_level();
-
-void add_sink(std::unique_ptr<sink> s);
-void clear_sinks();
-
-void log_message(level lvl, const collab::core::identity* id, std::string_view msg);
-
-std::unique_ptr<sink> make_stdout_sink();
-std::unique_ptr<sink> make_stdout_color_sink();
-std::unique_ptr<sink> make_stderr_sink();
-std::unique_ptr<sink> make_stderr_color_sink();
-std::unique_ptr<sink> make_file_sink(std::filesystem::path path);
-
-// ── Untagged free functions: anonymous logging, no library attribution ───
-
-// Plain string_view overloads
-void trace(std::string_view msg);
-void debug(std::string_view msg);
-void info(std::string_view msg);
-void warn(std::string_view msg);
-void error(std::string_view msg);
-void critical(std::string_view msg);
-
-// fmt-style variadic overloads.
-// The level check here avoids paying fmt::format cost for filtered messages.
-// A TOCTOU exists (level could change between the check and log_message),
-// but that's benign for logging — a message may slip through or be dropped
-// during a concurrent level change, which is acceptable.
 template<typename... Args>
 void trace(fmt::format_string<Args...> fs, Args&&... args) {
     if (get_level() <= level::trace)
@@ -91,17 +69,6 @@ void critical(fmt::format_string<Args...> fs, Args&&... args) {
     if (get_level() <= level::critical)
         critical(std::string_view(fmt::format(fs, std::forward<Args>(args)...)));
 }
-
-// ── Tagged free functions: message carries the caller's identity ─────────
-// Sinks decide whether to render the tag, how to format it, and whether to
-// filter on it.
-
-void trace_with   (const collab::core::identity& id, std::string_view msg);
-void debug_with   (const collab::core::identity& id, std::string_view msg);
-void info_with    (const collab::core::identity& id, std::string_view msg);
-void warn_with    (const collab::core::identity& id, std::string_view msg);
-void error_with   (const collab::core::identity& id, std::string_view msg);
-void critical_with(const collab::core::identity& id, std::string_view msg);
 
 template<typename... Args>
 void trace_with(const collab::core::identity& id, fmt::format_string<Args...> fs, Args&&... args) {
@@ -143,11 +110,11 @@ void critical_with(const collab::core::identity& id, fmt::format_string<Args...>
 // Each library declares a single static `identity` (typically as a member of
 // its manifest) and aliases the logger:
 //
-//   using log = collab::log::logger<collab::net::identity>;
+//   using log = collab::log::logger<my_lib::identity>;
 //
 // then calls `log::info("...")` throughout. All six methods are static —
-// there is no per-call object construction. The identity is baked into the
-// template instantiation as a reference NTTP.
+// no per-call object construction. The identity is baked into the template
+// instantiation as a reference NTTP.
 
 template<const collab::core::identity& I>
 struct logger {
@@ -176,7 +143,6 @@ struct logger {
         critical_with(I, fs, std::forward<Args>(args)...);
     }
 
-    // Plain-string overloads for already-formatted messages.
     static void trace   (std::string_view msg) { trace_with   (I, msg); }
     static void debug   (std::string_view msg) { debug_with   (I, msg); }
     static void info    (std::string_view msg) { info_with    (I, msg); }
