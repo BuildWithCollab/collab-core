@@ -4,7 +4,7 @@
 
 import collab.core;
 
-using collab::core::semver;
+using namespace collab::core;
 
 TEST_CASE("collab::core::version is defined", "[version]") {
     REQUIRE(collab::core::version.major == 1);

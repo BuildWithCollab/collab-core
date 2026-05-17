@@ -5,9 +5,7 @@
 
 import collab.core;
 
-using collab::core::identity;
-using collab::core::manifest;
-using collab::core::semver;
+using namespace collab::core;
 
 TEST_CASE("identity construction", "[manifest][identity]") {
     const identity ident{
