@@ -2,7 +2,7 @@ target("collab")
     set_kind("static")
     add_files("src/**.cpp")
     add_files("src/**.cppm", { public = true })
-    add_packages("collab-hpp", { public = true })
+    add_deps("collab-hpp", { public = true })
     add_packages("spdlog")
     add_packages("rang")
 

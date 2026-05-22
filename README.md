@@ -2,44 +2,25 @@
 
 The static-link dependency floor for the **Collab** stack. Every non-header-only Collab project pulls this in to get a guaranteed baseline: spdlog-backed log sinks today, more as the floor grows.
 
-Built on [`collab-hpp`](https://github.com/BuildWithCollab/collab.hpp) — pulls it in transitively, so consumers get the full header-only API (identifier, manifest, semver, error, publisher, log interface) for free.
+Built on [`collab-hpp`](https://github.com/BuildWithCollab/collab.hpp) — pulled in transitively, so its header-only surface is along for the ride. See that README for the foundation; this one covers what `import collab;` adds.
 
 Requires a C++23 toolchain with module support.
 
 ---
 
-## Consuming
-
-```lua
-add_repositories("BuildWithCollab https://github.com/BuildWithCollab/Packages")
-add_requires("collab")
-
-target("myapp")
-    add_packages("collab")
-```
+## Getting started
 
 ```cpp
 import collab;
-#include <collab/log.hpp>   // API lives in collab-hpp
 ```
 
-`import collab;` exposes the spdlog-backed sink factories. The log API itself (`add_sink`, `set_level`, `logger<I>`, free functions) lives in `<collab/log.hpp>` from `collab-hpp` — see its [README](https://github.com/BuildWithCollab/collab.hpp) for usage.
+That's it — `import collab;` brings in the spdlog-backed sink factories and re-exports everything `collab-hpp` provides through its headers. Apps wire sinks up at startup; libraries just log.
 
 ---
 
-## Sink factories
+## Sinks
 
-```cpp
-namespace collab::log {
-    std::unique_ptr<sink> make_stdout_sink();
-    std::unique_ptr<sink> make_stdout_color_sink();
-    std::unique_ptr<sink> make_stderr_sink();
-    std::unique_ptr<sink> make_stderr_color_sink();
-    std::unique_ptr<sink> make_file_sink(std::filesystem::path path);
-}
-```
-
-Console sinks render the caller's identifier using its display name (`[Collab Net]`). File sinks use the bundle ID (`[com.mrowrpurr.collab-net]`) — better for grepping logs after the fact.
+The application installs sinks at startup and decides where output ends up:
 
 ```cpp
 int main() {
@@ -49,6 +30,30 @@ int main() {
     // ...
 }
 ```
+
+Console sinks render the caller's identifier using its display name — humans reading a terminal want `[Collab Net]` not `[com.mrowrpurr.collab-net]`. File sinks invert that: they render the bundle ID, because grepping logs after the fact wants the stable reverse-DNS form.
+
+```
+[Collab Net] connecting to example.com:443        ← stdout / stderr
+[com.mrowrpurr.collab-net] connecting to ...      ← app.log
+```
+
+Color variants use Win32 console attributes on Windows and ANSI escapes elsewhere. Both are no-ops when the stream isn't a TTY.
+
+---
+
+## Terminal styling
+
+Streaming manipulators for ANSI colors and styles, scoped under `collab::term`. Output is automatically suppressed when stdout/stderr isn't a TTY, when `NO_COLOR` is set, or when piped — the same code is correct in a terminal and in a logged-to-file build run.
+
+```cpp
+using namespace collab::term;
+
+std::cout << bold << fg::green << "ok " << reset_style << reset_color
+          << "build complete\n";
+```
+
+Foreground colors live under `collab::term::fg::` — `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `gray`. Styles live directly under `collab::term::` — `bold`, `dim`, `italic`, `underline`, `blink`, `reversed`, `crossed`. Reset with `reset_color` (back to the terminal default) and `reset_style` (clears bold/italic/etc).
 
 ---
 

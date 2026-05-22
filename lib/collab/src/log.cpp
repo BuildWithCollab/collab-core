@@ -3,9 +3,13 @@ module;
 #include <atomic>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
+
+#include <fmt/format.h>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_sinks.h>
@@ -13,11 +17,93 @@ module;
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <collab/identifier.hpp>
-#include <collab/log.hpp>
 
 module collab;
 
 namespace collab::log {
+
+// ── Module-local state singleton ─────────────────────────────────────────
+
+namespace detail {
+
+    struct log_state {
+        level                              current_level = level::info;
+        std::vector<std::unique_ptr<sink>> sinks;
+        std::mutex                         mtx;
+    };
+
+    log_state& state() {
+        static log_state s;
+        return s;
+    }
+
+}  // namespace detail
+
+// ── State management ────────────────────────────────────────────────────
+
+void set_level(level l) {
+    auto& s = detail::state();
+    std::lock_guard lock(s.mtx);
+    s.current_level = l;
+}
+
+level get_level() {
+    auto& s = detail::state();
+    std::lock_guard lock(s.mtx);
+    return s.current_level;
+}
+
+void add_sink(std::unique_ptr<sink> snk) {
+    auto& s = detail::state();
+    std::lock_guard lock(s.mtx);
+    s.sinks.push_back(std::move(snk));
+}
+
+void clear_sinks() {
+    auto& s = detail::state();
+    std::lock_guard lock(s.mtx);
+    s.sinks.clear();
+}
+
+void log_message(level lvl, const collab::identifier* id, std::string_view msg) {
+    auto& s = detail::state();
+    std::lock_guard lock(s.mtx);
+    if (lvl < s.current_level) return;
+    for (auto& snk : s.sinks)
+        snk->write(lvl, id, msg);
+}
+
+// ── Untagged free functions ─────────────────────────────────────────────
+
+void trace   (std::string_view msg) { log_message(level::trace,    nullptr, msg); }
+void debug   (std::string_view msg) { log_message(level::debug,    nullptr, msg); }
+void info    (std::string_view msg) { log_message(level::info,     nullptr, msg); }
+void warn    (std::string_view msg) { log_message(level::warn,     nullptr, msg); }
+void error   (std::string_view msg) { log_message(level::error,    nullptr, msg); }
+void critical(std::string_view msg) { log_message(level::critical, nullptr, msg); }
+
+// ── Tagged free functions ───────────────────────────────────────────────
+
+void trace_with(const collab::identifier& id, std::string_view msg) {
+    log_message(level::trace, &id, msg);
+}
+void debug_with(const collab::identifier& id, std::string_view msg) {
+    log_message(level::debug, &id, msg);
+}
+void info_with(const collab::identifier& id, std::string_view msg) {
+    log_message(level::info, &id, msg);
+}
+void warn_with(const collab::identifier& id, std::string_view msg) {
+    log_message(level::warn, &id, msg);
+}
+void error_with(const collab::identifier& id, std::string_view msg) {
+    log_message(level::error, &id, msg);
+}
+void critical_with(const collab::identifier& id, std::string_view msg) {
+    log_message(level::critical, &id, msg);
+}
+
+// ── spdlog-backed sinks ─────────────────────────────────────────────────
 
 namespace {
 
@@ -44,8 +130,6 @@ namespace {
         return std::string(prefix) + std::to_string(++counter);
     }
 
-    // Console sinks render identifier using the display name — humans reading
-    // a terminal want "[Collab Net]" not "[com.mrowrpurr.collab-net]".
     void emit_console(spdlog::logger& logger,
                       level lvl,
                       const collab::identifier* id,
@@ -56,14 +140,11 @@ namespace {
             logger.log(to_spdlog_level(lvl), "{}", msg);
     }
 
-    // Base for spdlog-backed sinks. Owns the spdlog registration so dropping
-    // the sink also drops its named logger from spdlog's global registry —
-    // letting `clear_sinks()` (just a vector clear) reclaim spdlog state.
     class spdlog_sink_base : public sink {
     public:
         spdlog_sink_base(std::shared_ptr<spdlog::logger> logger, std::string name)
             : logger_{std::move(logger)}, name_{std::move(name)} {
-            logger_->set_level(spdlog::level::trace);  // collab layer is the sole gatekeeper
+            logger_->set_level(spdlog::level::trace);
             logger_->set_pattern(log_pattern);
         }
 
@@ -76,11 +157,6 @@ namespace {
         std::string name_;
     };
 
-    // Factory helper: build the spdlog logger first, then pair it with the
-    // name for the base constructor. Doing this through a free function
-    // dodges the unspecified argument-evaluation order of `base(make(name),
-    // std::move(name))` — the call would otherwise risk moving from `name`
-    // before `make(name)` read it, leaving spdlog with an empty string.
     struct spdlog_pair {
         std::shared_ptr<spdlog::logger> logger;
         std::string                     name;
@@ -145,8 +221,6 @@ namespace {
             : spdlog_sink_base(std::move(p.logger), std::move(p.name)) {}
     };
 
-    // File sinks render identifier using the bundle ID — "[com.mrowrpurr.collab-net]"
-    // is what you want for grepping log files long after the fact.
     class file_sink final : public spdlog_sink_base {
     public:
         explicit file_sink(std::filesystem::path path)

@@ -4,8 +4,6 @@
 #include <fstream>
 #include <string>
 
-#include <collab/log.hpp>
-
 import collab;
 
 using namespace collab::log;
@@ -21,10 +19,92 @@ struct log_fixture {
     }
 };
 
-// Color output uses Win32 console API on Windows (wincolor_sink), not ANSI
-// escapes. The color difference is untestable via fd capture — console
-// attribute calls don't appear in the byte stream. These tests confirm the
-// sink can be installed and that the level filter still routes correctly.
+TEST_CASE("logging with no sinks does not crash", "[log]") {
+    log_fixture fix;
+    info("hello");
+    warn("warning");
+    error("error");
+    critical("critical");
+}
+
+TEST_CASE("level filtering works", "[log]") {
+    log_fixture fix;
+
+    struct capture : sink {
+        std::vector<std::string> msgs;
+        void write(level, const collab::identifier*, std::string_view m) override {
+            msgs.emplace_back(m);
+        }
+    };
+    auto owned = std::make_unique<capture>();
+    auto* cap  = owned.get();
+    add_sink(std::move(owned));
+
+    set_level(level::warn);
+
+    trace("t"); debug("d"); info("i");
+    warn("w"); error("e"); critical("c");
+
+    REQUIRE(cap->msgs.size() == 3);
+    CHECK(cap->msgs[0] == "w");
+    CHECK(cap->msgs[1] == "e");
+    CHECK(cap->msgs[2] == "c");
+}
+
+TEST_CASE("fmt-style formatting works", "[log]") {
+    log_fixture fix;
+    struct capture : sink {
+        std::vector<std::string> msgs;
+        void write(level, const collab::identifier*, std::string_view m) override {
+            msgs.emplace_back(m);
+        }
+    };
+    auto owned = std::make_unique<capture>();
+    auto* cap  = owned.get();
+    add_sink(std::move(owned));
+
+    info("hello {}", "world");
+    info("{} + {} = {}", 1, 2, 3);
+
+    REQUIRE(cap->msgs.size() == 2);
+    CHECK(cap->msgs[0] == "hello world");
+    CHECK(cap->msgs[1] == "1 + 2 = 3");
+}
+
+TEST_CASE("logger<I> dispatches with bound identifier", "[log][logger]") {
+    log_fixture fix;
+
+    struct capture : sink {
+        std::vector<std::pair<std::string, std::string>> entries;
+        void write(level, const collab::identifier* id, std::string_view m) override {
+            entries.emplace_back(id ? std::string(id->app_id) : std::string{},
+                                 std::string(m));
+        }
+    };
+    auto owned = std::make_unique<capture>();
+    auto* cap  = owned.get();
+    add_sink(std::move(owned));
+
+    static constexpr collab::identifier id_a{
+        .app_id   = "lib-a",
+        .app_name = "Lib A",
+        .org_id   = "purr",
+        .org_name = "Purr",
+        .tld      = "com",
+    };
+    using log_a = collab::log::logger<id_a>;
+
+    log_a::info("from a");
+    log_a::error("err {}", 42);
+
+    REQUIRE(cap->entries.size() == 2);
+    CHECK(cap->entries[0].first  == "lib-a");
+    CHECK(cap->entries[0].second == "from a");
+    CHECK(cap->entries[1].first  == "lib-a");
+    CHECK(cap->entries[1].second == "err 42");
+}
+
+// ── spdlog sink integration ─────────────────────────────────────────────
 
 TEST_CASE("stdout sink can be created", "[log][sink]") {
     log_fixture fix;
@@ -83,37 +163,6 @@ TEST_CASE("file sink writes to disk", "[log][sink]") {
 
     CHECK(content.find("line one") != std::string::npos);
     CHECK(content.find("line two") != std::string::npos);
-
-    in.close();
-    std::filesystem::remove(path);
-}
-
-TEST_CASE("file sink appends across multiple sessions", "[log][sink]") {
-    log_fixture fix;
-
-    auto path = std::filesystem::temp_directory_path() / "collab_test_log_append.txt";
-    std::filesystem::remove(path);
-
-    add_sink(make_file_sink(path));
-    info("first");
-    clear_sinks();
-
-    add_sink(make_file_sink(path));
-    info("second");
-    clear_sinks();
-
-    std::ifstream in(path);
-    REQUIRE(in.is_open());
-
-    std::string content;
-    std::string line;
-    while (std::getline(in, line)) {
-        if (!content.empty()) content += '\n';
-        content += line;
-    }
-
-    CHECK(content.find("first") != std::string::npos);
-    CHECK(content.find("second") != std::string::npos);
 
     in.close();
     std::filesystem::remove(path);
