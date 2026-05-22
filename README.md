@@ -1,4 +1,4 @@
-# `import collab` 🏴‍☠️
+# `import collab;` 🏴‍☠️
 
 The static-link dependency floor for the **Collab** stack. Every non-header-only Collab project pulls this in to get a guaranteed baseline: spdlog-backed log sinks today, more as the floor grows.
 
