@@ -3,107 +3,20 @@ module;
 #include <atomic>
 #include <filesystem>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
-
-#include <fmt/format.h>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_sinks.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
-#include <collab/identifier.hpp>
-
 module collab;
 
+import <collab.hpp>;
+
 namespace collab::log {
-
-// ── Module-local state singleton ─────────────────────────────────────────
-
-namespace detail {
-
-    struct log_state {
-        level                              current_level = level::info;
-        std::vector<std::unique_ptr<sink>> sinks;
-        std::mutex                         mtx;
-    };
-
-    log_state& state() {
-        static log_state s;
-        return s;
-    }
-
-}  // namespace detail
-
-// ── State management ────────────────────────────────────────────────────
-
-void set_level(level l) {
-    auto& s = detail::state();
-    std::lock_guard lock(s.mtx);
-    s.current_level = l;
-}
-
-level get_level() {
-    auto& s = detail::state();
-    std::lock_guard lock(s.mtx);
-    return s.current_level;
-}
-
-void add_sink(std::unique_ptr<sink> snk) {
-    auto& s = detail::state();
-    std::lock_guard lock(s.mtx);
-    s.sinks.push_back(std::move(snk));
-}
-
-void clear_sinks() {
-    auto& s = detail::state();
-    std::lock_guard lock(s.mtx);
-    s.sinks.clear();
-}
-
-void log_message(level lvl, const collab::identifier* id, std::string_view msg) {
-    auto& s = detail::state();
-    std::lock_guard lock(s.mtx);
-    if (lvl < s.current_level) return;
-    for (auto& snk : s.sinks)
-        snk->write(lvl, id, msg);
-}
-
-// ── Untagged free functions ─────────────────────────────────────────────
-
-void trace   (std::string_view msg) { log_message(level::trace,    nullptr, msg); }
-void debug   (std::string_view msg) { log_message(level::debug,    nullptr, msg); }
-void info    (std::string_view msg) { log_message(level::info,     nullptr, msg); }
-void warn    (std::string_view msg) { log_message(level::warn,     nullptr, msg); }
-void error   (std::string_view msg) { log_message(level::error,    nullptr, msg); }
-void critical(std::string_view msg) { log_message(level::critical, nullptr, msg); }
-
-// ── Tagged free functions ───────────────────────────────────────────────
-
-void trace_with(const collab::identifier& id, std::string_view msg) {
-    log_message(level::trace, &id, msg);
-}
-void debug_with(const collab::identifier& id, std::string_view msg) {
-    log_message(level::debug, &id, msg);
-}
-void info_with(const collab::identifier& id, std::string_view msg) {
-    log_message(level::info, &id, msg);
-}
-void warn_with(const collab::identifier& id, std::string_view msg) {
-    log_message(level::warn, &id, msg);
-}
-void error_with(const collab::identifier& id, std::string_view msg) {
-    log_message(level::error, &id, msg);
-}
-void critical_with(const collab::identifier& id, std::string_view msg) {
-    log_message(level::critical, &id, msg);
-}
-
-// ── spdlog-backed sinks ─────────────────────────────────────────────────
 
 namespace {
 
