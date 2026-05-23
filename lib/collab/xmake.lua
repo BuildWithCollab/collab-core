@@ -5,6 +5,9 @@ target("collab")
     add_packages("collab-hpp", { public = true })
     add_packages("spdlog")
     add_packages("rang")
+    -- Use external fmt in spdlog so its bundled fmt doesn't collide with the
+    -- standalone fmt reached through collab-hpp's header unit.
+    add_defines("SPDLOG_FMT_EXTERNAL")
 
 if get_config("build_tests") then
     target("tests-collab")
