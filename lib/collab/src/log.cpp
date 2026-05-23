@@ -14,7 +14,11 @@ module;
 
 module collab;
 
-import <collab.hpp>;
+// As an implementation unit (`module collab;`), this TU shares the module's
+// purview and sees everything the interface unit exported (level, sink,
+// identifier, etc.) without re-importing <collab.hpp>. Re-importing here
+// would also drag standalone fmt into a TU that already pulls spdlog's
+// bundled fmt → C2752 partial-specialization ambiguity.
 
 namespace collab::log {
 
