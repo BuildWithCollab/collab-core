@@ -30,12 +30,9 @@ option("build_tests")
     set_description("Build test targets")
 option_end()
 
--- collab-hpp is the header source-of-truth: dual-mode declarations file
--- shared between header-only consumers and this module. Pull it in directly
--- via includes() — no package indirection, so edits in the sibling repo flow
--- through immediately.
-includes("../collab.hpp/xmake.lua")
+add_repositories("BuildWithCollab https://github.com/BuildWithCollab/Packages")
 
+add_requires("collab-hpp")
 add_requires("spdlog")
 add_requires("rang")
 
