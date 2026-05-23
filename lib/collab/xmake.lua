@@ -5,12 +5,10 @@ target("collab")
     add_packages("collab-hpp", { public = true })
     add_packages("spdlog")
     add_packages("rang")
-    -- Use external fmt in spdlog so its bundled fmt doesn't collide with the
-    -- standalone fmt reached through collab-hpp's header unit.
-    -- Pass as a table to dodge xmake's get_headerunit_key bug (support.lua:154
-    -- calls table.concat on `target:get("defines")` and crashes when it's a
-    -- bare string instead of a list).
-    add_defines({"SPDLOG_FMT_EXTERNAL"})
+    -- Tell spdlog to use std::format instead of any fmt path. Otherwise spdlog
+    -- pulls fmt into log.cpp's TU, which already sees fmt via the module's
+    -- header-unit import of collab-hpp → C2752 partial-specialization conflict.
+    add_defines({"SPDLOG_USE_STD_FORMAT"})
 
 if get_config("build_tests") then
     target("tests-collab")
