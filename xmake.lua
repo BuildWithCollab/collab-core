@@ -56,40 +56,42 @@ else
     target_end()
 end
 
--- ─── Tests ──────────────────────────────────────────────────────────────────
--- tests-include: pure header-only — does NOT link `collab`. Exercises only
--- the surface available through <collab.hpp> with no external impl. fmt is
--- still linked (it's a transitive header dep, and we don't want FMT_HEADER_ONLY
--- in tests).
-target("tests-include")
-    set_kind("binary")
-    add_files("tests/test_include_only.cpp")
-    add_includedirs("include")
-    add_packages("fmt")
-    add_packages("catch2")
-    set_rundir("$(projectdir)")
-    add_tests("default", {runargs = {"--durations", "yes"}})
-target_end()
-
-if not get_config("header_only") then
-    -- tests-import: `import collab;` only, links the static library.
-    target("tests-import")
+if get_config("build_tests") then
+    -- ─── Tests ──────────────────────────────────────────────────────────────────
+    -- tests-include: pure header-only — does NOT link `collab`. Exercises only
+    -- the surface available through <collab.hpp> with no external impl. fmt is
+    -- still linked (it's a transitive header dep, and we don't want FMT_HEADER_ONLY
+    -- in tests).
+    target("tests-include")
         set_kind("binary")
-        add_files("tests/test_import_only.cpp")
-        add_deps("collab")
+        add_files("tests/test_include_only.cpp")
+        add_includedirs("include")
+        add_packages("fmt")
         add_packages("catch2")
         set_rundir("$(projectdir)")
         add_tests("default", {runargs = {"--durations", "yes"}})
     target_end()
 
-    -- tests-dual: both `#include <collab.hpp>` AND `import collab;` in the same TU.
-    -- The architecture's load-bearing test.
-    target("tests-dual")
-        set_kind("binary")
-        add_files("tests/test_dual.cpp")
-        add_deps("collab")
-        add_packages("catch2")
-        set_rundir("$(projectdir)")
-        add_tests("default", {runargs = {"--durations", "yes"}})
-    target_end()
+    if not get_config("header_only") then
+        -- tests-import: `import collab;` only, links the static library.
+        target("tests-import")
+            set_kind("binary")
+            add_files("tests/test_import_only.cpp")
+            add_deps("collab")
+            add_packages("catch2")
+            set_rundir("$(projectdir)")
+            add_tests("default", {runargs = {"--durations", "yes"}})
+        target_end()
+
+        -- tests-dual: both `#include <collab.hpp>` AND `import collab;` in the same TU.
+        -- The architecture's load-bearing test.
+        target("tests-dual")
+            set_kind("binary")
+            add_files("tests/test_dual.cpp")
+            add_deps("collab")
+            add_packages("catch2")
+            set_rundir("$(projectdir)")
+            add_tests("default", {runargs = {"--durations", "yes"}})
+        target_end()
+    end
 end
