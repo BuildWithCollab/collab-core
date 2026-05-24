@@ -25,8 +25,7 @@ jobs:
         include:
           - name: "macOS · Apple Clang (headeronly)"
             os: macos-latest
-            build_cmd: "xmake build tests-include"
-            test_cmd: "xmake run tests-include"
+            header_only: true
           - name: "macOS · Clang 21"
             os: macos-latest
             toolchain: llvm
@@ -95,7 +94,7 @@ jobs:
 
       - name: Configure (macOS Apple Clang)
         if: runner.os == 'macOS' && matrix.toolchain == ''
-        run: xmake config -y
+        run: xmake config ${{ matrix.header_only && '--header_only=y' || '' }} -y
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
