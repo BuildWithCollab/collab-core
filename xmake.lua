@@ -42,6 +42,7 @@ if get_config("header_only") then
     target("collab")
         set_kind("headeronly")
         add_includedirs("include", { public = true })
+        add_headerfiles("include/(**.hpp)")
         add_packages("fmt", { public = true })
     target_end()
 else
@@ -50,6 +51,7 @@ else
         add_files("src/**.cpp")
         add_files("src/**.cppm", { public = true })
         add_includedirs("include", { public = true })
+        add_headerfiles("include/(**.hpp)")
         add_packages("fmt", { public = true })
         add_packages("spdlog")
         add_packages("rang")
