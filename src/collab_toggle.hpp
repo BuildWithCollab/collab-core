@@ -24,4 +24,4 @@
 //   xmake build
 // ─────────────────────────────────────────────────────────────────────────────
 
-//#define COLLAB_TOGGLE_BROKEN
+#define COLLAB_TOGGLE_BROKEN
