@@ -49,7 +49,7 @@ else
         set_kind("static")
         add_files("src/**.cpp")
         add_files("src/**.cppm", { public = true })
-        add_includedirs("include")
+        add_includedirs("include", { public = true })
         add_packages("fmt", { public = true })
         add_packages("spdlog")
         add_packages("rang")
