@@ -6,3 +6,4 @@
 #include <collab/manifest.hpp>
 #include <collab/publisher.hpp>
 #include <collab/semver.hpp>
+#include <collab/term.hpp>

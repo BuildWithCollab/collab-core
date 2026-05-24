@@ -1,14 +1,20 @@
+// Header-only mode: <collab.hpp> only, no link against the static collab lib.
+// Common tests only — sink-factory tests live in extended/ and require the
+// linked impl.
+
 #include <catch2/catch_test_macros.hpp>
+
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <collab.hpp>
 
-using namespace collab::log;
-
-TEST_CASE("include-only: set/get round-trip", "[include-only]") {
-    set_level(level::warn);
-    REQUIRE(get_level() == level::warn);
-    set_level(level::trace);
-    REQUIRE(get_level() == level::trace);
-    set_level(level::info);
-    REQUIRE(get_level() == level::info);
-}
+#include "common/test_identifier.inc"
+#include "common/test_semver.inc"
+#include "common/test_manifest.inc"
+#include "common/test_publisher.inc"
+#include "common/test_log.inc"
+#include "common/test_error.inc"
+#include "common/test_term.inc"
