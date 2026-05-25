@@ -132,10 +132,12 @@ end
 -- ─── Codegen ────────────────────────────────────────────────────────────────
 -- Regenerates the per-area decls header, module partition, and force-emission
 -- impl unit from each canonical inline header in include/collab/*.hpp.
--- Run with: xmake build codegen
-target("codegen")
-    set_kind("phony")
-    on_build(function (target)
+-- Run with: xmake codegen
+task("codegen")
+    on_run(function ()
         os.exec("python scripts/generate.py")
     end)
-target_end()
+    set_menu({
+        usage       = "xmake codegen",
+        description = "Regenerate per-area decls headers, module partitions, and impl units."
+    })
