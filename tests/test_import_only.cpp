@@ -20,6 +20,7 @@
 
 import collab;
 
+#include "common/test_fixed_string.inc"
 #include "common/test_identifier.inc"
 #include "common/test_semver.inc"
 #include "common/test_manifest.inc"

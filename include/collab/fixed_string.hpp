@@ -1,0 +1,270 @@
+#pragma once
+
+#include <array>
+#include <compare>
+#include <concepts>
+#include <cstddef>
+#include <format>
+#include <functional>
+#include <iterator>
+#include <ostream>
+#include <ranges>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+
+#include <fmt/format.h>
+
+// Mirrors P3094 `std::basic_fixed_string` (R4) so downstream code can swap to
+// the standard alias when it lands without changing call sites. `N` is the
+// meaningful length; storage is `CharT[N + 1]`. The literal-array ctor is
+// `consteval` to encourage string-literal construction in compile-time contexts
+// (NTTPs, concat with literals).
+
+namespace collab {
+
+namespace detail {
+
+template<class T, class... Ts>
+concept fs_one_of = (std::same_as<T, Ts> || ...);
+
+template<class R, class T>
+concept fs_container_compatible_range =
+    std::ranges::input_range<R> &&
+    std::convertible_to<std::ranges::range_reference_t<R>, T>;
+
+}  // namespace detail
+
+template<class CharT, std::size_t N, class Traits = std::char_traits<CharT>>
+class basic_fixed_string {
+public:
+    using traits_type            = Traits;
+    using value_type             = CharT;
+    using pointer                = value_type*;
+    using const_pointer          = const value_type*;
+    using reference              = value_type&;
+    using const_reference        = const value_type&;
+    using const_iterator         = const_pointer;
+    using iterator               = const_iterator;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    using reverse_iterator       = const_reverse_iterator;
+    using size_type              = std::size_t;
+    using difference_type        = std::ptrdiff_t;
+    using string_view_type       = std::basic_string_view<CharT, Traits>;
+
+    CharT data_[N + 1] = {};
+
+    template<std::convertible_to<CharT>... Chars>
+        requires (sizeof...(Chars) == N) && (... && !std::is_pointer_v<Chars>)
+    constexpr explicit basic_fixed_string(Chars... chars) noexcept {
+        std::size_t i = 0;
+        ((data_[i++] = static_cast<CharT>(chars)), ...);
+    }
+
+    consteval basic_fixed_string(const CharT (&txt)[N + 1]) noexcept {
+        for (std::size_t i = 0; i < N + 1; ++i) data_[i] = txt[i];
+    }
+
+    template<std::input_iterator It, std::sentinel_for<It> S>
+        requires std::convertible_to<std::iter_value_t<It>, CharT>
+    constexpr basic_fixed_string(It first, S last) {
+        std::size_t i = 0;
+        for (; first != last && i < N; ++first, ++i)
+            data_[i] = static_cast<CharT>(*first);
+        data_[N] = CharT{};
+    }
+
+    template<detail::fs_container_compatible_range<CharT> R>
+    constexpr basic_fixed_string(std::from_range_t, R&& r)
+        : basic_fixed_string(std::ranges::begin(r), std::ranges::end(r)) {}
+
+    constexpr basic_fixed_string(const basic_fixed_string&) noexcept            = default;
+    constexpr basic_fixed_string& operator=(const basic_fixed_string&) noexcept = default;
+
+    constexpr const_iterator         begin()   const noexcept { return data_; }
+    constexpr const_iterator         end()     const noexcept { return data_ + N; }
+    constexpr const_iterator         cbegin()  const noexcept { return data_; }
+    constexpr const_iterator         cend()    const noexcept { return data_ + N; }
+    constexpr const_reverse_iterator rbegin()  const noexcept { return const_reverse_iterator(end()); }
+    constexpr const_reverse_iterator rend()    const noexcept { return const_reverse_iterator(begin()); }
+    constexpr const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    constexpr const_reverse_iterator crend()   const noexcept { return rend(); }
+
+    static constexpr std::integral_constant<size_type, N> size{};
+    static constexpr std::integral_constant<size_type, N> length{};
+    static constexpr std::integral_constant<size_type, N> max_size{};
+    static constexpr std::bool_constant<N == 0>           empty{};
+
+    constexpr const_reference operator[](size_type pos) const { return data_[pos]; }
+    constexpr const_reference at(size_type pos) const {
+        if (pos >= N) throw std::out_of_range("basic_fixed_string::at");
+        return data_[pos];
+    }
+    constexpr const_reference front() const { return data_[0]; }
+    constexpr const_reference back()  const { return data_[N - 1]; }
+
+    constexpr void swap(basic_fixed_string& other) noexcept {
+        for (std::size_t i = 0; i <= N; ++i) {
+            CharT tmp        = data_[i];
+            data_[i]         = other.data_[i];
+            other.data_[i]   = tmp;
+        }
+    }
+
+    constexpr const_pointer    c_str() const noexcept { return data_; }
+    constexpr const_pointer    data()  const noexcept { return data_; }
+    constexpr string_view_type view()  const noexcept { return string_view_type(data_, N); }
+    constexpr operator string_view_type() const noexcept { return view(); }
+
+    template<std::size_t N2>
+    friend constexpr basic_fixed_string<CharT, N + N2, Traits>
+    operator+(const basic_fixed_string& lhs,
+              const basic_fixed_string<CharT, N2, Traits>& rhs) noexcept {
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return basic_fixed_string<CharT, N + N2, Traits>(
+                (Is < N ? lhs.data_[Is] : rhs.data_[Is - N])...);
+        }(std::make_index_sequence<N + N2>{});
+    }
+
+    friend constexpr basic_fixed_string<CharT, N + 1, Traits>
+    operator+(const basic_fixed_string& lhs, CharT rhs) noexcept {
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return basic_fixed_string<CharT, N + 1, Traits>(
+                (Is < N ? lhs.data_[Is] : rhs)...);
+        }(std::make_index_sequence<N + 1>{});
+    }
+
+    friend constexpr basic_fixed_string<CharT, 1 + N, Traits>
+    operator+(CharT lhs, const basic_fixed_string& rhs) noexcept {
+        return [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+            return basic_fixed_string<CharT, 1 + N, Traits>(
+                (Is == 0 ? lhs : rhs.data_[Is - 1])...);
+        }(std::make_index_sequence<1 + N>{});
+    }
+
+    template<std::size_t N2>
+    friend consteval basic_fixed_string<CharT, N + N2 - 1, Traits>
+    operator+(const basic_fixed_string& lhs, const CharT (&rhs)[N2]) noexcept {
+        return lhs + basic_fixed_string<CharT, N2 - 1, Traits>(rhs);
+    }
+
+    template<std::size_t N1>
+    friend consteval basic_fixed_string<CharT, N1 + N - 1, Traits>
+    operator+(const CharT (&lhs)[N1], const basic_fixed_string& rhs) noexcept {
+        return basic_fixed_string<CharT, N1 - 1, Traits>(lhs) + rhs;
+    }
+
+    template<std::size_t N2>
+    friend constexpr bool operator==(const basic_fixed_string& lhs,
+                                     const basic_fixed_string<CharT, N2, Traits>& rhs) {
+        return string_view_type(lhs) == typename basic_fixed_string<CharT, N2, Traits>::string_view_type(rhs);
+    }
+
+    template<std::size_t N2>
+    friend constexpr auto operator<=>(const basic_fixed_string& lhs,
+                                      const basic_fixed_string<CharT, N2, Traits>& rhs) {
+        return string_view_type(lhs) <=> typename basic_fixed_string<CharT, N2, Traits>::string_view_type(rhs);
+    }
+
+    template<std::size_t N2>
+    friend consteval bool operator==(const basic_fixed_string& lhs, const CharT (&rhs)[N2]) {
+        return lhs == basic_fixed_string<CharT, N2 - 1, Traits>(rhs);
+    }
+
+    template<std::size_t N2>
+    friend consteval auto operator<=>(const basic_fixed_string& lhs, const CharT (&rhs)[N2]) {
+        return lhs <=> basic_fixed_string<CharT, N2 - 1, Traits>(rhs);
+    }
+
+    friend std::basic_ostream<CharT, Traits>&
+    operator<<(std::basic_ostream<CharT, Traits>& os, const basic_fixed_string& s) {
+        return os << s.view();
+    }
+};
+
+template<detail::fs_one_of<char, char8_t, char16_t, char32_t, wchar_t> CharT,
+         std::convertible_to<CharT>... Rest>
+basic_fixed_string(CharT, Rest...) -> basic_fixed_string<CharT, 1 + sizeof...(Rest)>;
+
+template<class CharT, std::size_t N>
+basic_fixed_string(const CharT (&)[N]) -> basic_fixed_string<CharT, N - 1>;
+
+template<detail::fs_one_of<char, char8_t, char16_t, char32_t, wchar_t> CharT, std::size_t N>
+basic_fixed_string(std::from_range_t, std::array<CharT, N>) -> basic_fixed_string<CharT, N>;
+
+template<class CharT, std::size_t N, class Traits>
+constexpr void swap(basic_fixed_string<CharT, N, Traits>& x,
+                    basic_fixed_string<CharT, N, Traits>& y) noexcept {
+    x.swap(y);
+}
+
+template<std::size_t N> using fixed_string    = basic_fixed_string<char,     N>;
+template<std::size_t N> using fixed_u8string  = basic_fixed_string<char8_t,  N>;
+template<std::size_t N> using fixed_u16string = basic_fixed_string<char16_t, N>;
+template<std::size_t N> using fixed_u32string = basic_fixed_string<char32_t, N>;
+template<std::size_t N> using fixed_wstring   = basic_fixed_string<wchar_t,  N>;
+
+}  // namespace collab
+
+namespace std {
+
+template<std::size_t N>
+struct hash<collab::fixed_string<N>> : hash<string_view> {
+    size_t operator()(const collab::fixed_string<N>& s) const noexcept {
+        return hash<string_view>::operator()(s.view());
+    }
+};
+
+template<std::size_t N>
+struct hash<collab::fixed_u8string<N>> : hash<u8string_view> {
+    size_t operator()(const collab::fixed_u8string<N>& s) const noexcept {
+        return hash<u8string_view>::operator()(s.view());
+    }
+};
+
+template<std::size_t N>
+struct hash<collab::fixed_u16string<N>> : hash<u16string_view> {
+    size_t operator()(const collab::fixed_u16string<N>& s) const noexcept {
+        return hash<u16string_view>::operator()(s.view());
+    }
+};
+
+template<std::size_t N>
+struct hash<collab::fixed_u32string<N>> : hash<u32string_view> {
+    size_t operator()(const collab::fixed_u32string<N>& s) const noexcept {
+        return hash<u32string_view>::operator()(s.view());
+    }
+};
+
+template<std::size_t N>
+struct hash<collab::fixed_wstring<N>> : hash<wstring_view> {
+    size_t operator()(const collab::fixed_wstring<N>& s) const noexcept {
+        return hash<wstring_view>::operator()(s.view());
+    }
+};
+
+template<class CharT, std::size_t N, class Traits>
+struct formatter<collab::basic_fixed_string<CharT, N, Traits>, CharT>
+    : formatter<basic_string_view<CharT, Traits>, CharT> {
+    template<class FormatContext>
+    auto format(const collab::basic_fixed_string<CharT, N, Traits>& s, FormatContext& ctx) const {
+        return formatter<basic_string_view<CharT, Traits>, CharT>::format(s.view(), ctx);
+    }
+};
+
+}  // namespace std
+
+namespace fmt {
+
+template<class CharT, std::size_t N, class Traits>
+struct formatter<collab::basic_fixed_string<CharT, N, Traits>, CharT>
+    : formatter<std::basic_string_view<CharT, Traits>, CharT> {
+    template<class FormatContext>
+    auto format(const collab::basic_fixed_string<CharT, N, Traits>& s, FormatContext& ctx) const {
+        return formatter<std::basic_string_view<CharT, Traits>, CharT>::format(s.view(), ctx);
+    }
+};
+
+}  // namespace fmt

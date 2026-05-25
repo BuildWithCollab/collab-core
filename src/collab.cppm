@@ -4,6 +4,7 @@
 export module collab;
 
 export import :error;
+export import :fixed_string;
 export import :identifier;
 export import :semver;
 export import :manifest;

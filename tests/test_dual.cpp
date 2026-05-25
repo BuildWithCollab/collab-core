@@ -22,6 +22,7 @@
 #include <collab.hpp>
 import collab;
 
+#include "common/test_fixed_string.inc"
 #include "common/test_identifier.inc"
 #include "common/test_semver.inc"
 #include "common/test_manifest.inc"
@@ -32,3 +33,17 @@ import collab;
 
 #include "extended/test_log_sinks.inc"
 #include "extended/test_term_ostream.inc"
+
+// Direct std::format on a fixed_string — exercises the std::formatter partial
+// spec from the canonical header. Lives inline in this TU because it doesn't
+// fit `common/` (MSVC modules don't surface the spec to pure-import TUs) and
+// doesn't fit `extended/` (no linked impl required).
+
+#include <format>
+
+TEST_CASE("fixed_string: std::format directly on fixed_string", "[fixed_string]") {
+    collab::fixed_string s = "world";
+    auto out = std::format("hello {}", s);
+    REQUIRE(out == "hello world");
+}
+

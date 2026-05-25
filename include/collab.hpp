@@ -1,6 +1,7 @@
 #pragma once
 
 #include <collab/error.hpp>
+#include <collab/fixed_string.hpp>
 #include <collab/identifier.hpp>
 #include <collab/log.hpp>
 #include <collab/manifest.hpp>

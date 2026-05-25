@@ -92,6 +92,10 @@ class AreaState:
         for ns, name in sources:
             if "::detail" in ns or ns.endswith("detail"):
                 continue
+            # Specializations of std:: templates live in the decls header for
+            # visibility (ADL / explicit lookup) but are not re-exported.
+            if ns == "std" or ns.startswith("std::"):
+                continue
             key = (ns, name)
             if key in seen:
                 continue
@@ -344,6 +348,15 @@ def parse(text: str) -> AreaState:
                 else:
                     raise ParseError(line_no, f"could not classify inline line: {stripped!r}")
 
+            # Namespace-scope type alias: `using NAME = ...;` — record as a
+            # type entity so the module exports it.
+            m_using = re.match(r"using\s+([A-Za-z_][A-Za-z0-9_]*)\s*=", stripped)
+            if m_using and stripped.endswith(";"):
+                state.types.append(TypeEntity(current_ns, m_using.group(1)))
+                state.decls_lines.append(raw_line)
+                i += 1
+                continue
+
             # Non-inline function declaration (e.g. `std::unique_ptr<sink> foo();`).
             # Heuristic: ends with `);` and looks like a free function decl.
             if (
@@ -489,7 +502,10 @@ def _find_matching_close(s: str, open_idx: int) -> int:
 
 
 def _extract_template_name(buf: list[str]) -> str | None:
-    """Extract the entity name from a template definition (class or function)."""
+    """Extract the entity name from a template definition (class, function, or
+    alias). Returns None for explicit/partial specializations (`std::hash<X>`
+    etc.) — they belong in the decls header for visibility but are not
+    re-exportable via using-decl."""
     joined = " ".join(line.strip() for line in buf)
     # Strip the template<...> header.
     m = re.match(r"template\s*<", joined)
@@ -500,10 +516,21 @@ def _extract_template_name(buf: list[str]) -> str | None:
     if close == -1:
         return None
     rest = head[close + 1 :].lstrip()
-    # struct/class/enum
-    m_type = re.match(r"(struct|class|enum(?:\s+class)?)\s+([A-Za-z_][A-Za-z0-9_]*)", rest)
+    # Alias template: `template<...> using NAME = ...;`
+    m_alias = re.match(r"using\s+([A-Za-z_][A-Za-z0-9_]*)\s*=", rest)
+    if m_alias:
+        return m_alias.group(1)
+    # struct/class/enum — but skip specializations (qualified name or
+    # trailing template-arg list).
+    m_type = re.match(r"(struct|class|enum(?:\s+class)?)\s+([A-Za-z_][A-Za-z0-9_:]*)", rest)
     if m_type:
-        return m_type.group(2)
+        name = m_type.group(2)
+        if "::" in name:
+            return None
+        after = rest[m_type.end():].lstrip()
+        if after.startswith("<"):
+            return None
+        return name
     # function: R name(...). Find first `(`, then last identifier before it.
     paren = rest.find("(")
     if paren != -1:
