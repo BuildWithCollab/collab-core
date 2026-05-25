@@ -33,6 +33,19 @@ if not get_config("test_pure_import_specializations") then
     add_defines("COLLAB_SKIP_PURE_IMPORT_SPECIALIZATION_TESTS")
 end
 
+-- Some toolchains (notably GCC 14) do not surface namespace-scope deduction
+-- guides through the module's GMF to importer translation units. On those
+-- toolchains the pure-import-only test binary fails to build at all because
+-- CTAD on basic_fixed_string can't see its deduction guides. Set this to
+-- false for GCC 14 CI; users on GCC 14 who want pure-import must `#include
+-- <collab.hpp>` alongside `import collab;`. The tests-include and tests-dual
+-- binaries are unaffected by this option.
+option("build_pure_import_tests")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Build the tests-import binary (pure `import collab;` consumer). Default true; set false on GCC 14.")
+option_end()
+
 if get_config("header_only") then
     add_requires("fmt", { configs = { header_only = true } })
 else
@@ -91,15 +104,17 @@ if get_config("build_tests") then
     target_end()
 
     if not get_config("header_only") then
-        -- tests-import: `import collab;` only, links the static library.
-        target("tests-import")
-            set_kind("binary")
-            add_files("tests/test_import_only.cpp")
-            add_deps("collab")
-            add_packages("catch2")
-            set_rundir("$(projectdir)")
-            add_tests("default", {runargs = {"--durations", "yes"}})
-        target_end()
+        if get_config("build_pure_import_tests") then
+            -- tests-import: `import collab;` only, links the static library.
+            target("tests-import")
+                set_kind("binary")
+                add_files("tests/test_import_only.cpp")
+                add_deps("collab")
+                add_packages("catch2")
+                set_rundir("$(projectdir)")
+                add_tests("default", {runargs = {"--durations", "yes"}})
+            target_end()
+        end
 
         -- tests-dual: both `#include <collab.hpp>` AND `import collab;` in the same TU.
         -- The architecture's load-bearing test.

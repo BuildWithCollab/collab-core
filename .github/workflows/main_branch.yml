@@ -23,15 +23,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "macOS · Apple Clang (headeronly)"
+          - name: "macOS · Apple Clang (include)"
             os: macos-latest
             header_only: true
           - name: "macOS · Clang 21"
             os: macos-latest
             toolchain: llvm
-          - name: "Linux · GCC 14"
+          - name: "Linux · GCC 14 (include + dual)"
             os: ubuntu-latest
             toolchain: gcc-14
+            # GCC 14 doesn't surface namespace-scope deduction guides from the
+            # module's GMF to importer TUs, so the tests-import binary won't
+            # build. Skip it; users on GCC 14 can `#include <collab.hpp>`
+            # alongside `import collab;` to get the deduction guides via the
+            # header path.
+            linux_config_args: "--build_pure_import_tests=false"
           - name: "Linux · GCC 15"
             os: ubuntu-latest
             toolchain: gcc-15
@@ -39,6 +45,10 @@ jobs:
             os: windows-2025-vs2026
           - name: "Windows · VS 2022"
             os: windows-latest
+            # VS2022 doesn't surface fixed_string's foreign-template
+            # specializations through pure-import. Skip the tests that
+            # exercise that path. See README "MSVC VS2022 note".
+            windows_config_args: "--test_pure_import_specializations=false"
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -86,7 +96,7 @@ jobs:
 
       - name: Configure (Linux GCC)
         if: startsWith(matrix.toolchain, 'gcc-')
-        run: xmake config --toolchain=gcc -y
+        run: xmake config --toolchain=gcc ${{ matrix.linux_config_args || '' }} -y
 
       - name: Configure (macOS Clang 21)
         if: matrix.toolchain == 'llvm'
@@ -98,7 +108,7 @@ jobs:
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
-        run: xmake config -y
+        run: xmake config ${{ matrix.windows_config_args || '' }} -y
 
       - name: Build
         run: ${{ matrix.build_cmd || 'xmake build -a' }}
