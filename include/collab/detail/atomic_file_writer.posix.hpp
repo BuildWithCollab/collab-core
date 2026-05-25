@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -29,11 +28,16 @@ inline void atomic_file_writer_check_target_writable(const std::filesystem::path
     }
 }
 
+// GCC 15 modules bug: `#include <atomic>` in this header lands in the module
+// GMF, which then clashes with the importer's transitive `<atomic>` (e.g. from
+// `<memory>` via `<bits/shared_ptr_atomic.h>`) as a redefinition. The GCC and
+// Clang `__atomic_*` builtins do the same fetch_add(relaxed) without needing
+// the header.
 inline std::filesystem::path atomic_file_writer_make_temp_path(const std::filesystem::path& target) {
-    static std::atomic<std::uint64_t> counter{0};
-    const auto                        n      = counter.fetch_add(1, std::memory_order_relaxed);
-    const auto                        pid    = static_cast<std::uint64_t>(::getpid());
-    auto                              temp   = target;
+    static unsigned long long counter = 0;
+    const auto                n      = __atomic_fetch_add(&counter, 1ULL, __ATOMIC_RELAXED);
+    const auto                pid    = static_cast<std::uint64_t>(::getpid());
+    auto                      temp   = target;
     temp += "." + std::to_string(pid) + "." + std::to_string(n) + ".tmp";
     return temp;
 }

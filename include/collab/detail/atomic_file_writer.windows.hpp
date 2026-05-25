@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -53,6 +52,13 @@ __declspec(dllimport) _collab_DWORD __stdcall GetLastError(void);
 
 __declspec(dllimport) _collab_DWORD __stdcall GetCurrentProcessId(void);
 
+// kernel32 also exports a 64-bit atomic add; lets us increment a static
+// counter without pulling `<atomic>` (or `<intrin.h>`) into the module GMF —
+// GCC 15 modules treats `<atomic>` in the GMF as redefining `std::atomic`
+// when an importer transitively includes the same header.
+__declspec(dllimport) long long __stdcall InterlockedExchangeAdd64(
+    long long volatile* Addend, long long Value);
+
 }  // extern "C"
 
 namespace collab::detail {
@@ -86,11 +92,11 @@ inline void atomic_file_writer_check_target_writable(const std::filesystem::path
 }
 
 inline std::filesystem::path atomic_file_writer_make_temp_path(const std::filesystem::path& target) {
-    static std::atomic<std::uint64_t> counter{0};
-    const auto                        n      = counter.fetch_add(1, std::memory_order_relaxed);
-    const auto                        pid    = GetCurrentProcessId();
-    const auto                        suffix = std::wstring{L"."} + std::to_wstring(pid) +
-                                               L"." + std::to_wstring(n) + L".tmp";
+    static long long counter = 0;
+    const auto       n       = static_cast<std::uint64_t>(InterlockedExchangeAdd64(&counter, 1));
+    const auto       pid     = GetCurrentProcessId();
+    const auto       suffix  = std::wstring{L"."} + std::to_wstring(pid) +
+                               L"." + std::to_wstring(n) + L".tmp";
     auto temp = target;
     temp += suffix;
     return temp;
