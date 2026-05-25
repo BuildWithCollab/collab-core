@@ -50,14 +50,14 @@ namespace collab::errors::atomic_file_write {
 // ctor so direct `throw error{...}` isn't possible; throw a leaf type below.
 struct error : collab::error {
     std::filesystem::path path;
-    int                   os_error;   // errno / GetLastError(); 0 when policy-derived
+    int                   os_error_code;   // errno / GetLastError(); 0 when policy-derived
 
 protected:
-    error(std::filesystem::path p, int e, std::string_view condition)
+    error(std::filesystem::path p, int code, std::string_view condition)
         : collab::error("atomic file write to {} failed: {} (os error {})",
-                        p.string(), condition, e)
+                        p.string(), condition, code)
         , path(std::move(p))
-        , os_error(e) {}
+        , os_error_code(code) {}
 };
 
 struct target_read_only : error {
