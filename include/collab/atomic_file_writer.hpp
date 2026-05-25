@@ -49,60 +49,60 @@ namespace collab::errors::atomic_file_write {
 // Family base — catch this for "any atomic file write failure." Protected
 // ctor so direct `throw error{...}` isn't possible; throw a leaf type below.
 struct error : collab::error {
-    std::filesystem::path target;
+    std::filesystem::path path;
     int                   os_error;   // errno / GetLastError(); 0 when policy-derived
 
 protected:
-    error(std::filesystem::path t, int e, std::string_view condition)
+    error(std::filesystem::path p, int e, std::string_view condition)
         : collab::error("atomic file write to {} failed: {} (os error {})",
-                        t.string(), condition, e)
-        , target(std::move(t))
+                        p.string(), condition, e)
+        , path(std::move(p))
         , os_error(e) {}
 };
 
 struct target_read_only : error {
-    explicit target_read_only(std::filesystem::path t)
-        : error(std::move(t), 0, "target is read-only") {}
+    explicit target_read_only(std::filesystem::path p)
+        : error(std::move(p), 0, "target is read-only") {}
 };
 
 struct create_temp_failed : error {
-    create_temp_failed(std::filesystem::path t, int e)
-        : error(std::move(t), e, "creating temp file") {}
+    create_temp_failed(std::filesystem::path p, int e)
+        : error(std::move(p), e, "creating temp file") {}
 };
 
 struct write_failed : error {
-    write_failed(std::filesystem::path t, int e)
-        : error(std::move(t), e, "writing temp file") {}
+    write_failed(std::filesystem::path p, int e)
+        : error(std::move(p), e, "writing temp file") {}
 };
 
 struct fsync_temp_failed : error {
-    fsync_temp_failed(std::filesystem::path t, int e)
-        : error(std::move(t), e, "flushing temp file to disk") {}
+    fsync_temp_failed(std::filesystem::path p, int e)
+        : error(std::move(p), e, "flushing temp file to disk") {}
 };
 
 struct permission_copy_failed : error {
-    permission_copy_failed(std::filesystem::path t, int e)
-        : error(std::move(t), e, "copying target permissions to temp") {}
+    permission_copy_failed(std::filesystem::path p, int e)
+        : error(std::move(p), e, "copying target permissions to temp") {}
 };
 
 struct cross_filesystem : error {
-    cross_filesystem(std::filesystem::path t, int e)
-        : error(std::move(t), e, "target is on a different filesystem from temp") {}
+    cross_filesystem(std::filesystem::path p, int e)
+        : error(std::move(p), e, "target is on a different filesystem from temp") {}
 };
 
 struct rename_failed : error {
-    rename_failed(std::filesystem::path t, int e)
-        : error(std::move(t), e, "renaming temp to target") {}
+    rename_failed(std::filesystem::path p, int e)
+        : error(std::move(p), e, "renaming temp to target") {}
 };
 
 struct direct_write_failed : error {
-    direct_write_failed(std::filesystem::path t, int e)
-        : error(std::move(t), e, "writing target directly (fallback path)") {}
+    direct_write_failed(std::filesystem::path p, int e)
+        : error(std::move(p), e, "writing target directly (fallback path)") {}
 };
 
 struct fsync_parent_dir_failed : error {
-    fsync_parent_dir_failed(std::filesystem::path t, int e)
-        : error(std::move(t), e, "flushing parent directory metadata") {}
+    fsync_parent_dir_failed(std::filesystem::path p, int e)
+        : error(std::move(p), e, "flushing parent directory metadata") {}
 };
 
 }  // namespace collab::errors::atomic_file_write

@@ -139,7 +139,7 @@ TEST_CASE("atomic_file_writer: exception is the right leaf type and carries targ
         collab::atomic_file_write(target, std::string_view{"x"});
         FAIL("expected throw");
     } catch (const collab::errors::atomic_file_write::create_temp_failed& e) {
-        REQUIRE(e.target == target);
+        REQUIRE(e.path == target);
         REQUIRE(e.os_error != 0);
     }
 }
@@ -152,7 +152,7 @@ TEST_CASE("atomic_file_writer: family base catches any leaf", "[atomic_file_writ
         collab::atomic_file_write(target, std::string_view{"x"});
         FAIL("expected throw");
     } catch (const collab::errors::atomic_file_write::error& e) {
-        REQUIRE(e.target == target);
+        REQUIRE(e.path == target);
         REQUIRE(e.os_error != 0);
     }
 }
