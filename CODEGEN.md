@@ -1,127 +1,381 @@
 # 🤖 CODEGEN.md
 
-C++ module codegen for **dual-mode static libraries** — libraries that can be reached from the same translation unit through both `#include <name.hpp>` and `import name;` without ODR splits or compiler crashes.
+A code generator that takes a directory of C++23 inline headers and produces the boilerplate to make them reachable through **both** `#include <name.hpp>` and `import name;` — from the same translation unit, without ODR splits or compiler crashes.
 
-You point the script at a directory of canonical inline headers, give it an output directory and a module name, and it emits the boilerplate that makes both consumption paths work.
-
----
-
-## What "dual-mode" means
-
-Two ways for a downstream TU to reach a C++ library:
-
-1. **Header-only:** `#include <name/area.hpp>` — the consumer's compiler sees every inline body and instantiates them in-line. No link dependency on a built library.
-2. **Modules:** `import name;` — the consumer pulls in a pre-built BMI. Inline bodies are link-time symbols in `name.lib` / `libname.a`.
-
-A library is **dual-mode** when both paths work *at the same time, in the same TU*. That's harder than it sounds:
-
-- **MSVC IFC consumer ICE.** If a plain `inline` function body lands in a module's BMI, downstream `import` consumers crash at compile time. The fix is to never let plain inline bodies enter the BMI in the first place.
-- **ODR identity.** Declarations made inside a module's purview (after `export module name:area;`) attach to *module `name`*. Declarations brought in via `#include` in the global module fragment (GMF) attach to the *global module*. A dual-mode TU must reach the **same** entity through both paths. Module-purview definitions versus global-module declarations of the same name are two different entities — link-time disaster.
-
-Both constraints push the same direction: declarations attach to the **global module** (via GMF `#include`), the module partition only **re-exports** them with `using ::ns::name;`, and inline function bodies are emitted as out-of-line COMDAT symbols by a separate impl unit so `import` consumers can link to them.
-
-That's the architecture the codegen produces.
+This document walks you from an empty directory to a working dual-mode library, then explains the moving parts.
 
 ---
 
-## The four files per area
+## What you'll end up with
 
-An **area** is one canonical inline header. For each canonical at `<--include>/<rel>.hpp`, the generator emits a sibling triple at `<--src>/<rel>.*`:
+A static library named `<name>` that downstream code can consume three ways:
 
-| File | What it is |
-|---|---|
-| `<rel>.decls.hpp` | The canonical with plain `inline` function bodies stripped to declarations and inline variables turned into `extern`. Build-internal — only the sibling `.cppm` includes it. |
-| `<rel>.cppm` | Module partition: `module;` + `#include "<basename>.decls.hpp"` (GMF) + `export module <name>:<flat-rel>;` + `using ::ns::name;` re-exports for every top-level entity. |
-| `<rel>_impl.cpp` | Module impl unit: `module;` + `#include <<name>/<rel>.hpp>` (the canonical, with bodies) + `module <name>;` + a force-emission array that address-takes every plain inline function so the linker keeps the COMDAT symbols. |
+```cpp
+#include <name.hpp>          // header-only
+import name;                  // modules
+#include <name.hpp>           // both, in the same TU — dual mode
+import name;
+```
 
-You **also** hand-write three things the generator never touches:
-
-| File | What it is |
-|---|---|
-| `<name>.hpp` (umbrella) | One `#include <<name>/<rel>.hpp>` per canonical. The entry point for header-only consumers. |
-| `<name>.cppm` (primary) | `export module <name>;` + `export import :<flat-rel>;` per partition. The entry point for `import` consumers. |
-| `<rel>_native.cpp` *(optional)* | For non-inline functions the canonical only *declares* (e.g., factories that link a private external library). Plain TU, attaches to the global module, satisfies both consumption paths at link. |
+Every consumption path sees the same types, same functions, same overload sets. The library ships canonical inline headers (you write them) plus a small static archive (the build produces it).
 
 ---
 
-## CLI
+## Quick start: a library named `foo` with one area `semver`
 
-Three required, named:
+### Step 1 — Lay out the directories
+
+```
+foo/
+├── include/
+│   ├── foo.hpp              ✏️  umbrella header (you write)
+│   └── foo/
+│       └── semver.hpp       ✏️  canonical inline header (you write)
+├── src/
+│   └── foo.cppm             ✏️  primary module unit (you write)
+├── scripts/
+│   └── generate.py          ✏️  the codegen (copy this in)
+└── xmake.lua                ✏️  build (you write)
+```
+
+### Step 2 — Write the canonical inline header
+
+`include/foo/semver.hpp` — this is where the real code lives. Treat it like a normal header.
+
+```cpp
+#pragma once
+
+#include <string>
+
+namespace foo {
+
+struct semver {
+    int major = 0;
+    int minor = 0;
+    int patch = 0;
+};
+
+inline std::string to_string(semver v) {
+    return std::to_string(v.major) + "."
+         + std::to_string(v.minor) + "."
+         + std::to_string(v.patch);
+}
+
+}  // namespace foo
+```
+
+That's it. There's no DSL, no annotation, no module-aware syntax. It's a normal includable header that compiles on its own.
+
+### Step 3 — Write the umbrella header
+
+`include/foo.hpp` — one `#include` per canonical area. Header-only consumers reach the whole library through this.
+
+```cpp
+#pragma once
+
+#include <foo/semver.hpp>
+```
+
+### Step 4 — Write the primary module unit
+
+`src/foo.cppm` — one `export import` per canonical area. `import foo;` consumers reach the whole library through this.
+
+```cpp
+export module foo;
+
+export import :semver;
+```
+
+### Step 5 — Write `xmake.lua`
+
+```lua
+add_rules("mode.release")
+set_languages("c++23")
+set_policy("build.c++.modules", true)
+
+target("foo")
+    set_kind("static")
+    add_files("src/**.cpp")
+    add_files("src/**.cppm", { public = true })
+    add_includedirs("include", { public = true })
+    add_headerfiles("include/(**.hpp)")
+target_end()
+
+task("codegen")
+    on_run(function ()
+        os.exec("python scripts/generate.py --name foo --include include/foo --src src")
+    end)
+    set_menu({
+        usage       = "xmake codegen",
+        description = "Regenerate per-area decls headers, module partitions, and impl units."
+    })
+```
+
+The `target` block is the static library. The `task` block runs the codegen.
+
+### Step 6 — Run the codegen
+
+```
+xmake codegen
+```
+
+Three new files appear in `src/`:
+
+```
+src/semver.decls.hpp     🤖  declarations only (build-internal)
+src/semver.cppm          🤖  module partition
+src/semver_impl.cpp      🤖  force-emission impl unit
+```
+
+You don't edit these by hand. They regenerate every time the canonical changes. **Commit them** — they're part of your source tree, and CI / consumers build them without running the generator.
+
+### Step 7 — Build
+
+```
+xmake build -a -y
+```
+
+You should see the eight artifacts compile: the module partition (`collab:semver`), the primary module (`collab`), the impl unit, and the static archive.
+
+### Step 8 — Consume the library
+
+From a downstream TU, any of the three forms works:
+
+```cpp
+// header-only
+#include <foo.hpp>
+int main() {
+    foo::semver v{1, 2, 3};
+    auto s = foo::to_string(v);
+}
+```
+
+```cpp
+// modules — link against foo.lib / libfoo.a
+import foo;
+int main() {
+    foo::semver v{1, 2, 3};
+    auto s = foo::to_string(v);
+}
+```
+
+```cpp
+// dual — both reach the same entities
+#include <foo.hpp>
+import foo;
+int main() {
+    foo::semver v{1, 2, 3};
+    auto s = foo::to_string(v);
+}
+```
+
+That's the whole flow. From here on, the rest of this document is "what happens when I want to change something."
+
+---
+
+## Recipes
+
+### Adding a second area
+
+Say you want an `identifier` area.
+
+1. **Write the canonical:** `include/foo/identifier.hpp`
+   ```cpp
+   #pragma once
+   #include <string>
+   namespace foo {
+   struct identifier { std::string app_id; std::string org_id; };
+   inline std::string bundle_id(const identifier& id) {
+       return "com." + id.org_id + "." + id.app_id;
+   }
+   }
+   ```
+2. **Add to the umbrella:** `include/foo.hpp`
+   ```cpp
+   #pragma once
+   #include <foo/semver.hpp>
+   #include <foo/identifier.hpp>
+   ```
+3. **Add to the primary module:** `src/foo.cppm`
+   ```cpp
+   export module foo;
+   export import :semver;
+   export import :identifier;
+   ```
+4. **Regenerate and build:**
+   ```
+   xmake codegen && xmake build -a -y
+   ```
+
+Three new files appear in `src/` for the `identifier` area. Same triple as before.
+
+### Adding a function to an existing area
+
+1. Edit `include/foo/semver.hpp` — add one line.
+2. `xmake codegen`
+3. `xmake build`
+
+The three generated files for that area regenerate. You don't touch them, you don't edit the umbrella, you don't touch the primary cppm. One edit, one regen, done.
+
+### Nesting canonicals into subdirectories
+
+Larger libraries group canonicals by subsystem:
+
+```
+include/foo/audio/buffer.hpp
+include/foo/audio/mixer.hpp
+include/foo/video/codec.hpp
+```
+
+The codegen mirrors the layout into `src/`:
+
+```
+src/audio/buffer.{decls.hpp,cppm,_impl.cpp}
+src/audio/mixer.{decls.hpp,cppm,_impl.cpp}
+src/video/codec.{decls.hpp,cppm,_impl.cpp}
+```
+
+The umbrella and primary follow the same path shape:
+
+```cpp
+// include/foo.hpp
+#include <foo/audio/buffer.hpp>
+#include <foo/audio/mixer.hpp>
+#include <foo/video/codec.hpp>
+```
+
+```cpp
+// src/foo.cppm
+export module foo;
+export import :audio_buffer;
+export import :audio_mixer;
+export import :video_codec;
+```
+
+Partition names flatten the relative path with underscores — `audio/buffer` → `:audio_buffer`. That's what the script emits in each partition's `export module foo:<part>;` line, and it's what you write in the primary cppm's `export import :<part>;` lines.
+
+### Hand-written impl for non-inline declarations
+
+Some functions can't live inline because their bodies need a private external library you don't want to leak through your headers. Example: a sink-factory function whose body calls into spdlog.
+
+The canonical **declares** the function (no `inline`, no body):
+
+```cpp
+// include/foo/log.hpp
+#pragma once
+#include <memory>
+namespace foo::log {
+struct sink { virtual ~sink() = default; virtual void write(std::string_view) = 0; };
+std::unique_ptr<sink> make_stdout_sink();   // declaration only
+}
+```
+
+You hand-write the implementation as a plain `.cpp` (not a module unit):
+
+```cpp
+// src/log_native.cpp
+#include <spdlog/spdlog.h>
+#include <foo/log.hpp>
+
+namespace foo::log {
+std::unique_ptr<sink> make_stdout_sink() { /* spdlog body */ }
+}
+```
+
+The codegen sees the declaration in the canonical and includes it in the decls header verbatim. The cppm re-exports the name via `using ::foo::log::make_stdout_sink;`. At link time, your hand-written `log_native.cpp` provides the symbol — both `#include` and `import` consumers resolve to the same definition.
+
+Use `_native.cpp` (or any name that's not `_impl.cpp`) to avoid colliding with the generator's output.
+
+### Consuming the library from another project
+
+If you publish `foo` as a package, downstream projects depend on it through their build system (xmake's `add_requires`, vcpkg, CMake `find_package`, etc.). The downstream code is exactly what the consumer examples in step 8 of the quick start show — one or both of `#include <foo.hpp>` and `import foo;`.
+
+---
+
+## Testing that dual-mode actually works
+
+Add three test binaries to your project, each exercising one consumption path. If all three pass on MSVC, GCC, and Clang, your library is genuinely dual-mode.
+
+```lua
+target("tests-include")
+    set_kind("binary")
+    add_files("tests/test_include.cpp")
+    add_includedirs("include")
+    add_packages("catch2")
+target_end()
+
+target("tests-import")
+    set_kind("binary")
+    add_files("tests/test_import.cpp")
+    add_deps("foo")
+    add_packages("catch2")
+target_end()
+
+target("tests-dual")
+    set_kind("binary")
+    add_files("tests/test_dual.cpp")
+    add_deps("foo")
+    add_packages("catch2")
+target_end()
+```
+
+| Test source | Top of file | What it tests |
+|---|---|---|
+| `tests/test_include.cpp` | `#include <foo.hpp>` only | Header-only path. Doesn't link the static library. |
+| `tests/test_import.cpp` | `import foo;` only | Modules path. Links the static library. |
+| `tests/test_dual.cpp` | both `#include <foo.hpp>` **and** `import foo;` | The load-bearing test. If this passes, the architecture works. |
+
+All three should call the same functions and assert the same results. Identical test bodies are fine — the value is in the three different headers/imports at the top.
+
+### Toolchain caveats
+
+Some toolchains don't surface every kind of declaration through `import` alone:
+
+- **MSVC VS2022** doesn't re-export `std::hash` / `std::formatter` specializations through the module's GMF. If your library specializes those, pure-import consumers need to also `#include <foo.hpp>`.
+- **GCC 14** doesn't re-export namespace-scope deduction guides. CTAD on a class template fails through pure import.
+- **VS2026, Clang, GCC 15+** have neither limitation.
+
+If you target the older toolchains, gate `tests-import` off for them or restrict its surface to what survives those gaps.
+
+---
+
+## CLI reference
 
 ```
 python generate.py --name <module> --include <dir> --src <dir>
 ```
 
+All three flags are required. No defaults — every project's directory shape is different and the script doesn't guess.
+
 | Flag | Purpose |
 |---|---|
-| `--name` | Module name. Used in `export module <name>:<part>;`, `module <name>;`, and as the first segment of the impl unit's `#include <<name>/<rel>.hpp>` line. |
-| `--include` | Directory holding the canonical inline headers. Scanned recursively. Any path segment named `detail` is skipped. |
+| `--name` | Module name. Goes into `export module <name>:<part>;`, `module <name>;`, and the first segment of each impl unit's `#include <<name>/<rel>.hpp>` line. |
+| `--include` | Directory holding canonical inline headers. Scanned recursively. Any path segment named `detail` is skipped (use `detail/` for hand-written impl plumbing). |
 | `--src` | Directory to write generated files into. Output mirrors the relative layout under `--include`. |
 
-Missing any flag → argparse usage and exit 2. No defaults; every project's directory shape is different and the script doesn't guess.
-
-### Flat layout
-
-```
-my-lib/
-├── include/foo/semver.hpp
-├── include/foo/buffer.hpp
-└── src/
-```
-
-```
-python generate.py --name foo --include include/foo --src src
-```
-
-Produces `src/semver.{decls.hpp,cppm,_impl.cpp}` and `src/buffer.{decls.hpp,cppm,_impl.cpp}`.
-
-The impl units emit `#include <foo/semver.hpp>` etc. The partitions declare `export module foo:semver;` and `export module foo:buffer;`.
-
-### Nested layout
-
-```
-lib/foo/
-├── include/foo/audio/buffer.hpp
-├── include/foo/audio/mixer.hpp
-├── include/foo/video/codec.hpp
-└── src/
-```
-
-```
-python generate.py --name foo --include lib/foo/include/foo --src lib/foo/src
-```
-
-Output mirrors the layout:
-
-```
-lib/foo/src/audio/buffer.{decls.hpp,cppm,_impl.cpp}
-lib/foo/src/audio/mixer.{decls.hpp,cppm,_impl.cpp}
-lib/foo/src/video/codec.{decls.hpp,cppm,_impl.cpp}
-```
-
-Partition names flatten the relative path with underscores: `audio/buffer` → `export module foo:audio_buffer;`. The impl unit's include is `<foo/audio/buffer.hpp>`. The force-emission array name matches the partition: `_emit_audio_buffer_symbols`.
+Missing any flag → argparse usage + exit 2. Run with `--help` for the full text.
 
 ---
 
-## Convention for canonical headers
+## Conventions your canonical headers must follow
 
-The parser is a line-scanner with a brace-depth counter, not a full C++ frontend. To keep it small and predictable, canonical headers follow:
+The parser is a small line-scanner, not a full C++ frontend. To keep it predictable, canonical headers follow five rules:
 
 1. **One declaration per line at namespace scope.** No `int a, b;`, no two functions on one line.
 2. **`inline` is the first keyword** on lines that declare inline functions or variables. Not `static inline`, not `[[nodiscard]] inline`. Attributes go after `inline`.
-3. **Namespaces opened with explicit `{` on its own line.** One open/close per line. No `namespace foo { namespace bar { ... } }` on one line.
+3. **Namespaces opened with explicit `{` on its own line.** One open/close per line. No `namespace foo { namespace bar { ... } }` chains.
 4. **No `using namespace`** at file scope. Using-declarations (`using std::vector;`) are fine.
 5. **Function bodies brace-balanced** and parseable by a depth counter. No preprocessor-conditional braces inside function bodies. No string literals with unmatched braces.
 
-Convention violations produce a line-numbered error from the parser, not silently-wrong output.
+Convention violations produce a line-numbered error from the parser, not silently-wrong output. If the script refuses your file, the first message points at the offending line.
 
 ---
 
-## Transformation rules
+## What the generator emits
 
 The decls header is the canonical with surgical removals; everything else passes through verbatim:
 
-| In the canonical | In `<rel>.decls.hpp` |
+| In your canonical | In the generated `<rel>.decls.hpp` |
 |---|---|
 | `inline R foo(args) { body }` | `R foo(args);` |
 | `inline T x = v;` | `extern T x;` |
@@ -130,14 +384,14 @@ The decls header is the canonical with surgical removals; everything else passes
 | `template <…> …` | **unchanged** — body needed at instantiation |
 | `struct` / `class` / `enum` (incl. method bodies) | **unchanged** |
 | `using NAME = …;` | **unchanged** |
-| Non-inline free function decls (ending `);`) | **unchanged** |
-| `std::hash<X>` / `std::formatter<X>` specializations | **unchanged** in decls; **not re-exported** by the cppm |
+| Non-inline free function declarations | **unchanged** |
+| `std::hash<X>` / `std::formatter<X>` specializations | **unchanged** in decls; **not** re-exported by the cppm |
 | `#pragma once`, `#include`s, namespace open/close, comments, blank lines | **unchanged** |
 
 The cppm walks the canonical and emits one `using ::ns::name;` per top-level entity inside `export namespace ns { ... }`. Two cases are skipped:
 
-- Entities in any namespace named `detail` (private by convention).
-- Specializations of types in `std::` (reached via ADL or explicit lookup, not module export).
+- Entities in any namespace named `detail` (private by convention — never re-exported).
+- Specializations of types in `std::` (reached via ADL or explicit lookup, not via module export).
 
 The impl unit's force-emission array contains one entry per plain inline function:
 
@@ -149,84 +403,38 @@ The array is `[[gnu::used]]` on GCC/Clang (defeats `-O2` dead-code elimination);
 
 ---
 
-## Wiring it into a build
+## What the generator does NOT emit
 
-For xmake, add a task:
+You hand-write these:
 
-```lua
-task("codegen")
-    on_run(function ()
-        os.exec("python scripts/generate.py --name foo --include include/foo --src src")
-    end)
-    set_menu({
-        usage       = "xmake codegen",
-        description = "Regenerate per-area decls headers, module partitions, and impl units."
-    })
-```
-
-Run it via `xmake codegen` whenever a canonical changes, then commit both the canonical edit and the regenerated files. Don't make the build target depend on codegen — consumers and CI should build from a self-contained source tree, never run the generator.
-
-The static-library target globs the generated files:
-
-```lua
-target("foo")
-    set_kind("static")
-    add_files("src/**.cppm", { public = true })
-    add_files("src/**.cpp")
-    add_includedirs("include", { public = true })
-    add_headerfiles("include/(**.hpp)")
-target_end()
-```
-
-`add_headerfiles("include/(**.hpp)")` ships **only** the canonical headers. The generated `*.decls.hpp` live under `src/` and never get installed — consumers can't accidentally include them.
-
----
-
-## What's NOT generated, what's skipped
-
-**Not generated** (you hand-write):
-
-- The umbrella `<name>.hpp`
-- The primary `<name>.cppm`
-- Any `<rel>_native.cpp` for non-inline functions the canonical only declares
-- DLL export attributes (`__declspec(dllexport)`, visibility) — the generator targets static-library output. Shared-library builds need attribute decoration on the canonical *and* decls headers consistently, which the script doesn't currently emit.
-
-**Skipped during scanning:**
-
-- Any path segment named `detail` under `--include`. Use `detail/` for hand-written impl plumbing that's part of the public API but not a canonical area — e.g., platform splits the canonical pulls in via `#if defined(_WIN32)`.
-
----
-
-## Testing a dual-mode library
-
-A dual-mode library should pass **three** test binaries, one per consumption path:
-
-| Binary | What it tests |
+| File | What goes in it |
 |---|---|
-| `tests-include` | `#include <name.hpp>` only, **no link** to the static library. Header-only path. |
-| `tests-import` | `import name;` only, **links** the static library. Modules-only path. |
-| `tests-dual` | Both `#include <name.hpp>` **and** `import name;` in the same TU. The load-bearing test. |
+| `<name>.hpp` (umbrella) | One `#include <<name>/<rel>.hpp>` per canonical area. |
+| `<name>.cppm` (primary) | `export module <name>;` + one `export import :<flat-rel>;` per area. |
+| `<rel>_native.cpp` *(optional)* | Hand-written impl for non-inline declarations. Plain TU; attaches to the global module; satisfies both consumption paths at link time. |
 
-If all three pass on MSVC, GCC, and Clang, the architecture is sound.
-
-Some toolchains need both `#include` and `import` even when the consumer wants pure-import — module GMFs don't always re-export `std::hash` / `std::formatter` specializations or namespace-scope deduction guides. On MSVC VS2022 and GCC 14, the pure-import binary may need to be gated off or only exercise the surface that survives those gaps. VS2026, Clang, and GCC 15+ don't have these limitations.
+The codegen also does **not** emit DLL export attributes (`__declspec(dllexport)`, visibility). It targets static-library output. Shared-library builds need attribute decoration on the canonical *and* decls headers consistently, which the script doesn't currently handle.
 
 ---
 
-## What changes when you add a function
+## Why these files exist at all (the dual-mode picture)
 
-1. Add one line to `include/<name>/<rel>.hpp` — an `inline` function, an inline variable, a non-inline free decl, whatever.
-2. Run `xmake codegen` (or the script directly).
-3. The three files at `<src>/<rel>.*` regenerate. Decls picks up the new signature; cppm picks up the new `using`-decl; impl picks up a new force-emission entry.
-4. Build and run the three test binaries. Commit canonical + regenerated trio.
+If you're curious why you're getting three generated files for every header you write, the short version is below. You can skip this and still use the generator successfully.
 
-No edits to the umbrella header, the primary cppm, the build files, or anything else.
+Two compiler constraints drive the architecture:
 
----
+**1. MSVC IFC consumer ICE.** If a plain `inline` function body lands in a module's BMI, downstream `import` consumers crash the compiler at compile time. So the cppm cannot directly `#include` the canonical header — the canonical has bodies. The decls header exists to give the cppm a body-free view it can safely include in its global module fragment.
 
-## Design properties
+**2. ODR identity across module attachment.** A declaration in a module's purview (after `export module name:area;`) attaches to *module `name`*. A declaration brought in via `#include` in the global module fragment attaches to the *global module*. Two declarations of the same name with different module attachments are different entities — link errors, compile errors, scrambled overload resolution.
 
-- **Single source of truth.** The canonical inline header. Every function body, type definition, and inline variable lives in exactly one place.
-- **No DSL, no annotations, no comment markers.** The canonical is regular includable C++23. IDEs, formatters, linters all work without adaptation.
-- **The architecture works without the generator.** The four-file pattern is hand-writeable. If the script breaks, edit the four files until it's fixed. The generator is an efficiency tool, not a load-bearing dependency.
-- **Replaceable generator.** The convention is conservative C++ that any future tool can parse. A libclang-based replacement can drop into the same pipeline without changing the canonical format or the output layout.
+A dual-mode TU must reach the same `foo::semver` whether it got there through `#include <foo.hpp>` or `import foo;`. The architecture solves this by always attaching declarations to the global module — both paths funnel through GMF `#include`s. The cppm doesn't *define* anything in its module purview; it only `using`-redeclares existing global-module entities as exports.
+
+The impl unit's force-emission array exists for a third reason: `import` consumers need the inline function bodies as link-time symbols, because the BMI (correctly) doesn't carry them. The address-take produces an out-of-line COMDAT copy of each body so the linker can satisfy `import` consumers.
+
+Three files, three jobs:
+
+- **decls.hpp:** "the canonical, BMI-safe" — for the cppm to include without crashing MSVC.
+- **cppm:** "re-export, don't redefine" — for ODR identity across consumption paths.
+- **\_impl.cpp:** "force the bodies out-of-line" — so `import` consumers can link.
+
+Pull any one out and dual-mode stops working. The generator's job is to keep all three in sync with the canonical so you only ever edit one file per change.
