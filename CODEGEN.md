@@ -10,14 +10,11 @@ This document walks you from an empty directory to a working dual-mode library, 
 
 A static library named `<name>` that downstream code can consume three ways:
 
-```cpp
-#include <name.hpp>          // header-only
-import name;                  // modules
-#include <name.hpp>           // both, in the same TU — dual mode
-import name;
-```
+- **Header-only:** the consumer writes `#include <name.hpp>` and never links your archive. They get inline bodies, full templates, the works — exactly like a header-only library.
+- **Modules:** the consumer writes `import name;` and links your archive. They get a pre-built BMI; bodies are link-time symbols.
+- **Both at once:** the consumer writes both lines in the same TU. No ODR conflict, no duplicate definitions, no compiler crashes.
 
-Every consumption path sees the same types, same functions, same overload sets. The library ships canonical inline headers (you write them) plus a small static archive (the build produces it).
+Every path sees the same types, same functions, same overload sets. You ship the canonical inline headers (you write them) plus a small static archive (the build produces it).
 
 ---
 
