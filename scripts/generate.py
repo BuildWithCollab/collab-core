@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Codegen for the dual-mode architecture (see MODULE_DUAL_MODE_CODEGEN.md).
 #
-# Input:  include/collab/<area>.hpp   (canonical inline header)
-# Output: src/<area>.decls.hpp        (declarations only — build-internal)
-#         src/<area>.cppm             (module partition)
-#         src/<area>_impl.cpp         (force-emission impl unit)
+# Input:  include/<project>/<area>.hpp   (canonical inline header)
+# Output: src/<area>.decls.hpp           (declarations only — build-internal)
+#         src/<area>.cppm                (module partition)
+#         src/<area>_impl.cpp            (force-emission impl unit)
 #
 # Convention assumed of canonical headers:
 #   1. One declaration per line at namespace scope.
@@ -16,23 +16,22 @@
 #   5. No `using namespace` at file scope.
 #
 # Usage:
-#   python scripts/generate.py             # generate all areas
-#   python scripts/generate.py log term    # generate only specified areas
+#   python scripts/generate.py <project>
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
-INCLUDE_DIR = ROOT / "include" / "collab"
 SRC_DIR = ROOT / "src"
 
-MODULE_NAME = "collab"
-ROOT_NS = "collab"
+
+def include_dir(project: str) -> Path:
+    return ROOT / "include" / project
 
 
 # ── Entity records ──────────────────────────────────────────────────────────
@@ -632,7 +631,7 @@ def emit_decls(area: str, state: AreaState) -> str:
     return "\n".join(out) + "\n"
 
 
-def emit_cppm(area: str, state: AreaState) -> str:
+def emit_cppm(project: str, area: str, state: AreaState) -> str:
     pairs = state.using_names()
     # Group using-decls by namespace.
     by_ns: dict[str, list[str]] = {}
@@ -645,7 +644,7 @@ def emit_cppm(area: str, state: AreaState) -> str:
         "",
         f'#include "{area}.decls.hpp"',
         "",
-        f"export module {MODULE_NAME}:{area};",
+        f"export module {project}:{area};",
         "",
     ]
     for ns, names in by_ns.items():
@@ -657,14 +656,14 @@ def emit_cppm(area: str, state: AreaState) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def emit_impl(area: str, state: AreaState) -> str:
+def emit_impl(project: str, area: str, state: AreaState) -> str:
     lines = [
         GEN_HEADER,
         "module;",
         "",
-        f"#include <collab/{area}.hpp>",
+        f"#include <{project}/{area}.hpp>",
         "",
-        f"module {MODULE_NAME};",
+        f"module {project};",
         "",
     ]
     if not state.inline_functions:
@@ -706,16 +705,13 @@ def emit_impl(area: str, state: AreaState) -> str:
 
 # ── Driver ──────────────────────────────────────────────────────────────────
 
-def discover_areas() -> list[str]:
-    """All canonical inline headers in include/collab/*.hpp (excluding detail/)."""
-    out: list[str] = []
-    for p in sorted(INCLUDE_DIR.glob("*.hpp")):
-        out.append(p.stem)
-    return out
+def discover_areas(project: str) -> list[str]:
+    """All canonical inline headers in include/<project>/*.hpp (excluding detail/)."""
+    return [p.stem for p in sorted(include_dir(project).glob("*.hpp"))]
 
 
-def generate_area(area: str) -> None:
-    canonical = INCLUDE_DIR / f"{area}.hpp"
+def generate_area(project: str, area: str) -> None:
+    canonical = include_dir(project) / f"{area}.hpp"
     if not canonical.is_file():
         raise SystemExit(f"no canonical header at {canonical}")
     text = canonical.read_text(encoding="utf-8")
@@ -724,8 +720,8 @@ def generate_area(area: str) -> None:
     SRC_DIR.mkdir(parents=True, exist_ok=True)
 
     (SRC_DIR / f"{area}.decls.hpp").write_text(emit_decls(area, state), encoding="utf-8")
-    (SRC_DIR / f"{area}.cppm").write_text(emit_cppm(area, state), encoding="utf-8")
-    (SRC_DIR / f"{area}_impl.cpp").write_text(emit_impl(area, state), encoding="utf-8")
+    (SRC_DIR / f"{area}.cppm").write_text(emit_cppm(project, area, state), encoding="utf-8")
+    (SRC_DIR / f"{area}_impl.cpp").write_text(emit_impl(project, area, state), encoding="utf-8")
     print(f"  generated {area}: "
           f"{len(state.inline_functions)} inline fns, "
           f"{len(state.inline_variables)} inline vars, "
@@ -735,9 +731,18 @@ def generate_area(area: str) -> None:
 
 
 def main(argv: list[str]) -> int:
-    areas: Iterable[str] = argv[1:] if len(argv) > 1 else discover_areas()
-    for area in areas:
-        generate_area(area)
+    parser = argparse.ArgumentParser(
+        description="Regenerate per-area decls headers, module partitions, and impl units."
+    )
+    parser.add_argument(
+        "project",
+        help="Library/module name. Canonical headers live in include/<project>/, "
+             "and the emitted partitions declare `module <project>:<area>;`.",
+    )
+    args = parser.parse_args(argv[1:])
+
+    for area in discover_areas(args.project):
+        generate_area(args.project, area)
     return 0
 
 

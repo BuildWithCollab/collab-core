@@ -135,7 +135,7 @@ end
 -- Run with: xmake codegen
 task("codegen")
     on_run(function ()
-        os.exec("python scripts/generate.py")
+        os.exec("python scripts/generate.py collab")
     end)
     set_menu({
         usage       = "xmake codegen",
