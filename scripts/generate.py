@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # Codegen for the dual-mode architecture.
 #
-# Recursively scans --include for canonical inline headers (skipping any
-# `detail/` subdir), and for each one at <include>/<rel>.hpp emits THREE
-# build-time artifacts (NOT a module partition):
+# Takes one or more canonical inline-header paths (typically via a glob,
+# skipping any `detail/` subdir), and for each one at <include>/<rel>.hpp emits
+# FOUR build-time artifacts:
 #
-#   <src>/<rel>.decls.hpp     declarations only — for the user's hand-written
-#                             partition cppm to #include in its GMF.
+#   <src>/<rel>.decls.hpp     declarations only — #included in the partition
+#                             cppm's GMF.
 #   <src>/<rel>.exports.inc   `export namespace …` blocks with `using ::ns::name;`
-#                             re-exports — for the user's partition cppm to
-#                             #include in module purview after `export module …;`.
+#                             re-exports — #included in the partition cppm's
+#                             module purview after `export module …;`.
+#   <src>/<rel>.cppm          the partition cppm scaffold itself (see below),
+#                             wiring the decls header and exports snippet together.
 #   <src>/<rel>_impl.cpp      regular non-module TU. Force-emits inline function
 #                             bodies as global-module COMDAT symbols so `import`
 #                             consumers can link. Compiled into the static archive.
 #
-# The codegen does NOT generate any .cppm files. The user keeps full control of
-# their module architecture — the partition cppm(s) that consume these artifacts
-# are hand-written. Typically each partition cppm is a 5-line scaffold:
+# The generated partition cppm is a 4-line scaffold:
 #
 #   module;
 #   #include "<rel>.decls.hpp"
@@ -24,8 +24,10 @@
 #   #include "<rel>.exports.inc"
 #
 # That scaffold doesn't change when the canonical evolves — adding/removing
-# functions in the canonical and re-running codegen updates the decls / exports
-# / impl in place, no partition cppm edit needed.
+# functions in the canonical and re-running codegen updates all four artifacts
+# in place. The primary module unit (`<name>.cppm`) and the umbrella header
+# (`<name>.hpp`) that aggregate the partitions are NOT generated — they're
+# hand-written.
 #
 # Convention assumed of canonical headers:
 #   1. One declaration per line at namespace scope.
@@ -37,7 +39,7 @@
 #   5. No `using namespace` at file scope.
 #
 # Usage:
-#   python scripts/generate.py --name <module> --include <dir> --src <dir>
+#   python scripts/generate.py <canonical.hpp ...> --module-name <name> --src-out <dir>
 
 from __future__ import annotations
 
