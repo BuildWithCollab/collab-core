@@ -43,7 +43,7 @@ Everything lives under `collab::` (types, error, publisher), `collab::log::` (lo
 
 The first two tiers are pure header-only: `#include <collab.hpp>` (or `import collab;`) and use them with **nothing on your link line**. The static library is added only once you call into the linked tier — the two ⚠️ rows in the table below.
 
-This tiering is the point, not a side effect. A consumer that only needs to *name* a `collab::` type — hold a pointer to one, store one as a member, accept one across an API boundary — gets the definition and pays for nothing more: no implementation pulled in, no library to link. A consumer that wants the header-only behavior links nothing either. Behavior and linking are opt-in, feature by feature, and that holds whether you arrive by `#include` or by `import`. This is *why* the boilerplate is split the way it is — the body-stripped declarations are a real consumption tier, not just a compiler workaround.
+This tiering is the point, not a side effect. A consumer that only needs to *name* a `collab::` type — hold a pointer to one, store one as a member, accept one across an API boundary — gets the definition and pays for nothing more: no implementation pulled in, no library to link. A consumer that wants the header-only behavior links nothing either. Behavior and linking are opt-in, feature by feature, and that holds whether you arrive by `#include` or by `import`.
 
 ---
 
