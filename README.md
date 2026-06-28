@@ -31,7 +31,27 @@ Everything lives under `collab::` (types, error, publisher), `collab::log::` (lo
 
 ---
 
+## What you get, and what you link
+
+`collab-core` is consumed in **tiers**. You take only the slice you need, and you put the static library on your link line *only* when you reach a feature that can't be header-only. The whole architecture exists to make that possible.
+
+| Tier            | What you get                                                                                                                                                         | Link the static lib? |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------: |
+| **Definitions** | Type, struct, and enum *definitions* — enough to hold a value, declare a pointer or reference, name a `collab::` type in your own signatures, and rely on its layout. |          No          |
+| **Inline**      | The full behavior of every genuinely header-only feature — everything in the [feature table](#include-collabhpp-vs-import-collab) below *not* marked ⚠️ (publishers, semver, the error hierarchy, `fixed_string`, the atomic file writer, the logging *call* API, …). |          No          |
+| **Linked**      | The two features that can't be header-only: the `make_*_sink` factories ([Logging](#logging)) and `term`'s `operator<<` streaming ([Terminal styling](#terminal-styling)).                                                                                          |         Yes          |
+
+The first two tiers are pure header-only: `#include <collab.hpp>` (or `import collab;`) and use them with **nothing on your link line**. The static library is added only once you call into the linked tier — the two ⚠️ rows in the table below.
+
+This tiering is the point, not a side effect. A consumer that only needs to *name* a `collab::` type — hold a pointer to one, store one as a member, accept one across an API boundary — gets the definition and pays for nothing more: no implementation pulled in, no library to link. A consumer that wants the header-only behavior links nothing either. Behavior and linking are opt-in, feature by feature, and that holds whether you arrive by `#include` or by `import`. This is *why* the boilerplate is split the way it is — the body-stripped declarations are a real consumption tier, not just a compiler workaround.
+
+---
+
 ## `#include <collab.hpp>` vs `import collab;`
+
+`#include` and `import` deliver the **same** declarations two different ways — pick either, or (per the [note below](#compilers-requiring-include-alongside-import)) receive both in one translation unit. Every feature works both ways.
+
+The two ⚠️ rows are the only asymmetry, and it's a **linking** asymmetry, not a delivery one: importing the module links its archive, so `import` consumers always have the [linked tier](#what-you-get-and-what-you-link); a pure header-only `#include` consumer that links nothing gets the header-only surface only. Add the static library and the ⚠️ rows become ✅ for `#include` too.
 
 | Feature                                                  | `#include <collab.hpp>` | `import collab;` |
 | -------------------------------------------------------- | :---------------------: | :--------------: |
@@ -44,7 +64,7 @@ Everything lives under `collab::` (types, error, publisher), `collab::log::` (lo
 | [Terminal styling](#terminal-styling)                    | ⚠️                      | ✅               |
 | [Fixed string](#fixed-string)                            | ✅                      | ✅               |
 
-✅ available · ⚠️ partial · ❌ not available
+✅ available · ⚠️ partial — header-only surface only; the rest is in the [linked tier](#what-you-get-and-what-you-link) · ❌ not available
 
 ### Compilers requiring `#include` alongside `import`
 
